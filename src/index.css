@@ -1,0 +1,74 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply font-sans text-slate-900 antialiased;
+  }
+}
+
+/* Fix for PDF generation: html2canvas/jsPDF don't support oklch colors used by Tailwind 4 */
+.invoice-content {
+  --tw-text-opacity: 1;
+  color: rgb(15 23 42 / var(--tw-text-opacity)) !important; /* slate-900 */
+  background-color: white !important;
+}
+
+.invoice-content .text-slate-900 { color: rgb(15 23 42) !important; }
+.invoice-content .text-slate-700 { color: rgb(51 65 85) !important; }
+.invoice-content .text-slate-600 { color: rgb(71 85 105) !important; }
+.invoice-content .text-slate-500 { color: rgb(100 116 139) !important; }
+.invoice-content .text-slate-400 { color: rgb(148 163 184) !important; }
+.invoice-content .text-emerald-600 { color: rgb(5 150 105) !important; }
+.invoice-content .bg-slate-50 { background-color: rgb(248 250 252) !important; }
+.invoice-content .bg-emerald-50 { background-color: rgb(236 253 245) !important; }
+.invoice-content .border-slate-100 { border-color: rgb(241 245 249) !important; }
+.invoice-content .border-slate-200 { border-color: rgb(226 232 240) !important; }
+
+/* Custom scrollbar for a cleaner look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-300;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body * {
+    visibility: hidden;
+  }
+  
+  .invoice-content, .invoice-content * {
+    visibility: visible;
+  }
+  
+  .invoice-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+  }
+}
+
