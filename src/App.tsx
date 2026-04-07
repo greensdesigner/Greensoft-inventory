@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent, useRef } from 'react';
+import { useState, useEffect, FormEvent, useRef, ChangeEvent } from 'react';
 import { 
   LayoutDashboard, 
   Package, 
@@ -68,7 +68,7 @@ import { cn } from './lib/utils';
 
 // --- MOCK AUTH HOOK ---
 const useAuth = () => {
-  const [user, setUser] = useState<{ email: string; businessName: string } | null>(null);
+  const [user, setUser] = useState<{ email: string; businessName: string; logo?: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -77,8 +77,8 @@ const useAuth = () => {
     setLoading(false);
   }, []);
 
-  const login = (email: string, businessName: string) => {
-    const newUser = { email, businessName };
+  const login = (email: string, businessName: string, logo?: string) => {
+    const newUser = { email, businessName, logo };
     localStorage.setItem('greensoft_user', JSON.stringify(newUser));
     setUser(newUser);
   };
@@ -337,10 +337,14 @@ const Layout = ({ children, user, logout }: any) => {
         <div className="flex flex-col h-full">
           <div className="h-16 flex items-center px-6 border-b border-slate-100">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold">
-                G
-              </div>
-              {!collapsed && <span className="text-xl font-bold text-slate-900">Greensoft</span>}
+              {user?.logo ? (
+                <img src={user.logo} alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
+              ) : (
+                <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold">
+                  G
+                </div>
+              )}
+              {!collapsed && <span className="text-xl font-bold text-slate-900">{user?.businessName || 'Greensoft'}</span>}
             </div>
           </div>
 
@@ -672,18 +676,9 @@ const Dashboard = ({ data }: any) => {
                     type="monotone" 
                     dataKey="profit" 
                     stroke="#10b981" 
-                    strokeWidth={3}
+                    strokeWidth={2}
                     fillOpacity={1} 
                     fill="url(#colorProfit)" 
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="profit" 
-                    stroke="#10b981" 
-                    strokeWidth={3} 
-                    dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
-                    activeDot={{ r: 6, strokeWidth: 0 }}
-                    animationDuration={2000}
                   />
                   <Area 
                     type="monotone" 
@@ -692,14 +687,6 @@ const Dashboard = ({ data }: any) => {
                     strokeWidth={2}
                     fillOpacity={1} 
                     fill="url(#colorLoss)" 
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="loss" 
-                    stroke="#ef4444" 
-                    strokeWidth={2} 
-                    strokeDasharray="5 5"
-                    dot={false}
                   />
                   <Line 
                     type="monotone" 
@@ -2490,10 +2477,22 @@ const Subscription = () => {
 const Settings = ({ user, data }: any) => {
   const [businessName, setBusinessName] = useState(user?.businessName || '');
   const [email, setEmail] = useState(user?.email || '');
+  const [logo, setLogo] = useState(user?.logo || '');
+
+  const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogo(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleUpdate = (e: FormEvent) => {
     e.preventDefault();
-    const updatedUser = { ...user, businessName, email };
+    const updatedUser = { ...user, businessName, email, logo };
     localStorage.setItem('greensoft_user', JSON.stringify(updatedUser));
     window.location.reload(); 
   };
@@ -2514,22 +2513,41 @@ const Settings = ({ user, data }: any) => {
           <Card className="p-6">
             <h3 className="font-bold text-slate-900 mb-6">Business Profile</h3>
             <form onSubmit={handleUpdate} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Business Name</label>
-                  <input 
-                    type="text" required 
-                    value={businessName} onChange={e => setBusinessName(e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-                  />
+              <div className="flex flex-col md:flex-row gap-6 mb-6">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-24 h-24 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative group">
+                    {logo ? (
+                      <img src={logo} alt="Business Logo" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-slate-400 flex flex-col items-center">
+                        <Plus size={24} />
+                        <span className="text-[10px] font-bold uppercase mt-1">Logo</span>
+                      </div>
+                    )}
+                    <label className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-xs font-bold">
+                      Change
+                      <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                    </label>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Business Logo</p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                  <input 
-                    type="email" required 
-                    value={email} onChange={e => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-                  />
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Business Name</label>
+                    <input 
+                      type="text" required 
+                      value={businessName} onChange={e => setBusinessName(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                    <input 
+                      type="email" required 
+                      value={email} onChange={e => setEmail(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                    />
+                  </div>
                 </div>
               </div>
               <button type="submit" className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-all">
