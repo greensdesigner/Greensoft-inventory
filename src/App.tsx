@@ -149,7 +149,6 @@ const useData = () => {
   };
 };
 
-
 // --- REUSABLE UI COMPONENTS ---
 
 const EmptyState = ({ icon: Icon, title, description, action, onAction }: any) => (
@@ -427,16 +426,16 @@ const Layout = ({ children, user, logout }: any) => {
               </h1>
               {subscriptionDays !== null && (
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 rounded-full border border-slate-100 w-fit shadow-sm">
-                    <Calendar size={16} className="text-slate-400" />
-                    <span className="text-sm font-bold text-slate-700 whitespace-nowrap">
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 rounded-full border border-slate-100 w-fit">
+                    <Calendar size={12} className="text-slate-400" />
+                    <span className="text-[10px] font-bold text-slate-600 whitespace-nowrap">
                       {subscriptionDays > 0 ? `${subscriptionDays} Days Left` : 'Expired'}
                       {subscriptionDay !== null && ` • Day ${subscriptionDay}/30`}
                     </span>
                   </div>
-                  <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-emerald-50 rounded-full border border-emerald-100 w-fit shadow-sm">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-sm font-bold text-emerald-700 whitespace-nowrap">
+                  <div className="hidden md:flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-100 w-fit">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-bold text-emerald-700 whitespace-nowrap">
                       {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                     </span>
                   </div>
@@ -673,9 +672,18 @@ const Dashboard = ({ data }: any) => {
                     type="monotone" 
                     dataKey="profit" 
                     stroke="#10b981" 
-                    strokeWidth={2}
+                    strokeWidth={3}
                     fillOpacity={1} 
                     fill="url(#colorProfit)" 
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="profit" 
+                    stroke="#10b981" 
+                    strokeWidth={3} 
+                    dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                    animationDuration={2000}
                   />
                   <Area 
                     type="monotone" 
@@ -684,6 +692,14 @@ const Dashboard = ({ data }: any) => {
                     strokeWidth={2}
                     fillOpacity={1} 
                     fill="url(#colorLoss)" 
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="loss" 
+                    stroke="#ef4444" 
+                    strokeWidth={2} 
+                    strokeDasharray="5 5"
+                    dot={false}
                   />
                   <Line 
                     type="monotone" 
