@@ -4,6 +4,15 @@ export interface User {
   businessName: string;
 }
 
+export interface UserProfile {
+  uid: string;
+  email: string;
+  businessName: string;
+  fullName: string;
+  phoneNumber: string;
+  createdAt: string;
+}
+
 export interface InventoryItem {
   id: string;
   name: string;
