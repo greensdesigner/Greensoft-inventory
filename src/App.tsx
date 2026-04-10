@@ -170,7 +170,7 @@ const EmptyState = ({ icon: Icon, title, description, action, onAction }: any) =
   </div>
 );
 
-const Modal = ({ isOpen, onClose, title, children }: any) => (
+const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }: any) => (
   <AnimatePresence>
     {isOpen && (
       <>
@@ -185,15 +185,18 @@ const Modal = ({ isOpen, onClose, title, children }: any) => (
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-3xl shadow-2xl z-[70] overflow-hidden"
+          className={cn(
+            "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full bg-white rounded-3xl shadow-2xl z-[70] overflow-hidden flex flex-col max-h-[90vh]",
+            maxWidth
+          )}
         >
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+          <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
             <h3 className="text-xl font-bold text-slate-900">{title}</h3>
             <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600">
               <X size={20} />
             </button>
           </div>
-          <div className="p-6">
+          <div className="p-6 overflow-y-auto">
             {children}
           </div>
         </motion.div>
@@ -1023,9 +1026,11 @@ const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () 
   const { user } = useAuth();
   const componentRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handlePrint = useReactToPrint({
     contentRef: componentRef,
+    documentTitle: `Invoice-${sale?.id?.slice(-4) || '0000'}`,
   });
 
   const downloadPDF = async () => {
@@ -1033,18 +1038,19 @@ const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () 
     
     try {
       setIsGenerating(true);
-      const element = componentRef.current;
+      setError(null);
       
-      // Ensure images are loaded and fonts are ready
+      // Wait for any animations or fonts
+      await new Promise(resolve => setTimeout(resolve, 800));
       await document.fonts.ready;
       
+      const element = componentRef.current;
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
-        logging: false,
+        allowTaint: true,
         backgroundColor: '#ffffff',
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight
+        logging: false,
       });
       
       const imgData = canvas.toDataURL('image/png');
@@ -1054,14 +1060,14 @@ const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () 
         format: 'a4'
       });
       
-      const imgProps = pdf.getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Invoice-${sale.id.slice(-4)}.pdf`);
-    } catch (error) {
-      console.error('PDF Generation Error:', error);
+      pdf.save(`Invoice-${sale?.id?.slice(-4) || '0000'}.pdf`);
+    } catch (err) {
+      console.error('PDF Generation Error:', err);
+      setError('Failed to generate PDF. Please try printing instead.');
     } finally {
       setIsGenerating(false);
     }
@@ -1070,8 +1076,13 @@ const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () 
   if (!sale) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Sales Invoice">
+    <Modal isOpen={isOpen} onClose={onClose} title="Sales Invoice" maxWidth="max-w-3xl">
       <div className="space-y-6">
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center">
+            {error}
+          </div>
+        )}
         <div className="flex justify-end gap-3 mb-4 no-print">
           <button 
             onClick={() => handlePrint()}
