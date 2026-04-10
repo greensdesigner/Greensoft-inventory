@@ -1,4 +1,4 @@
-import React, { useState, useEffect, FormEvent, useRef, ChangeEvent, createContext, useContext, Component, ErrorInfo, ReactNode } from 'react';
+import { useState, useEffect, FormEvent, useRef, ChangeEvent } from 'react';
 import { 
   LayoutDashboard, 
   Package, 
@@ -33,19 +33,8 @@ import {
   CheckCircle2,
   Trash2,
   PlusCircle,
-  QrCode,
-  Lock,
-  Mail,
-  User as UserIcon,
-  Phone,
-  Building2,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  Loader2
+  QrCode
 } from 'lucide-react';
-import { UserProfile } from './types';
-
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jsPDF } from 'jspdf';
@@ -78,376 +67,29 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 
-// --- AUTH CONTEXT ---
-interface AuthContextType {
-  user: UserProfile | null;
-  loading: boolean;
-  logout: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<UserProfile | null>(null);
+// --- MOCK AUTH HOOK ---
+const useAuth = () => {
+  const [user, setUser] = useState<{ email: string; businessName: string; logo?: string; name?: string; phone?: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const res = await fetch('/api/auth/me');
-        if (res.ok) {
-          const data = await res.json();
-          setUser(data);
-        } else {
-          setUser(null);
-        }
-      } catch (err) {
-        console.error("Auth check failed:", err);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
+    const savedUser = localStorage.getItem('greensoft_user');
+    if (savedUser) setUser(JSON.parse(savedUser));
+    setLoading(false);
   }, []);
 
-  const logout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-      setUser(null);
-    } catch (err) {
-      console.error("Logout failed:", err);
-    }
+  const login = (email: string, businessName: string, logo?: string, name?: string, phone?: string) => {
+    const newUser = { email, businessName, logo, name, phone };
+    localStorage.setItem('greensoft_user', JSON.stringify(newUser));
+    setUser(newUser);
   };
 
-  return (
-    <AuthContext.Provider value={{ user, loading, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-// --- AUTH COMPONENTS ---
-
-const LoginPage = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const navigate = useNavigate();
-
-  const handleLogin = async (e: FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsSubmitting(true);
-
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        window.location.href = '/';
-      } else {
-        setError(data.message || 'Login failed. Please try again.');
-      }
-    } catch (err: any) {
-      console.error("Login Error:", err);
-      setError('Network error. Please try again later.');
-    } finally {
-      setIsSubmitting(false);
-    }
+  const logout = () => {
+    localStorage.removeItem('greensoft_user');
+    setUser(null);
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-md w-full bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-8"
-      >
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-200">
-            <LayoutDashboard className="text-white" size={32} />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Greensoft POS</h1>
-          <p className="text-slate-500 mt-2">Login to your account</p>
-        </div>
-
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm">
-            <AlertCircle size={18} />
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input 
-                type="email" 
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                placeholder="example@mail.com"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input 
-                type={showPassword ? "text" : "password"} 
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-12 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                placeholder="••••••••"
-              />
-              <button 
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
-
-          <button 
-            type="submit" 
-            disabled={isSubmitting}
-            className="w-full py-3 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 disabled:opacity-70"
-          >
-            {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : 'Login'}
-          </button>
-        </form>
-
-        <div className="mt-8 text-center">
-          <p className="text-slate-500 text-sm">
-            Don't have an account? <Link to="/signup" className="text-emerald-600 font-bold hover:underline">Sign Up</Link>
-          </p>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const SignUpPage = () => {
-  const [formData, setFormData] = useState({
-    businessName: '',
-    fullName: '',
-    email: '',
-    phone: '',
-    password: '',
-    confirmPassword: ''
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const navigate = useNavigate();
-
-  const handleSignUp = async (e: FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        window.location.href = '/';
-      } else {
-        setError(data.message || 'Sign up failed. Please try again.');
-      }
-    } catch (err: any) {
-      console.error("Auth Error during Sign Up:", err);
-      setError('Network error. Please try again later.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 py-12">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-lg w-full bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-8"
-      >
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-200">
-            <LayoutDashboard className="text-white" size={32} />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Create Account</h1>
-          <p className="text-slate-500 mt-2">Start with your business information</p>
-        </div>
-
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm">
-            <AlertCircle size={18} />
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSignUp} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Business Name</label>
-              <div className="relative">
-                <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="text" 
-                  required
-                  value={formData.businessName}
-                  onChange={(e) => setFormData({...formData, businessName: e.target.value})}
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  placeholder="Green IT Solution"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Your Name</label>
-              <div className="relative">
-                <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="text" 
-                  required
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  placeholder="John Doe"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="email" 
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  placeholder="example@mail.com"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Phone Number</label>
-              <div className="relative">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="tel" 
-                  required
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  placeholder="017XXXXXXXX"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type={showPassword ? "text" : "password"} 
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Confirm Password</label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type={showPassword ? "text" : "password"} 
-                  required
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 py-2">
-            <input 
-              type="checkbox" 
-              id="show-pass"
-              checked={showPassword}
-              onChange={() => setShowPassword(!showPassword)}
-              className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
-            />
-            <label htmlFor="show-pass" className="text-sm text-slate-600 cursor-pointer">Show Password</label>
-          </div>
-
-          <button 
-            type="submit" 
-            disabled={isSubmitting}
-            className="w-full py-3 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 disabled:opacity-70"
-          >
-            {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : 'Create Account'}
-          </button>
-        </form>
-
-        <div className="mt-8 text-center">
-          <p className="text-slate-500 text-sm">
-            Already have an account? <Link to="/login" className="text-emerald-600 font-bold hover:underline">Login</Link>
-          </p>
-        </div>
-      </motion.div>
-    </div>
-  );
+  return { user, loading, login, logout };
 };
 
 // --- DATA HOOK ---
@@ -459,26 +101,65 @@ const useData = () => {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
+  // Fetch initial data from DB
   useEffect(() => {
-    const loadData = (key: string, setter: any) => {
-      const saved = localStorage.getItem(`greensoft_${key}`);
-      if (saved) setter(JSON.parse(saved));
+    const fetchData = async () => {
+      try {
+        // Fetch Inventory
+        const invRes = await fetch('/api/inventory');
+        if (invRes.ok) {
+          const invData = await invRes.json();
+          setInventory(invData);
+        }
+
+        // Fetch Sales
+        const salesRes = await fetch('/api/sales');
+        if (salesRes.ok) {
+          const salesData = await salesRes.json();
+          setSales(salesData);
+        }
+
+        // Load other data from localStorage for now
+        const loadLocal = (key: string, setter: any) => {
+          const saved = localStorage.getItem(`greensoft_${key}`);
+          if (saved) setter(JSON.parse(saved));
+        };
+        loadLocal('suppliers', setSuppliers);
+        loadLocal('customers', setCustomers);
+        loadLocal('expenses', setExpenses);
+
+        setIsLoaded(true);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setIsLoaded(true);
+      }
     };
 
-    loadData('inventory', setInventory);
-    loadData('sales', setSales);
-    loadData('suppliers', setSuppliers);
-    loadData('customers', setCustomers);
-    loadData('expenses', setExpenses);
-    setIsLoaded(true);
+    fetchData();
   }, []);
 
   const saveData = (key: string, data: any) => {
     localStorage.setItem(`greensoft_${key}`, JSON.stringify(data));
   };
 
-  const addItem = (key: string, item: any, setter: any, currentData: any) => {
-    const newData = [...currentData, { ...item, id: Date.now().toString() }];
+  const addItem = async (key: string, item: any, setter: any, currentData: any) => {
+    const newItem = { ...item, id: Date.now().toString() };
+    
+    // Sync with DB if it's inventory or sales
+    if (key === 'inventory' || key === 'sales') {
+      try {
+        const res = await fetch(`/api/${key}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newItem)
+        });
+        if (!res.ok) throw new Error('Failed to sync with database');
+      } catch (error) {
+        console.error(`Error syncing ${key}:`, error);
+      }
+    }
+
+    const newData = [...currentData, newItem];
     setter(newData);
     saveData(key, newData);
   };
@@ -3053,6 +2734,8 @@ const Subscription = () => {
 const Settings = ({ user, data }: any) => {
   const [businessName, setBusinessName] = useState(user?.businessName || '');
   const [email, setEmail] = useState(user?.email || '');
+  const [name, setName] = useState(user?.name || '');
+  const [phone, setPhone] = useState(user?.phone || '');
   const [logo, setLogo] = useState(user?.logo || '');
 
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -3068,7 +2751,7 @@ const Settings = ({ user, data }: any) => {
 
   const handleUpdate = (e: FormEvent) => {
     e.preventDefault();
-    const updatedUser = { ...user, businessName, email, logo };
+    const updatedUser = { ...user, businessName, email, logo, name, phone };
     localStorage.setItem('greensoft_user', JSON.stringify(updatedUser));
     window.location.reload(); 
   };
@@ -3124,6 +2807,22 @@ const Settings = ({ user, data }: any) => {
                       className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+                    <input 
+                      type="text" required 
+                      value={name} onChange={e => setName(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                    <input 
+                      type="tel" required 
+                      value={phone} onChange={e => setPhone(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                    />
+                  </div>
                 </div>
               </div>
               <button type="submit" className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-all">
@@ -3162,74 +2861,209 @@ const Settings = ({ user, data }: any) => {
   );
 };
 
-// --- PROTECTED ROUTE ---
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
-  const location = useLocation();
+const AuthPage = ({ type, login }: any) => {
+  const [email, setEmail] = useState('');
+  const [businessName, setBusinessName] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="animate-spin text-emerald-600" size={40} />
-      </div>
-    );
-  }
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (type === 'signup') {
+      if (password !== confirmPassword) {
+        setError('Passwords do not match!');
+        return;
+      }
+    }
+    setError('');
+    login(email, businessName || 'My Business', undefined, name, phone);
+    navigate('/');
+  };
 
-  if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  return <>{children}</>;
-};
-
-const App = () => {
   return (
-    <Router>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignUpPage />} />
-          <Route 
-            path="/*" 
-            element={
-              <ProtectedRoute>
-                <DashboardLayoutWrapper />
-              </ProtectedRoute>
-            } 
-          />
-        </Routes>
-      </AuthProvider>
-    </Router>
+    <div className="min-h-screen relative flex items-center justify-center p-4 py-12 overflow-hidden">
+      {/* Background Image with Overlay */}
+      <div 
+        className="absolute inset-0 z-0"
+        style={{
+          backgroundImage: 'url("https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2426")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]"></div>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/20 p-8 relative z-10"
+      >
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-12 h-12 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4">
+            G
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900">
+            {type === 'login' ? 'Welcome back' : 'Create your account'}
+          </h2>
+          <p className="text-slate-500 text-center mt-2">
+            {type === 'login' 
+              ? 'Enter your credentials to access your business dashboard.' 
+              : 'Start managing your local business more efficiently today.'}
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center font-medium">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {type === 'signup' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Business Name</label>
+                <input
+                  type="text"
+                  required
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  placeholder="Green Garden Supplies"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="John Doe"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="017XXXXXXXX"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+              </div>
+            </>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@business.com"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            />
+          </div>
+          {type === 'signup' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
+              <input
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              />
+            </div>
+          )}
+          
+          <button
+            type="submit"
+            className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98]"
+          >
+            {type === 'login' ? 'Sign In' : 'Create Account'}
+          </button>
+        </form>
+
+        <div className="mt-8 text-center">
+          <p className="text-sm text-slate-500">
+            {type === 'login' ? "Don't have an account?" : "Already have an account?"}{' '}
+            <Link
+              to={type === 'login' ? '/signup' : '/login'}
+              className="text-emerald-600 font-bold hover:underline"
+            >
+              {type === 'login' ? 'Sign up' : 'Log in'}
+            </Link>
+          </p>
+        </div>
+      </motion.div>
+    </div>
   );
 };
 
-const DashboardLayoutWrapper = () => {
-  const { user, logout } = useAuth();
+// --- MAIN APP COMPONENT ---
+
+export default function App() {
+  const { user, loading, login, logout } = useAuth();
   const data = useData();
 
-  if (!data.isLoaded) {
+  if (loading || !data.isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="animate-spin text-emerald-600" size={40} />
+        <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <Layout user={user!} logout={logout}>
+    <Router>
       <Routes>
-        <Route path="/" element={<Dashboard data={data} />} />
-        <Route path="/inventory" element={<Inventory data={data} />} />
-        <Route path="/sales" element={<Sales data={data} />} />
-        <Route path="/suppliers" element={<Suppliers data={data} />} />
-        <Route path="/customers" element={<Customers data={data} />} />
-        <Route path="/expenses" element={<Expenses data={data} />} />
-        <Route path="/reports" element={<Reports data={data} />} />
-        <Route path="/subscription" element={<Subscription />} />
-        <Route path="/settings" element={<Settings user={user!} data={data} />} />
+        <Route path="/login" element={!user ? <AuthPage type="login" login={login} /> : <Navigate to="/" />} />
+        <Route path="/signup" element={!user ? <AuthPage type="signup" login={login} /> : <Navigate to="/" />} />
+        
+        <Route
+          path="/*"
+          element={
+            user ? (
+              <Layout user={user} logout={logout}>
+                <Routes>
+                  <Route path="/" element={<Dashboard data={data} />} />
+                  <Route path="/inventory" element={<Inventory data={data} />} />
+                  <Route path="/sales" element={<Sales data={data} />} />
+                  <Route path="/suppliers" element={<Suppliers data={data} />} />
+                  <Route path="/customers" element={<Customers data={data} />} />
+                  <Route path="/expenses" element={<Expenses data={data} />} />
+                  <Route path="/reports" element={<Reports data={data} />} />
+                  <Route path="/subscription" element={<Subscription />} />
+                  <Route path="/settings" element={<Settings user={user} data={data} />} />
+                </Routes>
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
       </Routes>
-    </Layout>
+    </Router>
   );
-};
-
-export default App;
+}
