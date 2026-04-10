@@ -13,21 +13,31 @@
 
 /* Fix for PDF generation: html2canvas/jsPDF don't support oklch colors used by Tailwind 4 */
 .invoice-content {
-  --tw-text-opacity: 1;
-  color: rgb(15 23 42 / var(--tw-text-opacity)) !important; /* slate-900 */
-  background-color: white !important;
+  --tw-text-opacity: 1 !important;
+  color: #0f172a !important; /* slate-900 */
+  background-color: #ffffff !important;
 }
 
-.invoice-content .text-slate-900 { color: rgb(15 23 42) !important; }
-.invoice-content .text-slate-700 { color: rgb(51 65 85) !important; }
-.invoice-content .text-slate-600 { color: rgb(71 85 105) !important; }
-.invoice-content .text-slate-500 { color: rgb(100 116 139) !important; }
-.invoice-content .text-slate-400 { color: rgb(148 163 184) !important; }
-.invoice-content .text-emerald-600 { color: rgb(5 150 105) !important; }
-.invoice-content .bg-slate-50 { background-color: rgb(248 250 252) !important; }
-.invoice-content .bg-emerald-50 { background-color: rgb(236 253 245) !important; }
-.invoice-content .border-slate-100 { border-color: rgb(241 245 249) !important; }
-.invoice-content .border-slate-200 { border-color: rgb(226 232 240) !important; }
+.invoice-content .text-slate-900 { color: #0f172a !important; }
+.invoice-content .text-slate-700 { color: #334155 !important; }
+.invoice-content .text-slate-600 { color: #475569 !important; }
+.invoice-content .text-slate-500 { color: #64748b !important; }
+.invoice-content .text-slate-400 { color: #94a3b8 !important; }
+.invoice-content .text-emerald-600 { color: #059669 !important; }
+.invoice-content .text-emerald-700 { color: #047857 !important; }
+.invoice-content .bg-slate-50 { background-color: #f8fafc !important; }
+.invoice-content .bg-emerald-50 { background-color: #ecfdf5 !important; }
+.invoice-content .bg-emerald-600 { background-color: #059669 !important; }
+.invoice-content .border-slate-100 { border-color: #f1f5f9 !important; }
+.invoice-content .border-slate-200 { border-color: #e2e8f0 !important; }
+.invoice-content .border-emerald-200 { border-color: #a7f3d0 !important; }
+.invoice-content .border-b { border-bottom-width: 1px !important; }
+.invoice-content .border-t { border-top-width: 1px !important; }
+
+/* Force emerald colors for PDF */
+.invoice-content [class*="text-emerald-"] { color: #059669 !important; }
+.invoice-content [class*="bg-emerald-"] { background-color: #059669 !important; }
+.invoice-content [class*="border-emerald-"] { border-color: #059669 !important; }
 
 /* Custom scrollbar for a cleaner look */
 ::-webkit-scrollbar {
@@ -48,27 +58,35 @@
 }
 
 @media print {
-  .no-print {
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  
+  #root, .no-print, [role="dialog"], .fixed.inset-0 {
     display: none !important;
+    visibility: hidden !important;
   }
   
-  body * {
-    visibility: hidden;
+  #print-mode-container {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  #print-mode-container * {
+    visibility: visible !important;
   }
   
-  .invoice-content, .invoice-content * {
-    visibility: visible;
-  }
-  
-  .invoice-content {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    border: none;
-    box-shadow: none;
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
 }
 

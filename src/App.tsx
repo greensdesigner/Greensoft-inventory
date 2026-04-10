@@ -39,6 +39,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import html2pdf from 'html2pdf.js';
 import { useReactToPrint } from 'react-to-print';
 import { 
   BrowserRouter as Router, 
@@ -1022,16 +1023,191 @@ const Inventory = ({ data }: any) => {
   );
 };
 
+const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, contentRef?: any }) => (
+  <div 
+    ref={contentRef} 
+    className="p-8 bg-white border border-slate-200 rounded-xl shadow-sm invoice-content" 
+    style={{ 
+      backgroundColor: '#ffffff', 
+      color: '#0f172a',
+      fontFamily: 'Inter, sans-serif',
+      width: '100%',
+      maxWidth: '800px',
+      margin: '0 auto'
+    }}
+  >
+    <div className="flex justify-between items-start mb-8">
+      <div>
+        <h2 className="text-3xl font-bold mb-1" style={{ color: '#0f172a', margin: 0 }}>INVOICE</h2>
+        <p className="font-medium" style={{ color: '#64748b', margin: 0 }}>#INV-{sale.id.slice(-4)}</p>
+      </div>
+      <div className="text-right">
+        <h3 className="text-xl font-bold" style={{ color: '#059669', margin: 0 }}>{user?.businessName || 'Greensoft'}</h3>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-2 gap-8 mb-8" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+      <div>
+        <h4 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Bill To:</h4>
+        <div className="font-bold text-lg" style={{ color: '#0f172a', fontSize: '1.125rem' }}>{sale.customerName}</div>
+        {sale.customerPhone && <div style={{ color: '#475569' }}>{sale.customerPhone}</div>}
+        {sale.customerEmail && <div style={{ color: '#475569' }}>{sale.customerEmail}</div>}
+        {sale.customerAddress && <div className="italic mt-1" style={{ color: '#475569' }}>{sale.customerAddress}</div>}
+      </div>
+      <div className="text-right">
+        <h4 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Invoice Details:</h4>
+        <div style={{ color: '#475569' }}><span className="font-medium">Date:</span> {sale.date}</div>
+        <div style={{ color: '#475569' }}><span className="font-medium">Status:</span> <span style={{ color: '#059669', fontWeight: 'bold' }}>PAID</span></div>
+      </div>
+    </div>
+
+    <div className="py-4 mb-8" style={{ borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+      <table className="w-full text-left" style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+            <th style={{ paddingBottom: '1rem', textAlign: 'left' }}>Description</th>
+            <th style={{ paddingBottom: '1rem', textAlign: 'center' }}>Qty</th>
+            <th style={{ paddingBottom: '1rem', textAlign: 'right' }}>Price</th>
+            <th style={{ paddingBottom: '1rem', textAlign: 'right' }}>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sale.items ? (
+            sale.items.map((item: any, idx: number) => (
+              <tr key={idx} style={{ borderBottom: idx !== sale.items.length - 1 ? '1px solid #f8fafc' : 'none' }}>
+                <td style={{ padding: '1rem 0' }}>
+                  <div className="font-bold" style={{ color: '#0f172a' }}>{item.productName}</div>
+                  <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {item.productCategory}</div>
+                  {item.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {item.serialNumber}</div>}
+                </td>
+                <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155' }}>{item.quantity}</td>
+                <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>${(item.total / item.quantity).toFixed(2)}</td>
+                <td style={{ padding: '1rem 0', textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>${item.total.toFixed(2)}</td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td style={{ padding: '1rem 0' }}>
+                <div className="font-bold" style={{ color: '#0f172a' }}>{sale.productName}</div>
+                <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {sale.productCategory}</div>
+                {sale.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {sale.serialNumber}</div>}
+              </td>
+              <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155' }}>{sale.quantity}</td>
+              <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>${(sale.total / sale.quantity).toFixed(2)}</td>
+              <td style={{ padding: '1rem 0', textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>${sale.total.toFixed(2)}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+
+    <div className="flex justify-end" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ width: '250px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.5rem' }}>
+          <span>Subtotal</span>
+          <span>${sale.total.toFixed(2)}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.5rem' }}>
+          <span>Tax (0%)</span>
+          <span>$0.00</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0', marginTop: '0.5rem' }}>
+          <span>Total</span>
+          <span style={{ color: '#059669' }}>${sale.total.toFixed(2)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div className="mt-16" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '4rem' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ width: '180px', borderBottom: '1px solid #cbd5e1', marginBottom: '0.5rem' }}></div>
+        <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem', margin: 0 }}>Customer Signature</p>
+      </div>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ width: '180px', borderBottom: '1px solid #cbd5e1', marginBottom: '0.5rem' }}></div>
+        <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem', margin: 0 }}>Seller Signature</p>
+      </div>
+    </div>
+
+    <div className="mt-12 text-center" style={{ marginTop: '3rem', textAlign: 'center' }}>
+      <div style={{ display: 'inline-block', padding: '1rem 2rem', backgroundColor: '#f8fafc', borderRadius: '1rem' }}>
+        <p className="font-medium" style={{ color: '#475569', margin: 0 }}>Thank you for your business!</p>
+        <p className="text-[10px] uppercase tracking-tighter" style={{ color: '#94a3b8', fontSize: '0.625rem', marginTop: '0.25rem', margin: 0 }}>Generated by {user?.businessName || 'Greensoft'}</p>
+      </div>
+    </div>
+  </div>
+);
+
 const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () => void, sale: any }) => {
   const { user } = useAuth();
   const componentRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handlePrint = useReactToPrint({
-    contentRef: componentRef,
-    documentTitle: `Invoice-${sale?.id?.slice(-4) || '0000'}`,
-  });
+  const handlePrint = () => {
+    if (!componentRef.current) return;
+    
+    setIsGenerating(true);
+    setError(null);
+    
+    try {
+      const content = componentRef.current.innerHTML;
+      const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+        .map(style => style.outerHTML)
+        .join('\n');
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Invoice-${sale?.id?.slice(-4) || '0000'}</title>
+              ${styles}
+              <style>
+                body { background: white !important; margin: 0; padding: 20px; color: #0f172a !important; }
+                .no-print { display: none !important; }
+                .invoice-content { border: none !important; box-shadow: none !important; width: 100% !important; max-width: none !important; }
+                * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              </style>
+            </head>
+            <body>
+              ${content}
+              <script>
+                window.onload = () => {
+                  setTimeout(() => {
+                    window.print();
+                    window.close();
+                  }, 800);
+                };
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      } else {
+        // Fallback for blocked popups
+        const printContainer = document.createElement('div');
+        printContainer.id = 'print-mode-container';
+        printContainer.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:white;z-index:999999;padding:40px;overflow:auto;';
+        
+        const clone = componentRef.current.cloneNode(true) as HTMLElement;
+        printContainer.appendChild(clone);
+        document.body.appendChild(printContainer);
+        document.body.classList.add('is-printing');
+
+        setTimeout(() => {
+          window.print();
+          document.body.removeChild(printContainer);
+          document.body.classList.remove('is-printing');
+        }, 1000);
+      }
+    } catch (err) {
+      console.error("Print error:", err);
+      setError("প্রিন্ট করতে সমস্যা হচ্ছে। অনুগ্রহ করে ব্রাউজারের প্রিন্ট অপশন ব্যবহার করুন।");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const downloadPDF = async () => {
     if (!componentRef.current || isGenerating) return;
@@ -1040,34 +1216,177 @@ const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () 
       setIsGenerating(true);
       setError(null);
       
-      // Wait for any animations or fonts
-      await new Promise(resolve => setTimeout(resolve, 800));
-      await document.fonts.ready;
-      
       const element = componentRef.current;
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-      });
       
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
+      // @ts-ignore
+      const h2pdf = window.html2pdf || html2pdf;
       
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      if (!h2pdf) {
+        throw new Error("PDF library not loaded");
+      }
+
+      const opt = {
+        margin: 10,
+        filename: `Invoice-${sale?.id?.slice(-4) || '0000'}.pdf`,
+        image: { type: 'jpeg', quality: 1.0 },
+        html2canvas: { 
+          scale: 3, 
+          useCORS: true, 
+          logging: false,
+          backgroundColor: '#ffffff',
+          letterRendering: true,
+          allowTaint: true
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      const pdfBlob = await h2pdf().from(element).set(opt).output('blob');
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Invoice-${sale?.id?.slice(-4) || '0000'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
       
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Invoice-${sale?.id?.slice(-4) || '0000'}.pdf`);
     } catch (err) {
       console.error('PDF Generation Error:', err);
-      setError('Failed to generate PDF. Please try printing instead.');
+      
+      // Fallback to manual capture
+      try {
+        const canvas = await html2canvas(componentRef.current, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          allowTaint: true
+        });
+        const imgData = canvas.toDataURL('image/jpeg', 1.0);
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const width = pdf.internal.pageSize.getWidth();
+        const height = (canvas.height * width) / canvas.width;
+        pdf.addImage(imgData, 'JPEG', 0, 0, width, height);
+        
+        const blob = pdf.output('blob');
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Invoice-${sale?.id?.slice(-4) || '0000'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      } catch (fallbackErr) {
+        console.error('Fallback PDF Error:', fallbackErr);
+        setError('PDF ডাউনলোড করতে সমস্যা হচ্ছে। অনুগ্রহ করে প্রিন্ট বাটনটি ব্যবহার করে "Save as PDF" সিলেক্ট করুন।');
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const openInNewTab = () => {
+    if (!componentRef.current) return;
+    
+    const content = componentRef.current.innerHTML;
+    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(style => style.outerHTML)
+      .join('\n');
+
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(`
+        <html>
+          <head>
+            <title>Invoice-${sale?.id?.slice(-4) || '0000'}</title>
+            ${styles}
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+            <style>
+              body { background: white !important; margin: 0; padding: 40px; color: #0f172a !important; font-family: sans-serif; }
+              .no-print-window { display: none !important; }
+              .invoice-content { border: none !important; box-shadow: none !important; width: 100% !important; max-width: 800px !important; margin: 0 auto !important; }
+              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              @media print {
+                body { padding: 0; }
+                .invoice-content { max-width: none !important; }
+                .no-print-window-ui { display: none !important; }
+              }
+              .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-right: 10px; transition: opacity 0.2s; }
+              .btn:hover { opacity: 0.9; }
+              .btn-print { background: #059669; color: white; }
+              .btn-pdf { background: #0284c7; color: white; }
+              .btn-img { background: #7c3aed; color: white; }
+              .btn-close { background: #64748b; color: white; }
+            </style>
+          </head>
+          <body>
+            <div class="no-print-window-ui" style="margin-bottom: 30px; text-align: center; padding: 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 100;">
+              <button onclick="window.print()" class="btn btn-print">Print Invoice</button>
+              <button id="download-pdf-btn" class="btn btn-pdf">Download PDF</button>
+              <button id="download-img-btn" class="btn btn-img">Download Image</button>
+              <button onclick="window.close()" class="btn btn-close">Close Tab</button>
+            </div>
+            <div id="invoice-to-download">
+              ${content}
+            </div>
+            <script>
+              document.getElementById('download-pdf-btn').onclick = function() {
+                const element = document.getElementById('invoice-to-download');
+                const opt = {
+                  margin: 10,
+                  filename: 'Invoice-${sale?.id?.slice(-4) || '0000'}.pdf',
+                  image: { type: 'jpeg', quality: 1.0 },
+                  html2canvas: { scale: 3, useCORS: true, backgroundColor: '#ffffff' },
+                  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().from(element).set(opt).save();
+              };
+
+              document.getElementById('download-img-btn').onclick = function() {
+                const element = document.getElementById('invoice-to-download');
+                html2canvas(element, { scale: 3, useCORS: true, backgroundColor: '#ffffff' }).then(canvas => {
+                  const link = document.createElement('a');
+                  link.href = canvas.toDataURL('image/png');
+                  link.download = 'Invoice-${sale?.id?.slice(-4) || '0000'}.png';
+                  link.click();
+                });
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+    } else {
+      alert("পপ-আপ ব্লক করা হয়েছে। অনুগ্রহ করে ব্রাউজারের পপ-আপ অ্যালাউ করুন।");
+    }
+  };
+
+  const downloadImage = async () => {
+    if (!componentRef.current || isGenerating) return;
+    
+    try {
+      setIsGenerating(true);
+      setError(null);
+      
+      const canvas = await html2canvas(componentRef.current, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      
+      const url = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Invoice-${sale?.id?.slice(-4) || '0000'}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+    } catch (err) {
+      console.error('Image Generation Error:', err);
+      setError('ইমেজ ডাউনলোড করতে সমস্যা হচ্ছে।');
     } finally {
       setIsGenerating(false);
     }
@@ -1083,128 +1402,16 @@ const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () 
             {error}
           </div>
         )}
-        <div className="flex justify-end gap-3 mb-4 no-print">
+        <div className="flex justify-center mb-6 no-print">
           <button 
-            onClick={() => handlePrint()}
-            disabled={isGenerating}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium disabled:opacity-50"
+            onClick={openInNewTab}
+            className="flex items-center gap-3 px-8 py-4 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all font-bold shadow-xl shadow-emerald-100 scale-105 active:scale-100"
           >
-            <Printer size={18} /> Print
-          </button>
-          <button 
-            onClick={downloadPDF}
-            disabled={isGenerating}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50"
-          >
-            {isGenerating ? (
-              <>Generating...</>
-            ) : (
-              <>
-                <Download size={18} /> Download PDF
-              </>
-            )}
+            <Printer size={24} /> Open in New Tab & Print/Download
           </button>
         </div>
 
-        <div ref={componentRef} className="p-8 bg-white border border-slate-200 rounded-xl shadow-sm invoice-content">
-          <div className="flex justify-between items-start mb-8">
-            <div>
-              <h2 className="text-3xl font-bold text-slate-900 mb-1">INVOICE</h2>
-              <p className="text-slate-500 font-medium">#INV-{sale.id.slice(-4)}</p>
-            </div>
-            <div className="text-right">
-              <h3 className="text-xl font-bold text-emerald-600">{user?.businessName || 'Greensoft'}</h3>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-8 mb-8">
-            <div>
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Bill To:</h4>
-              <div className="text-slate-900 font-bold text-lg">{sale.customerName}</div>
-              {sale.customerPhone && <div className="text-slate-600">{sale.customerPhone}</div>}
-              {sale.customerEmail && <div className="text-slate-600">{sale.customerEmail}</div>}
-              {sale.customerAddress && <div className="text-slate-600 italic mt-1">{sale.customerAddress}</div>}
-            </div>
-            <div className="text-right">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Invoice Details:</h4>
-              <div className="text-slate-600"><span className="font-medium">Date:</span> {sale.date}</div>
-              <div className="text-slate-600"><span className="font-medium">Status:</span> <span className="text-emerald-600 font-bold">PAID</span></div>
-            </div>
-          </div>
-
-          <div className="border-t border-b border-slate-100 py-4 mb-8">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  <th className="pb-4">Description</th>
-                  <th className="pb-4 text-center">Qty</th>
-                  <th className="pb-4 text-right">Price</th>
-                  <th className="pb-4 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody className="text-slate-700">
-                {sale.items ? (
-                  sale.items.map((item: any, idx: number) => (
-                    <tr key={idx} className={idx !== sale.items.length - 1 ? "border-b border-slate-50" : ""}>
-                      <td className="py-4">
-                        <div className="font-bold text-slate-900">{item.productName}</div>
-                        <div className="text-xs text-slate-500">Category: {item.productCategory}</div>
-                        {item.serialNumber && <div className="text-xs text-emerald-600 font-mono">SN: {item.serialNumber}</div>}
-                      </td>
-                      <td className="py-4 text-center">{item.quantity}</td>
-                      <td className="py-4 text-right">${(item.total / item.quantity).toFixed(2)}</td>
-                      <td className="py-4 text-right font-bold text-slate-900">${item.total.toFixed(2)}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td className="py-4">
-                      <div className="font-bold text-slate-900">{sale.productName}</div>
-                      <div className="text-xs text-slate-500">Category: {sale.productCategory}</div>
-                      {sale.serialNumber && <div className="text-xs text-emerald-600 font-mono">SN: {sale.serialNumber}</div>}
-                    </td>
-                    <td className="py-4 text-center">{sale.quantity}</td>
-                    <td className="py-4 text-right">${(sale.total / sale.quantity).toFixed(2)}</td>
-                    <td className="py-4 text-right font-bold text-slate-900">${sale.total.toFixed(2)}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex justify-end">
-            <div className="w-64 space-y-3">
-              <div className="flex justify-between text-slate-600">
-                <span>Subtotal</span>
-                <span>${sale.total.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-slate-600">
-                <span>Tax (0%)</span>
-                <span>$0.00</span>
-              </div>
-              <div className="flex justify-between text-xl font-bold text-slate-900 pt-3 border-t border-slate-200">
-                <span>Total</span>
-                <span className="text-emerald-600">${sale.total.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-between items-end mt-16">
-            <div className="text-center">
-              <div className="w-48 border-b border-slate-300 mb-2"></div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Customer Signature</p>
-            </div>
-            <div className="text-center">
-              <div className="w-48 border-b border-slate-300 mb-2"></div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Seller Signature</p>
-            </div>
-          </div>
-
-          <div className="mt-12 pt-8 border-t border-slate-100 text-center text-slate-400 text-sm">
-            <p>Thank you for your purchase!</p>
-            <p className="mt-1">Generated by {user?.businessName || 'Greensoft'} System</p>
-          </div>
-        </div>
+        <InvoiceContent sale={sale} user={user} contentRef={componentRef} />
       </div>
     </Modal>
   );
@@ -2588,7 +2795,7 @@ const Settings = ({ user, data }: any) => {
             </p>
             <div className="mt-6 pt-6 border-t border-slate-100">
               <p className="text-xs text-slate-400">Version 1.0.0</p>
-              <p className="text-xs text-slate-400 mt-1">© 2024 Greenlab Technology</p>
+              <p className="text-xs text-slate-400 mt-1">© {new Date().getFullYear()} {user?.businessName || 'Greensoft'}</p>
             </div>
           </Card>
         </div>
