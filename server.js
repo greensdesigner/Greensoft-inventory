@@ -204,6 +204,7 @@ async function startServer() {
     // API Route to test DB connection
     app.get('/api/db-check', async (req, res) => {
       try {
+        if (!pool) throw new Error('Database pool not initialized');
         const connection = await pool.getConnection();
         await connection.ping();
         connection.release();
@@ -213,8 +214,18 @@ async function startServer() {
       }
     });
 
-    // Vite middleware for development
+    // Start listening immediately to prevent 503 errors
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server is LIVE on port ${PORT}`);
+      console.log('Environment:', process.env.NODE_ENV);
+      
+      // Initialize DB after server is already listening
+      initDB().catch(err => console.error('Delayed DB Init Error:', err));
+    });
+
+    // Vite or Static serving
     if (process.env.NODE_ENV !== 'production') {
+      console.log('Running in Development mode with Vite...');
       const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
         server: { middlewareMode: true },
@@ -222,6 +233,7 @@ async function startServer() {
       });
       app.use(vite.middlewares);
     } else {
+      console.log('Running in Production mode serving static files...');
       const distPath = path.join(process.cwd(), 'dist');
       app.use(express.static(distPath));
       app.get('*', (req, res) => {
@@ -229,11 +241,8 @@ async function startServer() {
       });
     }
 
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
   } catch (error) {
-    console.error('CRITICAL ERROR DURING STARTUP:', error);
+    console.error('CRITICAL STARTUP ERROR:', error);
   }
 }
 
