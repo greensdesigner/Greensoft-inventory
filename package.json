@@ -2,7 +2,6 @@
   "name": "react-example",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
   "scripts": {
     "dev": "tsx server.js",
     "start": "node server.js",
