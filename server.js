@@ -97,7 +97,7 @@ async function startServer() {
       const { businessName, fullName, phoneNumber, email, password } = req.body;
       
       // Check if user already exists
-      const [existingUsers]: any = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+      const [existingUsers] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
       if (existingUsers.length > 0) {
         return res.status(400).json({ error: 'User already exists with this email' });
       }
@@ -106,7 +106,7 @@ async function startServer() {
       const hashedPassword = await bcrypt.hash(password, 10);
 
       // Insert user
-      const [result]: any = await pool.query(
+      const [result] = await pool.query(
         'INSERT INTO users (businessName, fullName, phoneNumber, email, password) VALUES (?, ?, ?, ?, ?)',
         [businessName, fullName, phoneNumber, email, hashedPassword]
       );
@@ -121,7 +121,7 @@ async function startServer() {
           phone: phoneNumber 
         } 
       });
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -131,7 +131,7 @@ async function startServer() {
       const { email, password } = req.body;
 
       // Find user
-      const [rows]: any = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+      const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
       if (rows.length === 0) {
         return res.status(401).json({ error: 'Invalid email or password' });
       }
@@ -155,7 +155,7 @@ async function startServer() {
           logo: user.logo
         }
       });
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -165,7 +165,7 @@ async function startServer() {
     try {
       const [rows] = await pool.query('SELECT * FROM inventory');
       res.json(rows);
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -178,7 +178,7 @@ async function startServer() {
         [item.id, item.name, item.category, item.sku, item.quantity, item.unit, item.purchasePrice, item.sellingPrice, item.minStock, item.supplier]
       );
       res.json({ success: true });
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -188,7 +188,7 @@ async function startServer() {
     try {
       const [rows] = await pool.query('SELECT * FROM sales');
       res.json(rows);
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -201,7 +201,7 @@ async function startServer() {
         [sale.id, sale.invoiceNo, sale.customerName, sale.date, sale.totalAmount, sale.paidAmount, sale.paymentMethod, sale.status, JSON.stringify(sale.items)]
       );
       res.json({ success: true });
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -213,7 +213,7 @@ async function startServer() {
       await connection.ping();
       connection.release();
       res.json({ status: 'connected', message: 'Successfully connected to Hostinger database!' });
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({ status: 'error', message: error.message });
     }
   });
