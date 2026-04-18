@@ -67,7 +67,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 
-// --- MOCK AUTH HOOK ---
+// --- REAL AUTH HOOK ---
 const useAuth = () => {
   const [user, setUser] = useState<{ email: string; businessName: string; logo?: string; name?: string; phone?: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,10 +78,42 @@ const useAuth = () => {
     setLoading(false);
   }, []);
 
-  const login = (email: string, businessName: string, logo?: string, name?: string, phone?: string) => {
-    const newUser = { email, businessName, logo, name, phone };
-    localStorage.setItem('greensoft_user', JSON.stringify(newUser));
-    setUser(newUser);
+  const login = async (email: string, password: string) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.setItem('greensoft_user', JSON.stringify(data.user));
+        setUser(data.user);
+        return { success: true };
+      }
+      return { success: false, error: data.error || 'Login failed' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const signup = async (userData: any) => {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.setItem('greensoft_user', JSON.stringify(data.user));
+        setUser(data.user);
+        return { success: true };
+      }
+      return { success: false, error: data.error || 'Registration failed' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   };
 
   const logout = () => {
@@ -89,7 +121,7 @@ const useAuth = () => {
     setUser(null);
   };
 
-  return { user, loading, login, logout };
+  return { user, loading, login, signup, logout };
 };
 
 // --- DATA HOOK ---
@@ -2861,7 +2893,7 @@ const Settings = ({ user, data }: any) => {
   );
 };
 
-const AuthPage = ({ type, login }: any) => {
+const AuthPage = ({ type, login, signup }: any) => {
   const [email, setEmail] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [name, setName] = useState('');
@@ -2869,19 +2901,44 @@ const AuthPage = ({ type, login }: any) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
     if (type === 'signup') {
       if (password !== confirmPassword) {
         setError('Passwords do not match!');
+        setIsSubmitting(false);
         return;
       }
+      
+      const result = await signup({
+        businessName,
+        fullName: name,
+        phoneNumber: phone,
+        email,
+        password
+      });
+
+      if (result.success) {
+        navigate('/');
+      } else {
+        setError(result.error);
+      }
+    } else {
+      const result = await login(email, password);
+      if (result.success) {
+        navigate('/');
+      } else {
+        setError(result.error);
+      }
     }
-    setError('');
-    login(email, businessName || 'My Business', undefined, name, phone);
-    navigate('/');
+    
+    setIsSubmitting(false);
   };
 
   return (
@@ -2999,9 +3056,17 @@ const AuthPage = ({ type, login }: any) => {
           
           <button
             type="submit"
-            className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98]"
+            disabled={isSubmitting}
+            className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {type === 'login' ? 'Sign In' : 'Create Account'}
+            {isSubmitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Processing...
+              </span>
+            ) : (
+              type === 'login' ? 'Sign In' : 'Create Account'
+            )}
           </button>
         </form>
 
@@ -3024,7 +3089,7 @@ const AuthPage = ({ type, login }: any) => {
 // --- MAIN APP COMPONENT ---
 
 export default function App() {
-  const { user, loading, login, logout } = useAuth();
+  const { user, loading, login, signup, logout } = useAuth();
   const data = useData();
 
   if (loading || !data.isLoaded) {
@@ -3038,8 +3103,8 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={!user ? <AuthPage type="login" login={login} /> : <Navigate to="/" />} />
-        <Route path="/signup" element={!user ? <AuthPage type="signup" login={login} /> : <Navigate to="/" />} />
+        <Route path="/login" element={!user ? <AuthPage type="login" login={login} signup={signup} /> : <Navigate to="/" />} />
+        <Route path="/signup" element={!user ? <AuthPage type="signup" login={login} signup={signup} /> : <Navigate to="/" />} />
         
         <Route
           path="/*"
