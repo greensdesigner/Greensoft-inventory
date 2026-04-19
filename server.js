@@ -29,30 +29,105 @@ async function ensureAllTables() {
         if (!pool) pool = mysql.createPool(dbConfig);
         const conn = await pool.getConnection();
         
-        console.log('Synchronizing database schema with backticks...');
+        console.log('Finalizing database schema alignment...');
 
         // Users
         await conn.query(`CREATE TABLE IF NOT EXISTS \`users\` (id INT AUTO_INCREMENT PRIMARY KEY, businessName VARCHAR(255), fullName VARCHAR(255), phoneNumber VARCHAR(20), email VARCHAR(255) UNIQUE, password VARCHAR(255), logo TEXT, createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
         
-        // Inventory
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`inventory\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`sku\` VARCHAR(255), \`quantity\` INT DEFAULT 0, \`unit\` VARCHAR(50), \`purchasePrice\` DECIMAL(10,2) DEFAULT 0, \`sellingPrice\` DECIMAL(10,2) DEFAULT 0, \`minStock\` INT DEFAULT 0, \`supplier\` VARCHAR(255), \`lastUpdated\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
+        // Inventory - Full mapping
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`inventory\` (
+            id VARCHAR(255) PRIMARY KEY, 
+            \`name\` VARCHAR(255), 
+            \`category\` VARCHAR(255), 
+            \`quantity\` INT DEFAULT 0, 
+            \`price\` DECIMAL(10,2) DEFAULT 0, 
+            \`minStock\` INT DEFAULT 5,
+            \`sku\` VARCHAR(255),
+            \`unit\` VARCHAR(50),
+            \`purchasePrice\` DECIMAL(10,2) DEFAULT 0,
+            \`sellingPrice\` DECIMAL(10,2) DEFAULT 0,
+            \`supplier\` VARCHAR(255),
+            \`lastUpdated\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )`);
         
-        // Sales
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`sales\` (id VARCHAR(255) PRIMARY KEY, \`invoiceNo\` VARCHAR(255), \`customerName\` VARCHAR(255), \`customerPhone\` VARCHAR(255), \`customerEmail\` VARCHAR(255), \`customerAddress\` TEXT, \`items\` JSON, \`total\` DECIMAL(10,2) DEFAULT 0, \`paid\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50), \`paymentMethod\` VARCHAR(50), \`status\` VARCHAR(50))`);
+        // Sales - Full mapping
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`sales\` (
+            id VARCHAR(255) PRIMARY KEY, 
+            \`customerName\` VARCHAR(255), 
+            \`customerPhone\` VARCHAR(255), 
+            \`customerEmail\` VARCHAR(255), 
+            \`customerAddress\` TEXT, 
+            \`items\` JSON, 
+            \`total\` DECIMAL(10,2) DEFAULT 0, 
+            \`date\` VARCHAR(50), 
+            \`invoiceNo\` VARCHAR(255), 
+            \`paid\` DECIMAL(10,2) DEFAULT 0, 
+            \`paymentMethod\` VARCHAR(50), 
+            \`status\` VARCHAR(50)
+        )`);
         
-        // Suppliers
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`suppliers\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`contactPerson\` VARCHAR(255), \`phone\` VARCHAR(20), \`email\` VARCHAR(255), \`address\` TEXT, \`category\` VARCHAR(255), \`status\` VARCHAR(50))`);
+        // Suppliers - Full mapping
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`suppliers\` (
+            id VARCHAR(255) PRIMARY KEY, 
+            \`name\` VARCHAR(255), 
+            \`category\` VARCHAR(255), 
+            \`contact\` VARCHAR(255), 
+            \`address\` TEXT,
+            \`phone\` VARCHAR(20),
+            \`email\` VARCHAR(255),
+            \`contactPerson\` VARCHAR(255),
+            \`status\` VARCHAR(50) DEFAULT 'Active'
+        )`);
 
-        // Customers
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`customers\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`phone\` VARCHAR(20), \`email\` VARCHAR(255), \`address\` TEXT, \`totalOrders\` INT DEFAULT 0, \`totalSpent\` DECIMAL(10,2) DEFAULT 0)`);
+        // Customers - Full mapping
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`customers\` (
+            id VARCHAR(255) PRIMARY KEY, 
+            \`name\` VARCHAR(255), 
+            \`email\` VARCHAR(255), 
+            \`phone\` VARCHAR(20), 
+            \`address\` TEXT, 
+            \`orders\` INT DEFAULT 0, 
+            \`spent\` DECIMAL(10,2) DEFAULT 0,
+            \`totalOrders\` INT DEFAULT 0,
+            \`totalSpent\` DECIMAL(10,2) DEFAULT 0
+        )`);
 
-        // Expenses
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`expenses\` (id VARCHAR(255) PRIMARY KEY, \`title\` VARCHAR(255), \`category\` VARCHAR(255), \`amount\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50), \`paymentMethod\` VARCHAR(50), \`note\` TEXT)`);
+        // Expenses - Full mapping
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`expenses\` (
+            id VARCHAR(255) PRIMARY KEY, 
+            \`category\` VARCHAR(255), 
+            \`description\` TEXT, 
+            \`amount\` DECIMAL(10,2) DEFAULT 0, 
+            \`date\` VARCHAR(50), 
+            \`employeeName\` VARCHAR(255), 
+            \`employeePhone\` VARCHAR(20),
+            \`title\` VARCHAR(255),
+            \`paymentMethod\` VARCHAR(50),
+            \`note\` TEXT
+        )`);
+
+        // --- DYNAMIC MIGRATION ---
+        // Ensure critical missing columns exist even on old tables
+        const updates = [
+            ['inventory', 'price', 'DECIMAL(10,2) DEFAULT 0'],
+            ['suppliers', 'contact', 'VARCHAR(255)'],
+            ['customers', 'orders', 'INT DEFAULT 0'],
+            ['customers', 'spent', 'DECIMAL(10,2) DEFAULT 0'],
+            ['expenses', 'description', 'TEXT'],
+            ['expenses', 'employeeName', 'VARCHAR(255)'],
+            ['expenses', 'employeePhone', 'VARCHAR(20)']
+        ];
+
+        for (const [table, col, type] of updates) {
+            try {
+                await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` ${type}`);
+            } catch (ignore) {}
+        }
 
         conn.release();
-        console.log('>>> SYSTEM READY: ALL TABLES SECURED <<<');
+        console.log('>>> DATABASE SCHEMA FULLY ALIGNED WITH FRONTEND <<<');
     } catch (err) {
-        console.error('CRITICAL: DB Init Failed:', err.message);
+        console.error('CRITICAL: DB Alignment Failed:', err.message);
     }
 }
 
@@ -95,7 +170,6 @@ entities.forEach(entity => {
             const columns = Object.keys(data);
             const values = Object.values(data).map(v => typeof v === 'object' ? JSON.stringify(v) : v);
             
-            // Build Query with Backticks for Reserved Words
             const backtickedCols = columns.map(c => `\`${c}\``).join(', ');
             const placeholders = columns.map(() => '?').join(', ');
             const updateClause = columns.map(c => `\`${c}\` = VALUES(\`${c}\`)`).join(', ');
@@ -103,11 +177,10 @@ entities.forEach(entity => {
             const query = `INSERT INTO \`${entity}\` (${backtickedCols}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updateClause}`;
             
             await pool.query(query, values);
-            console.log(`[SYNC] Saved ${entity} entry successfully`);
             res.json({ success: true });
         } catch (err) {
-            console.error(`[SYNC ERROR] ${entity}:`, err.message);
-            res.status(500).json({ error: err.message });
+            console.error(`[SAVE ERROR] ${entity}:`, err.message);
+            res.status(500).json({ error: `Database Error: ${err.message}` });
         }
     });
 
