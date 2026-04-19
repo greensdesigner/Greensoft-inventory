@@ -2799,6 +2799,25 @@ const Settings = ({ user, data }: any) => {
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [logo, setLogo] = useState(user?.logo || '');
+  const [isRefreshingDB, setIsRefreshingDB] = useState(false);
+  const [dbStatus, setDbStatus] = useState<string | null>(null);
+
+  const checkDatabaseConnection = async () => {
+    setIsRefreshingDB(true);
+    setDbStatus(null);
+    try {
+      const res = await fetch('/api/health');
+      if (res.ok) {
+        setDbStatus('Database Connection: OK (সার্ভার সচল আছে)');
+      } else {
+        setDbStatus('Database Connection: FAILED (সার্ভারের সাথে যোগাযোগ বিচ্ছিন্ন)');
+      }
+    } catch (err) {
+      setDbStatus('Database Connection: ERROR (সার্ভারে সমস্যা)');
+    } finally {
+      setIsRefreshingDB(false);
+    }
+  };
 
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2829,6 +2848,34 @@ const Settings = ({ user, data }: any) => {
   return (
     <div className="space-y-6">
       <PageHeader title="Settings" description="Manage your business profile and application preferences." />
+      
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <ShieldCheck size={20} className="text-emerald-600" />
+              সিস্টেম চেক (System Debugger)
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">যদি আপনার ডাটা সেভ না হয় বা সাদা স্ক্রিন আসে, তবে নিচের বাটনে ক্লিক করে চেক করুন।</p>
+          </div>
+          <button 
+            onClick={checkDatabaseConnection}
+            disabled={isRefreshingDB}
+            className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+          >
+            {isRefreshingDB ? 'চেক করা হচ্ছে...' : 'কানেকশন চেক করুন'}
+          </button>
+        </div>
+        {dbStatus && (
+          <div className={cn(
+            "mt-4 p-4 rounded-xl font-bold text-sm",
+            dbStatus.includes('OK') ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-red-50 text-red-700 border border-red-100"
+          )}>
+            {dbStatus}
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6">

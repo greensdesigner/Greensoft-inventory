@@ -4,7 +4,7 @@ const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
-console.log('--- GREENSOFT SYSTEM BOOTING ---');
+console.log('--- GREENSOFT SYSTEM BOOTING: V3 ---');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,50 +24,89 @@ const dbConfig = {
     queueLimit: 0
 };
 
+// Robust function to check and add columns
+async function checkAndAddColumn(conn, table, column, definition) {
+    try {
+        const [rows] = await conn.query(`SHOW COLUMNS FROM \`${table}\` LIKE ?`, [column]);
+        if (rows.length === 0) {
+            console.log(`Adding missing column \`${column}\` to \`${table}\`...`);
+            await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+        }
+    } catch (err) {
+        console.error(`Error checking/adding column ${column} to ${table}:`, err.message);
+    }
+}
+
 async function ensureAllTables() {
     try {
         if (!pool) pool = mysql.createPool(dbConfig);
         const conn = await pool.getConnection();
         
-        console.log('Synchronizing database...');
+        console.log('Synchronizing database tables...');
 
         await conn.query(`CREATE TABLE IF NOT EXISTS \`users\` (id INT AUTO_INCREMENT PRIMARY KEY, businessName VARCHAR(255), fullName VARCHAR(255), phoneNumber VARCHAR(20), email VARCHAR(255) UNIQUE, password VARCHAR(255), logo TEXT, createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
         
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`inventory\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`quantity\` INT DEFAULT 0, \`price\` DECIMAL(10,2) DEFAULT 0, \`minStock\` INT DEFAULT 5, \`sku\` VARCHAR(255), \`unit\` VARCHAR(50), \`purchasePrice\` DECIMAL(10,2) DEFAULT 0, \`sellingPrice\` DECIMAL(10,2) DEFAULT 0, \`supplier\` VARCHAR(255), \`lastUpdated\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`inventory\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`quantity\` INT DEFAULT 0, \`price\` DECIMAL(10,2) DEFAULT 0)`);
         
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`sales\` (id VARCHAR(255) PRIMARY KEY, \`customerName\` VARCHAR(255), \`customerPhone\` VARCHAR(255), \`customerEmail\` VARCHAR(255), \`customerAddress\` TEXT, \`items\` JSON, \`total\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50), \`invoiceNo\` VARCHAR(255), \`paid\` DECIMAL(10,2) DEFAULT 0, \`paymentMethod\` VARCHAR(50), \`status\` VARCHAR(50))`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`sales\` (id VARCHAR(255) PRIMARY KEY, \`customerName\` VARCHAR(255), \`items\` JSON, \`total\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50))`);
         
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`suppliers\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`contact\` VARCHAR(255), \`address\` TEXT, \`phone\` VARCHAR(20), \`email\` VARCHAR(255), \`contactPerson\` VARCHAR(255), \`status\` VARCHAR(50) DEFAULT 'Active')`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`suppliers\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`contact\` VARCHAR(255))`);
 
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`customers\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`email\` VARCHAR(255), \`phone\` VARCHAR(20), \`address\` TEXT, \`orders\` INT DEFAULT 0, \`spent\` DECIMAL(10,2) DEFAULT 0, \`totalOrders\` INT DEFAULT 0, \`totalSpent\` DECIMAL(10,2) DEFAULT 0)`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`customers\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`phone\` VARCHAR(20))`);
 
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`expenses\` (id VARCHAR(255) PRIMARY KEY, \`category\` VARCHAR(255), \`description\` TEXT, \`amount\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50), \`employeeName\` VARCHAR(255), \`employeePhone\` VARCHAR(20), \`title\` VARCHAR(255), \`paymentMethod\` VARCHAR(50), \`note\` TEXT)`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`expenses\` (id VARCHAR(255) PRIMARY KEY, \`category\` VARCHAR(255), \`amount\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50))`);
+
+        // Force column sync for all critical fields mentioned in errors
+        await checkAndAddColumn(conn, 'inventory', 'price', 'DECIMAL(10,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'inventory', 'sku', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'inventory', 'minStock', 'INT DEFAULT 5');
+        
+        await checkAndAddColumn(conn, 'sales', 'customerPhone', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'sales', 'customerEmail', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'sales', 'customerAddress', 'TEXT');
+        await checkAndAddColumn(conn, 'sales', 'invoiceNo', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'sales', 'paid', 'DECIMAL(10,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'sales', 'paymentMethod', 'VARCHAR(50)');
+        await checkAndAddColumn(conn, 'sales', 'status', 'VARCHAR(50)');
+        
+        await checkAndAddColumn(conn, 'suppliers', 'address', 'TEXT');
+        await checkAndAddColumn(conn, 'suppliers', 'phone', 'VARCHAR(20)');
+        await checkAndAddColumn(conn, 'suppliers', 'email', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'suppliers', 'status', 'VARCHAR(50) DEFAULT "Active"');
+
+        await checkAndAddColumn(conn, 'customers', 'email', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'customers', 'address', 'TEXT');
+        await checkAndAddColumn(conn, 'customers', 'orders', 'INT DEFAULT 0');
+        await checkAndAddColumn(conn, 'customers', 'spent', 'DECIMAL(10,2) DEFAULT 0');
+
+        await checkAndAddColumn(conn, 'expenses', 'description', 'TEXT');
+        await checkAndAddColumn(conn, 'expenses', 'employeeName', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'expenses', 'employeePhone', 'VARCHAR(20)');
 
         conn.release();
-        console.log('>>> SYSTEM READY <<<');
+        console.log('>>> DATABASE SCHEMA ALIGNED SUCCESSFULLY <<<');
     } catch (err) {
-        console.error('DB Sync Error:', err.message);
+        console.error('DB Initialization Error:', err.message);
     }
 }
 
-// Ensure columns exist (for existing tables)
-const checkColumns = async () => {
+// --- API ROUTES ---
+
+app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
+
+// Debug Route to reset tables if needed (ONLY FOR ADMIN EMERGENCY)
+app.get('/api/admin/reset-db', async (req, res) => {
     try {
         const conn = await pool.getConnection();
-        const updates = [
-            ['inventory', 'price', 'DECIMAL(10,2) DEFAULT 0'],
-            ['suppliers', 'contact', 'VARCHAR(255)'],
-            ['customers', 'orders', 'INT DEFAULT 0'],
-            ['customers', 'spent', 'DECIMAL(10,2) DEFAULT 0']
-        ];
-        for (const [table, col, type] of updates) {
-            try { await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` ${type}`); } catch (e) {}
+        const tables = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
+        for (const table of tables) {
+            await conn.query(`DROP TABLE IF EXISTS \`${table}\``);
         }
         conn.release();
-    } catch (err) {}
-};
-
-// --- API ENDPOINTS ---
+        await ensureAllTables();
+        res.json({ message: 'All tables reset successfully' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // Auth
 app.post('/api/auth/register', async (req, res) => {
@@ -92,9 +131,8 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Crud
-const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
-entities.forEach(entity => {
+// Entity Routes
+const setupEntity = (entity) => {
     app.get(`/api/${entity}`, async (req, res) => {
         try {
             const [rows] = await pool.query(`SELECT * FROM \`${entity}\``);
@@ -107,6 +145,7 @@ entities.forEach(entity => {
             const data = req.body;
             const columns = Object.keys(data);
             const values = Object.values(data).map(v => typeof v === 'object' ? JSON.stringify(v) : v);
+            
             const backtickedCols = columns.map(c => `\`${c}\``).join(', ');
             const placeholders = columns.map(() => '?').join(', ');
             const updateClause = columns.map(c => `\`${c}\` = VALUES(\`${c}\`)`).join(', ');
@@ -114,7 +153,10 @@ entities.forEach(entity => {
             const query = `INSERT INTO \`${entity}\` (${backtickedCols}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updateClause}`;
             await pool.query(query, values);
             res.json({ success: true });
-        } catch (err) { res.status(500).json({ error: err.message }); }
+        } catch (err) {
+            console.error(`Sync Error [${entity}]:`, err.message);
+            res.status(500).json({ error: `DB Error: ${err.message}` });
+        }
     });
 
     app.delete(`/api/${entity}/:id`, async (req, res) => {
@@ -123,24 +165,32 @@ entities.forEach(entity => {
             res.json({ success: true });
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
-});
+};
 
-// --- STATIC FRONTEND SERVING (RELOAD FIX) ---
+['inventory', 'sales', 'suppliers', 'customers', 'expenses'].forEach(setupEntity);
 
+// --- STATIC FILES & SPA ROUTING ---
 const distPath = path.join(process.cwd(), 'dist');
 app.use(express.static(distPath));
 
-// This MUST be the last route
+// Wildcard route to handle React Router paths
 app.get('*', (req, res) => {
-    // Check if it's an API request that failed (don't serve index.html for failed APIs)
+    // Skip API routes
     if (req.path.startsWith('/api/')) {
-        return res.status(404).json({ error: 'API route not found' });
+        return res.status(404).json({ error: 'API endpoint not found' });
     }
-    // For all other routes, serve index.html to handle routing via React
-    res.sendFile(path.join(distPath, 'index.html'));
+    
+    // Serve index.html for everything else
+    const indexPath = path.join(distPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            console.error('Error serving index.html:', err.message);
+            res.status(500).send('Software Frontend is not built. Please run "npm run build" or check Hostinger deployment settings.');
+        }
+    });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server listening on PORT ${PORT}`);
-    ensureAllTables().then(checkColumns);
+    console.log(`Server is running on PORT ${PORT}`);
+    ensureAllTables();
 });
