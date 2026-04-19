@@ -181,19 +181,27 @@ const useData = () => {
     const newItem = { ...item, id: item.id || Date.now().toString() };
     
     try {
+      console.log(`[SYNC] Attempting to save ${key}...`, newItem);
       const res = await fetch(`/api/${key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newItem)
       });
-      if (!res.ok) throw new Error('Failed to sync with database');
       
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Server rejected the data');
+      }
+      
+      console.log(`[SYNC] ${key} saved to database!`);
       const newData = [...currentData, newItem];
       setter(newData);
       saveData(key, newData);
-    } catch (error) {
-      console.error(`Error syncing ${key}:`, error);
-      // Fallback to local storage if API fails
+    } catch (error: any) {
+      console.error(`[CRITICAL ERROR] Failed to save ${key} to DB:`, error.message);
+      alert(`ডাটাবেজে সেভ হতে সমস্যা হয়েছে: ${error.message}\n\nআপনার ডাটা বর্তমানে ব্রাউজারে সেভ হয়েছে, কিন্তু ডাটাবেজে যায়নি। দয়া করে ইন্টারনেট কানেকশন বা সার্ভার চেক করুন।`);
+      
+      // Fallback to local storage so user doesn't lose work
       const newData = [...currentData, newItem];
       setter(newData);
       saveData(key, newData);
