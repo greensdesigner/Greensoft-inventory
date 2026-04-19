@@ -53,7 +53,7 @@ import html2canvas from 'html2canvas';
 import html2pdf from 'html2pdf.js';
 import { useReactToPrint } from 'react-to-print';
 import { 
-  BrowserRouter as Router, 
+  HashRouter as Router, 
   Routes, 
   Route, 
   Link, 
