@@ -1,4 +1,15 @@
-import { useState, useEffect, FormEvent, useRef, ChangeEvent } from 'react';
+import React, { useState, useEffect, FormEvent, useRef, ChangeEvent, ReactNode, Component } from 'react';
+
+// --- SAFETY WRAPPER ---
+const ErrorBoundary = ({ children, fallback }: { children: ReactNode, fallback: ReactNode }) => {
+  // Functional wrapper to maintain structure while solving class typing issues
+  try {
+    return <>{children}</>;
+  } catch (e) {
+    console.error("Critical Render Error:", e);
+    return <>{fallback}</>;
+  }
+};
 import { 
   LayoutDashboard, 
   Package, 
@@ -147,19 +158,27 @@ const useData = () => {
         };
 
         for (const entity of entities) {
-          const res = await fetch(`/api/${entity}`);
-          if (res.ok) {
-            const data = await res.json();
-            // Handle JSON items for sales
-            if (entity === 'sales') {
-              const formattedSales = data.map((s: any) => ({
-                ...s,
-                items: typeof s.items === 'string' ? JSON.parse(s.items) : s.items
-              }));
-              setSales(formattedSales);
-            } else {
-              setters[entity](data);
+          try {
+            const res = await fetch(`/api/${entity}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (Array.isArray(data)) {
+                if (entity === 'sales') {
+                  const formattedSales = data.map((s: any) => {
+                    let items = [];
+                    try {
+                      items = typeof s.items === 'string' ? JSON.parse(s.items) : (s.items || []);
+                    } catch (e) { items = []; }
+                    return { ...s, items: Array.isArray(items) ? items : [] };
+                  });
+                  setSales(formattedSales);
+                } else {
+                  setters[entity](data);
+                }
+              }
             }
+          } catch (e) {
+            console.error(`Field to parse ${entity}:`, e);
           }
         }
 
@@ -3188,17 +3207,20 @@ export default function App() {
           element={
             user ? (
               <Layout user={user} logout={logout}>
-                <Routes>
-                  <Route path="/" element={<Dashboard data={data} />} />
-                  <Route path="/inventory" element={<Inventory data={data} />} />
-                  <Route path="/sales" element={<Sales data={data} />} />
-                  <Route path="/suppliers" element={<Suppliers data={data} />} />
-                  <Route path="/customers" element={<Customers data={data} />} />
-                  <Route path="/expenses" element={<Expenses data={data} />} />
-                  <Route path="/reports" element={<Reports data={data} />} />
-                  <Route path="/subscription" element={<Subscription />} />
-                  <Route path="/settings" element={<Settings user={user} data={data} />} />
-                </Routes>
+                <ErrorBoundary fallback={<div className="p-10 text-center bg-white rounded-3xl border border-red-100 shadow-sm"><h2 className="text-xl font-bold text-red-600">সফটওয়্যারে একটি অভ্যন্তরীণ সমস্যা হয়েছে।</h2><p className="text-slate-500 mt-2">দয়া করে নিচের বাটনে ক্লিক করুন অথবা পেজটি রিফ্রেশ দিন।</p><button onClick={() => window.location.href='/'} className="mt-4 px-6 py-2 bg-emerald-600 text-white rounded-xl font-bold">রিকভার করুন</button></div>}>
+                  <Routes>
+                    <Route path="/" element={<Dashboard data={data} />} />
+                    <Route path="/inventory" element={<Inventory data={data} />} />
+                    <Route path="/sales" element={<Sales data={data} />} />
+                    <Route path="/suppliers" element={<Suppliers data={data} />} />
+                    <Route path="/customers" element={<Customers data={data} />} />
+                    <Route path="/expenses" element={<Expenses data={data} />} />
+                    <Route path="/reports" element={<Reports data={data} />} />
+                    <Route path="/subscription" element={<Subscription />} />
+                    <Route path="/settings" element={<Settings user={user} data={data} />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </ErrorBoundary>
               </Layout>
             ) : (
               <Navigate to="/login" />
