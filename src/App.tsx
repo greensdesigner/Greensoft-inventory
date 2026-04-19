@@ -211,13 +211,31 @@ const useData = () => {
     addSupplier: (item: any) => addItem('suppliers', item, setSuppliers, suppliers),
     addCustomer: (item: any) => addItem('customers', item, setCustomers, customers),
     addExpense: (item: any) => addItem('expenses', item, setExpenses, expenses),
-    deleteItem: (key: string, id: string, setter: any, currentData: any) => {
+    deleteItem: async (key: string, id: string, setter: any, currentData: any) => {
+      try {
+        await fetch(`/api/${key}/${id}`, { method: 'DELETE' });
+      } catch (error) {
+        console.error(`Error deleting ${key}:`, error);
+      }
       const newData = currentData.filter((item: any) => item.id !== id);
       setter(newData);
       saveData(key, newData);
     },
-    editItem: (key: string, id: string, updatedItem: any, setter: any, currentData: any) => {
-      const newData = currentData.map((item: any) => item.id === id ? { ...item, ...updatedItem } : item);
+    editItem: async (key: string, id: string, updatedItem: any, setter: any, currentData: any) => {
+      const item = currentData.find((i: any) => i.id === id);
+      const fullUpdatedItem = { ...item, ...updatedItem };
+      
+      try {
+        await fetch(`/api/${key}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fullUpdatedItem)
+        });
+      } catch (error) {
+        console.error(`Error editing ${key}:`, error);
+      }
+
+      const newData = currentData.map((i: any) => i.id === id ? fullUpdatedItem : i);
       setter(newData);
       saveData(key, newData);
     },

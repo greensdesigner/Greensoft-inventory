@@ -29,32 +29,93 @@ async function ensureAllTables() {
         if (!pool) pool = mysql.createPool(dbConfig);
         const conn = await pool.getConnection();
         
-        console.log('Initializing all database tables...');
+        console.log('Synchronizing database schema...');
 
-        await conn.query(`CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, businessName VARCHAR(255), fullName VARCHAR(255), phoneNumber VARCHAR(20), email VARCHAR(255) UNIQUE, password VARCHAR(255), logo TEXT, createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+        // Users
+        await conn.query(`CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY, 
+            businessName VARCHAR(255), 
+            fullName VARCHAR(255), 
+            phoneNumber VARCHAR(20), 
+            email VARCHAR(255) UNIQUE, 
+            password VARCHAR(255), 
+            logo TEXT, 
+            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
         
-        await conn.query(`CREATE TABLE IF NOT EXISTS inventory (id VARCHAR(255) PRIMARY KEY, name VARCHAR(255), category VARCHAR(255), sku VARCHAR(255), quantity INT DEFAULT 0, unit VARCHAR(50), purchasePrice DECIMAL(10,2) DEFAULT 0, sellingPrice DECIMAL(10,2) DEFAULT 0, minStock INT DEFAULT 0, supplier VARCHAR(255), lastUpdated TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+        // Inventory
+        await conn.query(`CREATE TABLE IF NOT EXISTS inventory (
+            id VARCHAR(255) PRIMARY KEY, 
+            name VARCHAR(255), 
+            category VARCHAR(255), 
+            sku VARCHAR(255), 
+            quantity INT DEFAULT 0, 
+            unit VARCHAR(50), 
+            purchasePrice DECIMAL(10,2) DEFAULT 0, 
+            sellingPrice DECIMAL(10,2) DEFAULT 0, 
+            minStock INT DEFAULT 0, 
+            supplier VARCHAR(255), 
+            lastUpdated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )`);
         
-        await conn.query(`CREATE TABLE IF NOT EXISTS sales (id VARCHAR(255) PRIMARY KEY, invoiceNo VARCHAR(255), customerName VARCHAR(255), date DATETIME, totalAmount DECIMAL(10,2) DEFAULT 0, paidAmount DECIMAL(10,2) DEFAULT 0, paymentMethod VARCHAR(50), status VARCHAR(50), items JSON)`);
+        // Sales
+        await conn.query(`CREATE TABLE IF NOT EXISTS sales (
+            id VARCHAR(255) PRIMARY KEY, 
+            invoiceNo VARCHAR(255), 
+            customerName VARCHAR(255), 
+            customerPhone VARCHAR(255), 
+            customerEmail VARCHAR(255), 
+            customerAddress TEXT, 
+            items JSON, 
+            total DECIMAL(10,2) DEFAULT 0, 
+            paid DECIMAL(10,2) DEFAULT 0, 
+            date VARCHAR(50), 
+            paymentMethod VARCHAR(50), 
+            status VARCHAR(50)
+        )`);
         
-        await conn.query(`CREATE TABLE IF NOT EXISTS suppliers (id VARCHAR(255) PRIMARY KEY, name VARCHAR(255), contactPerson VARCHAR(255), phone VARCHAR(20), email VARCHAR(255), address TEXT, category VARCHAR(255), status VARCHAR(50) DEFAULT 'Active')`);
+        // Suppliers
+        await conn.query(`CREATE TABLE IF NOT EXISTS suppliers (
+            id VARCHAR(255) PRIMARY KEY, 
+            name VARCHAR(255), 
+            contactPerson VARCHAR(255), 
+            phone VARCHAR(20), 
+            email VARCHAR(255), 
+            address TEXT, 
+            category VARCHAR(255), 
+            status VARCHAR(50)
+        )`);
 
-        await conn.query(`CREATE TABLE IF NOT EXISTS customers (id VARCHAR(255) PRIMARY KEY, name VARCHAR(255), phone VARCHAR(20), email VARCHAR(255), address TEXT, totalOrders INT DEFAULT 0, totalSpent DECIMAL(10,2) DEFAULT 0)`);
+        // Customers
+        await conn.query(`CREATE TABLE IF NOT EXISTS customers (
+            id VARCHAR(255) PRIMARY KEY, 
+            name VARCHAR(255), 
+            phone VARCHAR(20), 
+            email VARCHAR(255), 
+            address TEXT, 
+            totalOrders INT DEFAULT 0, 
+            totalSpent DECIMAL(10,2) DEFAULT 0
+        )`);
 
-        await conn.query(`CREATE TABLE IF NOT EXISTS expenses (id VARCHAR(255) PRIMARY KEY, title VARCHAR(255), category VARCHAR(255), amount DECIMAL(10,2) DEFAULT 0, date DATE, paymentMethod VARCHAR(50), note TEXT)`);
+        // Expenses
+        await conn.query(`CREATE TABLE IF NOT EXISTS expenses (
+            id VARCHAR(255) PRIMARY KEY, 
+            title VARCHAR(255), 
+            category VARCHAR(255), 
+            amount DECIMAL(10,2) DEFAULT 0, 
+            date VARCHAR(50), 
+            paymentMethod VARCHAR(50), 
+            note TEXT
+        )`);
 
         conn.release();
-        console.log('>>> DATABASE SCHEMA IS UP TO DATE <<<');
+        console.log('>>> DATABASE SCHEMA IS READY <<<');
     } catch (err) {
         console.error('Database Initialization Failed:', err.message);
     }
 }
 
-// --- API ENDPOINTS ---
-
-app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
-
-// Auth
+// Auth API
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { businessName, fullName, phoneNumber, email, password } = req.body;
@@ -62,7 +123,7 @@ app.post('/api/auth/register', async (req, res) => {
         if (existing.length > 0) return res.status(400).json({ error: 'Email already in use' });
         const hashed = await bcrypt.hash(password, 10);
         const [result] = await pool.query('INSERT INTO users (businessName, fullName, phoneNumber, email, password) VALUES (?, ?, ?, ?, ?)', [businessName, fullName, phoneNumber, email, hashed]);
-        res.status(201).json({ success: true, user: { id: result.insertId, email, businessName } });
+        res.status(201).json({ success: true, user: { id: result.insertId, email, businessName, name: fullName } });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -77,8 +138,10 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Generic Fetch/Save Helper for Inventory, Sales, Suppliers, Customers, Expenses
-const setupEntityRoutes = (entity) => {
+// Entity API Helper
+const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
+entities.forEach(entity => {
+    // GET List
     app.get(`/api/${entity}`, async (req, res) => {
         try {
             const [rows] = await pool.query(`SELECT * FROM ${entity}`);
@@ -86,22 +149,36 @@ const setupEntityRoutes = (entity) => {
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
 
+    // POST (Add or Full Update)
     app.post(`/api/${entity}`, async (req, res) => {
         try {
             const data = req.body;
-            const columns = Object.keys(data).join(', ');
-            const placeholders = Object.keys(data).map(() => '?').join(', ');
+            const columns = Object.keys(data);
             const values = Object.values(data).map(v => typeof v === 'object' ? JSON.stringify(v) : v);
+            const placeholders = columns.map(() => '?').join(', ');
             
-            await pool.query(`INSERT INTO ${entity} (${columns}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE id=id`, values);
+            // Log to debugger
+            console.log(`[API] Saving ${entity}: id=${data.id}`);
+
+            const query = `REPLACE INTO ${entity} (${columns.join(', ')}) VALUES (${placeholders})`;
+            await pool.query(query, values);
+            res.json({ success: true });
+        } catch (err) {
+            console.error(`[API] Save Error ${entity}:`, err.message);
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // DELETE
+    app.delete(`/api/${entity}/:id`, async (req, res) => {
+        try {
+            await pool.query(`DELETE FROM ${entity} WHERE id = ?`, [req.params.id]);
             res.json({ success: true });
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
-};
+});
 
-['inventory', 'sales', 'suppliers', 'customers', 'expenses'].forEach(setupEntityRoutes);
-
-// Serving Frontend
+// Serve frontend
 if (process.env.NODE_ENV === 'production') {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
