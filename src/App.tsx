@@ -1799,7 +1799,7 @@ const Sales = ({ data }: any) => {
       <Card>
         {data.sales.length > 0 ? (
           <Table headers={['Invoice', 'Customer', 'Items', 'Date', 'Total Amount', 'Actions']}>
-            {data.sales.map((item: any) => (
+            {[...data.sales].sort((a: any, b: any) => b.id.localeCompare(a.id)).map((item: any) => (
               <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4 font-medium text-slate-900">#INV-{item.id.slice(-4)}</td>
                 <td className="px-6 py-4 text-sm text-slate-600">
@@ -2179,7 +2179,7 @@ const Customers = ({ data }: any) => {
       <Card>
         {data.customers.length > 0 ? (
           <Table headers={['Customer Name', 'Contact Info', 'Total Orders', 'Total Spent', 'Actions']}>
-            {data.customers.map((item: any) => (
+            {[...data.customers].sort((a: any, b: any) => b.id.localeCompare(a.id)).map((item: any) => (
               <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
@@ -2367,7 +2367,7 @@ const Expenses = ({ data }: any) => {
           <Card>
             {data.expenses.length > 0 ? (
               <Table headers={['Date', 'Category', 'Description', 'Amount', 'Actions']}>
-                {data.expenses.map((item: any) => (
+                {[...data.expenses].sort((a: any, b: any) => b.id.localeCompare(a.id)).map((item: any) => (
                   <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
                     <td className="px-6 py-4">
