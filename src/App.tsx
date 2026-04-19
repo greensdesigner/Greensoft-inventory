@@ -149,33 +149,40 @@ const useData = () => {
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Sanitization helper
+  const n = (v: any) => {
+    if (typeof v === 'string') {
+      return parseFloat(v.replace(/[^\d.-]/g, '')) || 0;
+    }
+    return Number(v) || 0;
+  };
+
   const sanitizeItem = (key: string, item: any) => {
     if (key === 'inventory') {
       return {
         ...item,
-        quantity: Number(item.quantity) || 0,
-        price: Number(item.price) || 0,
-        minStock: Number(item.minStock) || 0
+        quantity: n(item.quantity),
+        price: n(item.price),
+        minStock: n(item.minStock)
       };
     }
     if (key === 'sales') {
       return {
         ...item,
-        total: Number(item.total) || 0,
-        paid: Number(item.paid) || 0
+        total: n(item.total),
+        paid: n(item.paid)
       };
     }
     if (key === 'expenses') {
       return {
         ...item,
-        amount: Number(item.amount) || 0
+        amount: n(item.amount)
       };
     }
     if (key === 'customers') {
       return {
         ...item,
-        orders: Number(item.orders) || 0,
-        spent: Number(item.spent) || 0
+        orders: n(item.orders),
+        spent: n(item.spent)
       };
     }
     return item;
@@ -233,15 +240,16 @@ const useData = () => {
     localStorage.setItem(`greensoft_${key}`, JSON.stringify(data));
   };
 
-  const addItem = async (key: string, item: any, setter: any, currentData: any) => {
+  const addItem = async (key: string, item: any, setter: any) => {
     const newItem = { ...item, id: item.id || Date.now().toString() };
+    const sanitizedItem = sanitizeItem(key, newItem);
     
     try {
-      console.log(`[SYNC] Attempting to save ${key}...`, newItem);
+      console.log(`[SYNC] Attempting to save ${key}...`, sanitizedItem);
       const res = await fetch(`/api/${key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newItem)
+        body: JSON.stringify(sanitizedItem)
       });
       
       if (!res.ok) {
@@ -250,18 +258,36 @@ const useData = () => {
       }
       
       console.log(`[SYNC] ${key} saved to database!`);
-      const newData = [...currentData, newItem];
-      setter(newData);
-      saveData(key, newData);
     } catch (error: any) {
       console.error(`[CRITICAL ERROR] Failed to save ${key} to DB:`, error.message);
       alert(`ডাটাবেজে সেভ হতে সমস্যা হয়েছে: ${error.message}\n\nআপনার ডাটা বর্তমানে ব্রাউজারে সেভ হয়েছে, কিন্তু ডাটাবেজে যায়নি। দয়া করে ইন্টারনেট কানেকশন বা সার্ভার চেক করুন।`);
-      
-      // Fallback to local storage so user doesn't lose work
-      const newData = [...currentData, newItem];
-      setter(newData);
-      saveData(key, newData);
     }
+
+    setter((prev: any[]) => {
+      const newData = [...prev, sanitizedItem];
+      saveData(key, newData);
+      return newData;
+    });
+  };
+
+  const editItem = async (key: string, id: string, updatedFields: any, setter: any) => {
+    setter((prev: any[]) => {
+      const item = prev.find((i: any) => i.id === id);
+      if (!item) return prev;
+      
+      const fullUpdatedItem = sanitizeItem(key, { ...item, ...updatedFields });
+      
+      // Async update in background
+      fetch(`/api/${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fullUpdatedItem)
+      }).catch(err => console.error(`Error syncing edit for ${key}:`, err));
+
+      const newData = prev.map((i: any) => i.id === id ? fullUpdatedItem : i);
+      saveData(key, newData);
+      return newData;
+    });
   };
 
   return {
@@ -270,39 +296,24 @@ const useData = () => {
     suppliers, setSuppliers: (d: any) => { setSuppliers(d); saveData('suppliers', d); },
     customers, setCustomers: (d: any) => { setCustomers(d); saveData('customers', d); },
     expenses, setExpenses: (d: any) => { setExpenses(d); saveData('expenses', d); },
-    addInventory: (item: any) => addItem('inventory', item, setInventory, inventory),
-    addSale: (item: any) => addItem('sales', item, setSales, sales),
-    addSupplier: (item: any) => addItem('suppliers', item, setSuppliers, suppliers),
-    addCustomer: (item: any) => addItem('customers', item, setCustomers, customers),
-    addExpense: (item: any) => addItem('expenses', item, setExpenses, expenses),
-    deleteItem: async (key: string, id: string, setter: any, currentData: any) => {
+    addInventory: (item: any) => addItem('inventory', item, setInventory),
+    addSale: (item: any) => addItem('sales', item, setSales),
+    addSupplier: (item: any) => addItem('suppliers', item, setSuppliers),
+    addCustomer: (item: any) => addItem('customers', item, setCustomers),
+    addExpense: (item: any) => addItem('expenses', item, setExpenses),
+    deleteItem: async (key: string, id: string, setter: any) => {
       try {
         await fetch(`/api/${key}/${id}`, { method: 'DELETE' });
       } catch (error) {
         console.error(`Error deleting ${key}:`, error);
       }
-      const newData = currentData.filter((item: any) => item.id !== id);
-      setter(newData);
-      saveData(key, newData);
+      setter((prev: any[]) => {
+        const newData = prev.filter((item: any) => item.id !== id);
+        saveData(key, newData);
+        return newData;
+      });
     },
-    editItem: async (key: string, id: string, updatedItem: any, setter: any, currentData: any) => {
-      const item = currentData.find((i: any) => i.id === id);
-      const fullUpdatedItem = { ...item, ...updatedItem };
-      
-      try {
-        await fetch(`/api/${key}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(fullUpdatedItem)
-        });
-      } catch (error) {
-        console.error(`Error editing ${key}:`, error);
-      }
-
-      const newData = currentData.map((i: any) => i.id === id ? fullUpdatedItem : i);
-      setter(newData);
-      saveData(key, newData);
-    },
+    editItem,
     isLoaded
   };
 };
@@ -979,7 +990,7 @@ const Inventory = ({ data }: any) => {
         quantity: parseInt(newItem.quantity),
         price: parseFloat(newItem.price),
         minStock: parseInt(newItem.minStock)
-      }, data.setInventory, data.inventory);
+      }, data.setInventory);
     } else {
       data.addInventory({
         ...newItem,
@@ -1091,7 +1102,7 @@ const Inventory = ({ data }: any) => {
                       Edit
                     </button>
                     <button 
-                      onClick={() => data.deleteItem('inventory', item.id, data.setInventory, data.inventory)}
+                      onClick={() => data.deleteItem('inventory', item.id, data.setInventory)}
                       className="text-red-600 hover:text-red-700 font-medium text-sm"
                     >
                       Delete
@@ -1720,32 +1731,41 @@ const Sales = ({ data }: any) => {
     // 2. Update Inventory for each item
     newSale.items.forEach(item => {
       const product = data.inventory.find((p: any) => p.id === item.productId);
-      data.editItem('inventory', item.productId, {
-        quantity: product.quantity - parseInt(item.quantity)
-      }, data.setInventory, data.inventory);
+      if (product) {
+        data.editItem('inventory', item.productId, {
+          quantity: (Number(product.quantity) || 0) - (parseInt(item.quantity) || 0)
+        }, data.setInventory);
+      }
     });
 
-    // 3. Update/Add Customer (Only if name is provided)
-    if (newSale.customerName.trim()) {
-      const searchName = newSale.customerName.trim().toLowerCase();
+    // 3. Update/Add Customer (Priority to Name + Phone match)
+    const custName = newSale.customerName.trim();
+    if (custName) {
+      const searchName = custName.toLowerCase();
       const searchPhone = newSale.customerPhone?.trim();
       
-      const existingCustomer = data.customers.find((c: any) => 
-        (c.name && c.name.trim().toLowerCase() === searchName) || 
-        (searchPhone && c.phone === searchPhone)
-      );
+      // Strictly match by BOTH name and phone if both available, otherwise by name
+      const existingCustomer = data.customers.find((c: any) => {
+        const cName = (c.name || '').trim().toLowerCase();
+        if (searchPhone && c.phone === searchPhone) {
+          // If phone matches, check if name is also similar or if it's a generic guest name
+          return cName === searchName || !cName;
+        }
+        return cName === searchName;
+      });
 
       if (existingCustomer) {
         data.editItem('customers', existingCustomer.id, {
           orders: (Number(existingCustomer.orders) || 0) + 1,
           spent: (Number(existingCustomer.spent) || 0) + totalAmount,
+          name: existingCustomer.name || custName, // Preserve name or fill if missing
           phone: existingCustomer.phone || newSale.customerPhone,
           email: existingCustomer.email || newSale.customerEmail,
           address: existingCustomer.address || newSale.customerAddress
-        }, data.setCustomers, data.customers);
+        }, data.setCustomers);
       } else {
         data.addCustomer({
-          name: newSale.customerName.trim(),
+          name: custName,
           email: newSale.customerEmail,
           phone: newSale.customerPhone,
           address: newSale.customerAddress,
@@ -1818,7 +1838,7 @@ const Sales = ({ data }: any) => {
                       <FileText size={14} /> Invoice
                     </button>
                     <button 
-                      onClick={() => data.deleteItem('sales', item.id, data.setSales, data.sales)}
+                      onClick={() => data.deleteItem('sales', item.id, data.setSales)}
                       className="text-red-600 hover:text-red-700 font-medium text-sm"
                     >
                       Delete
@@ -2044,7 +2064,7 @@ const Suppliers = ({ data }: any) => {
                   <Truck size={24} />
                 </div>
                 <button 
-                  onClick={() => data.deleteItem('suppliers', item.id, data.setSuppliers, data.suppliers)}
+                  onClick={() => data.deleteItem('suppliers', item.id, data.setSuppliers)}
                   className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 >
                   <X size={16} />
@@ -2189,7 +2209,7 @@ const Customers = ({ data }: any) => {
                       View
                     </button>
                     <button 
-                      onClick={() => data.deleteItem('customers', item.id, data.setCustomers, data.customers)}
+                      onClick={() => data.deleteItem('customers', item.id, data.setCustomers)}
                       className="text-red-600 hover:text-red-700 font-medium text-sm"
                     >
                       Delete
@@ -2371,7 +2391,7 @@ const Expenses = ({ data }: any) => {
                     <td className="px-6 py-4 font-semibold text-red-600">-${f2(item.amount)}</td>
                     <td className="px-6 py-4">
                       <button 
-                        onClick={() => data.deleteItem('expenses', item.id, data.setExpenses, data.expenses)}
+                        onClick={() => data.deleteItem('expenses', item.id, data.setExpenses)}
                         className="text-red-600 hover:text-red-700 font-medium text-sm"
                       >
                         Delete
