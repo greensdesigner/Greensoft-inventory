@@ -78,6 +78,9 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 
+// --- HELPERS ---
+const f2 = (num: any) => (Number(num) || 0).toFixed(2);
+
 // --- REAL AUTH HOOK ---
 const useAuth = () => {
   const [user, setUser] = useState<{ email: string; businessName: string; logo?: string; name?: string; phone?: string } | null>(null);
@@ -142,9 +145,34 @@ const useData = () => {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
+  const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Fetch initial data from DB
+  // Sanitization helper
+  const sanitizeItem = (key: string, item: any) => {
+    if (key === 'inventory') {
+      return {
+        ...item,
+        quantity: Number(item.quantity) || 0,
+        price: Number(item.price) || 0,
+        minStock: Number(item.minStock) || 0
+      };
+    }
+    if (key === 'sales') {
+      return {
+        ...item,
+        total: Number(item.total) || 0,
+        paid: Number(item.paid) || 0
+      };
+    }
+    if (key === 'expenses') {
+      return {
+        ...item,
+        amount: Number(item.amount) || 0
+      };
+    }
+    return item;
+  };
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -163,8 +191,10 @@ const useData = () => {
             if (res.ok) {
               const data = await res.json();
               if (Array.isArray(data)) {
+                const sanitizedData = data.map(item => sanitizeItem(entity, item));
+                
                 if (entity === 'sales') {
-                  const formattedSales = data.map((s: any) => {
+                  const formattedSales = sanitizedData.map((s: any) => {
                     let items = [];
                     try {
                       items = typeof s.items === 'string' ? JSON.parse(s.items) : (s.items || []);
@@ -173,7 +203,7 @@ const useData = () => {
                   });
                   setSales(formattedSales);
                 } else {
-                  setters[entity](data);
+                  setters[entity](sanitizedData);
                 }
               }
             }
@@ -668,9 +698,9 @@ const Dashboard = ({ data }: any) => {
 
     return {
       date: date.split('-').slice(1).join('/'),
-      profit: parseFloat(dailyProfit.toFixed(2)),
-      loss: parseFloat((dailyLoss + dailyExpenses).toFixed(2)),
-      net: parseFloat((dailyProfit - (dailyLoss + dailyExpenses)).toFixed(2)),
+      profit: parseFloat(f2(dailyProfit)),
+      loss: parseFloat(f2(dailyLoss + dailyExpenses)),
+      net: parseFloat(f2(dailyProfit - (dailyLoss + dailyExpenses))),
     };
   });
 
@@ -973,11 +1003,14 @@ const Inventory = ({ data }: any) => {
     setIsQRModalOpen(true);
   };
 
-  const categories = ['All', ...new Set(data.inventory.map((item: any) => item.category))];
+  const categories = ['All', ...new Set((data.inventory || []).map((item: any) => item.category || 'General'))];
 
-  const filteredInventory = data.inventory.filter((item: any) => {
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         item.category.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredInventory = (data.inventory || []).filter((item: any) => {
+    const name = (item.name || '').toLowerCase();
+    const category = (item.category || '').toLowerCase();
+    const query = searchQuery.toLowerCase();
+    
+    const matchesSearch = name.includes(query) || category.includes(query);
     const matchesCategory = filterCategory === 'All' || item.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
@@ -1032,7 +1065,7 @@ const Inventory = ({ data }: any) => {
                     <span className="text-xs text-slate-400">units</span>
                   </div>
                 </td>
-                <td className="px-6 py-4 font-semibold text-slate-900">${item.price.toFixed(2)}</td>
+                <td className="px-6 py-4 font-semibold text-slate-900">${f2(item.price)}</td>
                 <td className="px-6 py-4">
                   <button 
                     onClick={() => openQR(item)}
@@ -1128,7 +1161,7 @@ const Inventory = ({ data }: any) => {
             <div className="text-center">
               <h3 className="text-xl font-bold text-slate-900">{selectedQRItem.name}</h3>
               <p className="text-sm text-slate-500">SKU: SKU-{selectedQRItem.id.slice(-4)}</p>
-              <p className="text-lg font-bold text-emerald-600 mt-2">${selectedQRItem.price.toFixed(2)}</p>
+              <p className="text-lg font-bold text-emerald-600 mt-2">${f2(selectedQRItem.price)}</p>
             </div>
             <button 
               onClick={() => window.print()}
@@ -1201,8 +1234,8 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
                   {item.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {item.serialNumber}</div>}
                 </td>
                 <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155' }}>{item.quantity}</td>
-                <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>${(item.total / item.quantity).toFixed(2)}</td>
-                <td style={{ padding: '1rem 0', textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>${item.total.toFixed(2)}</td>
+                <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>${f2(item.total / item.quantity)}</td>
+                <td style={{ padding: '1rem 0', textAlign: 'right', fontStyle: 'normal', fontWeight: 'bold', color: '#0f172a' }}>${f2(item.total)}</td>
               </tr>
             ))
           ) : (
@@ -1213,8 +1246,8 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
                 {sale.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {sale.serialNumber}</div>}
               </td>
               <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155' }}>{sale.quantity}</td>
-              <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>${(sale.total / sale.quantity).toFixed(2)}</td>
-              <td style={{ padding: '1rem 0', textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>${sale.total.toFixed(2)}</td>
+              <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>${f2(sale.total / sale.quantity)}</td>
+              <td style={{ padding: '1rem 0', textAlign: 'right', fontStyle: 'normal', fontWeight: 'bold', color: '#0f172a' }}>${f2(sale.total)}</td>
             </tr>
           )}
         </tbody>
@@ -1225,7 +1258,7 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
       <div style={{ width: '250px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.5rem' }}>
           <span>Subtotal</span>
-          <span>${sale.total.toFixed(2)}</span>
+          <span>${f2(sale.total)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.5rem' }}>
           <span>Tax (0%)</span>
@@ -1233,7 +1266,7 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0', marginTop: '0.5rem' }}>
           <span>Total</span>
-          <span style={{ color: '#059669' }}>${sale.total.toFixed(2)}</span>
+          <span style={{ color: '#059669' }}>${f2(sale.total)}</span>
         </div>
       </div>
     </div>
@@ -1893,7 +1926,7 @@ const Sales = ({ data }: any) => {
                           .filter((p: any) => !item.productCategory || p.category === item.productCategory)
                           .map((p: any) => (
                             <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
-                              {p.name} (${p.price.toFixed(2)}) - Stock: {p.quantity}
+                              {p.name} (${f2(p.price)}) - Stock: {p.quantity}
                             </option>
                           ))
                         }
@@ -1936,7 +1969,7 @@ const Sales = ({ data }: any) => {
           <div className="pt-4 border-t border-slate-100">
             <div className="flex items-center justify-between mb-6 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
               <span className="font-bold text-emerald-800">Grand Total</span>
-              <span className="text-2xl font-black text-emerald-600">${totalAmount.toFixed(2)}</span>
+              <span className="text-2xl font-black text-emerald-600">${f2(totalAmount)}</span>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -2134,7 +2167,7 @@ const Customers = ({ data }: any) => {
                   {item.address && <div className="text-xs text-slate-400 italic">{item.address}</div>}
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{item.orders}</td>
-                <td className="px-6 py-4 font-semibold text-slate-900">${item.spent.toFixed(2)}</td>
+                <td className="px-6 py-4 font-semibold text-slate-900">${f2(item.spent)}</td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <button 
@@ -2187,7 +2220,7 @@ const Customers = ({ data }: any) => {
               </div>
               <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Spent</p>
-                <p className="text-2xl font-bold text-emerald-600">${selectedCustomer.spent.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-emerald-600">${f2(selectedCustomer.spent)}</p>
               </div>
             </div>
 
@@ -2209,7 +2242,7 @@ const Customers = ({ data }: any) => {
                         <p className="text-xs text-slate-500">{sale.date}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-bold text-emerald-600">${sale.total.toFixed(2)}</p>
+                        <p className="text-sm font-bold text-emerald-600">${f2(sale.total)}</p>
                         <p className="text-[10px] text-slate-400">{sale.items?.length || 1} items</p>
                       </div>
                     </div>
@@ -2323,7 +2356,7 @@ const Expenses = ({ data }: any) => {
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-4 font-semibold text-red-600">-${item.amount.toFixed(2)}</td>
+                    <td className="px-6 py-4 font-semibold text-red-600">-${f2(item.amount)}</td>
                     <td className="px-6 py-4">
                       <button 
                         onClick={() => data.deleteItem('expenses', item.id, data.setExpenses, data.expenses)}
@@ -2352,7 +2385,7 @@ const Expenses = ({ data }: any) => {
             <div className="space-y-4">
               <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
                 <span className="text-sm text-slate-600 font-medium">Total Expenses</span>
-                <span className="text-lg font-bold text-red-600">-${data.expenses.reduce((acc: number, e: any) => acc + e.amount, 0).toFixed(2)}</span>
+                <span className="text-lg font-bold text-red-600">-${f2(data.expenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0))}</span>
               </div>
               <div className="pt-4 border-t border-slate-100">
                 <p className="text-xs text-slate-400 uppercase font-bold mb-3 tracking-wider">By Category</p>
@@ -2365,7 +2398,7 @@ const Expenses = ({ data }: any) => {
                   ).map(([category, amount]: [string, any]) => (
                     <div key={category} className="flex justify-between text-sm">
                       <span className="text-slate-600">{category}</span>
-                      <span className="font-semibold text-slate-900">${amount.toFixed(2)}</span>
+                      <span className="font-semibold text-slate-900">${f2(amount)}</span>
                     </div>
                   ))}
                 </div>
@@ -2505,7 +2538,7 @@ const Reports = ({ data }: any) => {
         <Card className="p-6">
           <p className="text-sm text-slate-500 font-medium">Net Profit</p>
           <h3 className={cn("text-2xl font-bold mt-1", netProfit >= 0 ? "text-emerald-600" : "text-red-600")}>
-            {netProfit >= 0 ? '' : '-'}${Math.abs(netProfit).toFixed(2)}
+            {netProfit >= 0 ? '' : '-'}${f2(Math.abs(netProfit))}
           </h3>
           <div className="mt-2 text-xs text-slate-400">
             Final Balance
@@ -2514,7 +2547,7 @@ const Reports = ({ data }: any) => {
         <Card className="p-6">
           <p className="text-sm text-slate-500 font-medium">Total Revenue</p>
           <h3 className="text-2xl font-bold text-slate-900 mt-1">
-            ${totalRevenue.toFixed(2)}
+            ${f2(totalRevenue)}
           </h3>
           <div className="mt-2 text-xs text-slate-400">
             Total Sales
@@ -2523,7 +2556,7 @@ const Reports = ({ data }: any) => {
         <Card className="p-6">
           <p className="text-sm text-slate-500 font-medium text-emerald-600">Current Profit</p>
           <h3 className="text-2xl font-bold text-emerald-600 mt-1">
-            ${currentProfit.toFixed(2)}
+            ${f2(currentProfit)}
           </h3>
           <div className="mt-2 text-xs text-slate-400">
             Profit from Sales
@@ -2532,7 +2565,7 @@ const Reports = ({ data }: any) => {
         <Card className="p-6">
           <p className="text-sm text-slate-500 font-medium text-red-600">Current Loss</p>
           <h3 className="text-2xl font-bold text-red-600 mt-1">
-            ${currentLoss.toFixed(2)}
+            ${f2(currentLoss)}
           </h3>
           <div className="mt-2 text-xs text-slate-400">
             Sales Loss + Expenses
@@ -2541,7 +2574,7 @@ const Reports = ({ data }: any) => {
         <Card className="p-6">
           <p className="text-sm text-slate-500 font-medium">Expense Ratio</p>
           <h3 className="text-2xl font-bold text-slate-900 mt-1">
-            {totalRevenue > 0 ? ((totalExpenses / totalRevenue) * 100).toFixed(1) : '0'}%
+            {totalRevenue > 0 ? (((totalExpenses || 0) / totalRevenue) * 100).toFixed(1) : '0'}%
           </h3>
           <div className="mt-2 text-xs text-slate-400">
             Expenses vs Revenue
@@ -2563,7 +2596,7 @@ const Reports = ({ data }: any) => {
                     style={{ height: `${(amount / Math.max(...Object.values(salesByDate) as number[])) * 100}%` }}
                   >
                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                      ${amount.toFixed(2)}
+                      ${f2(amount)}
                     </div>
                   </div>
                   <span className="text-[10px] text-slate-400 font-medium">{date.split('-').slice(1).join('/')}</span>
@@ -2583,7 +2616,7 @@ const Reports = ({ data }: any) => {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600">Stock Health</span>
-                  <span className="font-bold">{((data.inventory.filter((i: any) => i.quantity > i.minStock).length / data.inventory.length) * 100).toFixed(0)}%</span>
+                  <span className="font-bold">{data.inventory.length > 0 ? ((data.inventory.filter((i: any) => i.quantity > i.minStock).length / data.inventory.length) * 100).toFixed(0) : '0'}%</span>
                 </div>
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div 
@@ -3198,16 +3231,16 @@ export default function App() {
 
   return (
     <Router>
-      <Routes>
-        <Route path="/login" element={!user ? <AuthPage type="login" login={login} signup={signup} /> : <Navigate to="/" />} />
-        <Route path="/signup" element={!user ? <AuthPage type="signup" login={login} signup={signup} /> : <Navigate to="/" />} />
-        
-        <Route
-          path="/*"
-          element={
-            user ? (
-              <Layout user={user} logout={logout}>
-                <ErrorBoundary fallback={<div className="p-10 text-center bg-white rounded-3xl border border-red-100 shadow-sm"><h2 className="text-xl font-bold text-red-600">সফটওয়্যারে একটি অভ্যন্তরীণ সমস্যা হয়েছে।</h2><p className="text-slate-500 mt-2">দয়া করে নিচের বাটনে ক্লিক করুন অথবা পেজটি রিফ্রেশ দিন।</p><button onClick={() => window.location.href='/'} className="mt-4 px-6 py-2 bg-emerald-600 text-white rounded-xl font-bold">রিকভার করুন</button></div>}>
+      <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center"><div className="bg-white p-10 rounded-3xl border border-red-100 shadow-xl max-w-md"><h2 className="text-xl font-bold text-red-600">সফটওয়্যারে একটি মারাত্মক সমস্যা হয়েছে।</h2><p className="text-slate-500 mt-4">সম্ভবত ডাটাবেজ বা ব্রাউজারের কোনো তথ্যে ত্রুটি রয়েছে। নিচের বাটনে ক্লিক করে ড্যাশবোর্ডে ফিরে যান অথবা ডাটা রিসেট করুন।</p><div className="flex flex-col gap-3 mt-8"><button onClick={() => window.location.href='/'} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors">হোম পেজে যান</button><button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors">ডাটা রিসেট করুন (লগআউট)</button></div></div></div>}>
+        <Routes>
+          <Route path="/login" element={!user ? <AuthPage type="login" login={login} signup={signup} /> : <Navigate to="/" />} />
+          <Route path="/signup" element={!user ? <AuthPage type="signup" login={login} signup={signup} /> : <Navigate to="/" />} />
+          
+          <Route
+            path="/*"
+            element={
+              user ? (
+                <Layout user={user} logout={logout}>
                   <Routes>
                     <Route path="/" element={<Dashboard data={data} />} />
                     <Route path="/inventory" element={<Inventory data={data} />} />
@@ -3220,14 +3253,14 @@ export default function App() {
                     <Route path="/settings" element={<Settings user={user} data={data} />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
-                </ErrorBoundary>
-              </Layout>
-            ) : (
-              <Navigate to="/login" />
-            )
-          }
-        />
-      </Routes>
+                </Layout>
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+        </Routes>
+      </ErrorBoundary>
     </Router>
   );
 }
