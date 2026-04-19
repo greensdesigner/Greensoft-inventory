@@ -137,28 +137,31 @@ const useData = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch Inventory
-        const invRes = await fetch('/api/inventory');
-        if (invRes.ok) {
-          const invData = await invRes.json();
-          setInventory(invData);
-        }
-
-        // Fetch Sales
-        const salesRes = await fetch('/api/sales');
-        if (salesRes.ok) {
-          const salesData = await salesRes.json();
-          setSales(salesData);
-        }
-
-        // Load other data from localStorage for now
-        const loadLocal = (key: string, setter: any) => {
-          const saved = localStorage.getItem(`greensoft_${key}`);
-          if (saved) setter(JSON.parse(saved));
+        const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
+        const setters: any = {
+          inventory: setInventory,
+          sales: setSales,
+          suppliers: setSuppliers,
+          customers: setCustomers,
+          expenses: setExpenses
         };
-        loadLocal('suppliers', setSuppliers);
-        loadLocal('customers', setCustomers);
-        loadLocal('expenses', setExpenses);
+
+        for (const entity of entities) {
+          const res = await fetch(`/api/${entity}`);
+          if (res.ok) {
+            const data = await res.json();
+            // Handle JSON items for sales
+            if (entity === 'sales') {
+              const formattedSales = data.map((s: any) => ({
+                ...s,
+                items: typeof s.items === 'string' ? JSON.parse(s.items) : s.items
+              }));
+              setSales(formattedSales);
+            } else {
+              setters[entity](data);
+            }
+          }
+        }
 
         setIsLoaded(true);
       } catch (error) {
@@ -175,25 +178,26 @@ const useData = () => {
   };
 
   const addItem = async (key: string, item: any, setter: any, currentData: any) => {
-    const newItem = { ...item, id: Date.now().toString() };
+    const newItem = { ...item, id: item.id || Date.now().toString() };
     
-    // Sync with DB if it's inventory or sales
-    if (key === 'inventory' || key === 'sales') {
-      try {
-        const res = await fetch(`/api/${key}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newItem)
-        });
-        if (!res.ok) throw new Error('Failed to sync with database');
-      } catch (error) {
-        console.error(`Error syncing ${key}:`, error);
-      }
+    try {
+      const res = await fetch(`/api/${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newItem)
+      });
+      if (!res.ok) throw new Error('Failed to sync with database');
+      
+      const newData = [...currentData, newItem];
+      setter(newData);
+      saveData(key, newData);
+    } catch (error) {
+      console.error(`Error syncing ${key}:`, error);
+      // Fallback to local storage if API fails
+      const newData = [...currentData, newItem];
+      setter(newData);
+      saveData(key, newData);
     }
-
-    const newData = [...currentData, newItem];
-    setter(newData);
-    saveData(key, newData);
   };
 
   return {
