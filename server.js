@@ -55,6 +55,11 @@ async function ensureAllTables() {
         await checkAndAddColumn(conn, 'inventory', 'price', 'DECIMAL(10,2) DEFAULT 0');
         await checkAndAddColumn(conn, 'inventory', 'sku', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'inventory', 'minStock', 'INT DEFAULT 5');
+        
+        await checkAndAddColumn(conn, 'sales', 'customerName', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'sales', 'items', 'JSON');
+        await checkAndAddColumn(conn, 'sales', 'total', 'DECIMAL(10,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'sales', 'date', 'VARCHAR(50)');
         await checkAndAddColumn(conn, 'sales', 'customerPhone', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'sales', 'customerEmail', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'sales', 'customerAddress', 'TEXT');
@@ -62,14 +67,19 @@ async function ensureAllTables() {
         await checkAndAddColumn(conn, 'sales', 'paid', 'DECIMAL(10,2) DEFAULT 0');
         await checkAndAddColumn(conn, 'sales', 'paymentMethod', 'VARCHAR(50)');
         await checkAndAddColumn(conn, 'sales', 'status', 'VARCHAR(50)');
+        
         await checkAndAddColumn(conn, 'suppliers', 'address', 'TEXT');
         await checkAndAddColumn(conn, 'suppliers', 'phone', 'VARCHAR(20)');
         await checkAndAddColumn(conn, 'suppliers', 'email', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'suppliers', 'status', 'VARCHAR(50) DEFAULT "Active"');
+        
         await checkAndAddColumn(conn, 'customers', 'email', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'customers', 'address', 'TEXT');
         await checkAndAddColumn(conn, 'customers', 'orders', 'INT DEFAULT 0');
         await checkAndAddColumn(conn, 'customers', 'spent', 'DECIMAL(10,2) DEFAULT 0');
+        
+        await checkAndAddColumn(conn, 'expenses', 'amount', 'DECIMAL(10,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'expenses', 'date', 'VARCHAR(50)');
         await checkAndAddColumn(conn, 'expenses', 'description', 'TEXT');
         await checkAndAddColumn(conn, 'expenses', 'employeeName', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'expenses', 'employeePhone', 'VARCHAR(20)');
