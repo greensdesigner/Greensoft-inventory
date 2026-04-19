@@ -171,6 +171,13 @@ const useData = () => {
         amount: Number(item.amount) || 0
       };
     }
+    if (key === 'customers') {
+      return {
+        ...item,
+        orders: Number(item.orders) || 0,
+        spent: Number(item.spent) || 0
+      };
+    }
     return item;
   };
   useEffect(() => {
@@ -1718,29 +1725,34 @@ const Sales = ({ data }: any) => {
       }, data.setInventory, data.inventory);
     });
 
-    // 3. Update/Add Customer
-    const existingCustomer = data.customers.find((c: any) => 
-      c.name.toLowerCase() === newSale.customerName.toLowerCase() || 
-      (newSale.customerPhone && c.phone === newSale.customerPhone)
-    );
+    // 3. Update/Add Customer (Only if name is provided)
+    if (newSale.customerName.trim()) {
+      const searchName = newSale.customerName.trim().toLowerCase();
+      const searchPhone = newSale.customerPhone?.trim();
+      
+      const existingCustomer = data.customers.find((c: any) => 
+        (c.name && c.name.trim().toLowerCase() === searchName) || 
+        (searchPhone && c.phone === searchPhone)
+      );
 
-    if (existingCustomer) {
-      data.editItem('customers', existingCustomer.id, {
-        orders: existingCustomer.orders + 1,
-        spent: existingCustomer.spent + totalAmount,
-        phone: existingCustomer.phone || newSale.customerPhone,
-        email: existingCustomer.email || newSale.customerEmail,
-        address: existingCustomer.address || newSale.customerAddress
-      }, data.setCustomers, data.customers);
-    } else {
-      data.addCustomer({
-        name: newSale.customerName,
-        email: newSale.customerEmail,
-        phone: newSale.customerPhone,
-        address: newSale.customerAddress,
-        orders: 1,
-        spent: totalAmount
-      });
+      if (existingCustomer) {
+        data.editItem('customers', existingCustomer.id, {
+          orders: (Number(existingCustomer.orders) || 0) + 1,
+          spent: (Number(existingCustomer.spent) || 0) + totalAmount,
+          phone: existingCustomer.phone || newSale.customerPhone,
+          email: existingCustomer.email || newSale.customerEmail,
+          address: existingCustomer.address || newSale.customerAddress
+        }, data.setCustomers, data.customers);
+      } else {
+        data.addCustomer({
+          name: newSale.customerName.trim(),
+          email: newSale.customerEmail,
+          phone: newSale.customerPhone,
+          address: newSale.customerAddress,
+          orders: 1,
+          spent: totalAmount
+        });
+      }
     }
 
     setNewSale({ 
@@ -2157,7 +2169,7 @@ const Customers = ({ data }: any) => {
               <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold">{item.name[0]}</div>
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold">{(item.name || 'U')[0]}</div>
                     <div className="font-medium text-slate-900">{item.name}</div>
                   </div>
                 </td>
