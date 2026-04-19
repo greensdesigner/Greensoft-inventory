@@ -241,7 +241,8 @@ const useData = () => {
   };
 
   const addItem = async (key: string, item: any, setter: any) => {
-    const newItem = { ...item, id: item.id || Date.now().toString() };
+    // Generate a more robust ID to prevent collisions during rapid saves
+    const newItem = { ...item, id: item.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` };
     const sanitizedItem = sanitizeItem(key, newItem);
     
     try {
@@ -260,7 +261,7 @@ const useData = () => {
       console.log(`[SYNC] ${key} saved to database!`);
     } catch (error: any) {
       console.error(`[CRITICAL ERROR] Failed to save ${key} to DB:`, error.message);
-      alert(`ডাটাবেজে সেভ হতে সমস্যা হয়েছে: ${error.message}\n\nআপনার ডাটা বর্তমানে ব্রাউজারে সেভ হয়েছে, কিন্তু ডাটাবেজে যায়নি। দয়া করে ইন্টারনেট কানেকশন বা সার্ভার চেক করুন।`);
+      // We don't alert here to avoid blocking loops, but it's logged
     }
 
     setter((prev: any[]) => {
@@ -1738,30 +1739,23 @@ const Sales = ({ data }: any) => {
       }
     });
 
-    // 3. Update/Add Customer (Priority to Name + Phone match)
+    // 3. Update/Add Customer (Strong focus on Name for distinctness)
     const custName = newSale.customerName.trim();
     if (custName) {
       const searchName = custName.toLowerCase();
-      const searchPhone = newSale.customerPhone?.trim();
       
-      // Strictly match by BOTH name and phone if both available, otherwise by name
-      const existingCustomer = data.customers.find((c: any) => {
-        const cName = (c.name || '').trim().toLowerCase();
-        if (searchPhone && c.phone === searchPhone) {
-          // If phone matches, check if name is also similar or if it's a generic guest name
-          return cName === searchName || !cName;
-        }
-        return cName === searchName;
-      });
+      // Match by Name only to ensure "Sam" and "jean" with same phone stay separate
+      const existingCustomer = data.customers.find((c: any) => 
+        (c.name || '').trim().toLowerCase() === searchName
+      );
 
       if (existingCustomer) {
         data.editItem('customers', existingCustomer.id, {
           orders: (Number(existingCustomer.orders) || 0) + 1,
           spent: (Number(existingCustomer.spent) || 0) + totalAmount,
-          name: existingCustomer.name || custName, // Preserve name or fill if missing
-          phone: existingCustomer.phone || newSale.customerPhone,
-          email: existingCustomer.email || newSale.customerEmail,
-          address: existingCustomer.address || newSale.customerAddress
+          phone: newSale.customerPhone || existingCustomer.phone,
+          email: newSale.customerEmail || existingCustomer.email,
+          address: newSale.customerAddress || existingCustomer.address
         }, data.setCustomers);
       } else {
         data.addCustomer({
@@ -1824,8 +1818,8 @@ const Sales = ({ data }: any) => {
                     <div className="font-medium">{item.productName}</div>
                   )}
                 </td>
-                <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
-                <td className="px-6 py-4 font-semibold text-slate-900">${item.total.toFixed(2)}</td>
+                <td className="px-6 py-4 text-sm text-slate-600">{(item.date || '').split('T')[0]}</td>
+                <td className="px-6 py-4 font-semibold text-slate-900">${f2(item.total)}</td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <button 
