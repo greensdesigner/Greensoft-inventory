@@ -510,7 +510,21 @@ const SidebarItem = ({ icon: Icon, label, to, active, collapsed }: any) => (
 const Layout = ({ children, user, logout, subscription }: any) => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const location = useLocation();
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const isSubscribed = subscription?.active;
 
@@ -622,6 +636,25 @@ const Layout = ({ children, user, logout, subscription }: any) => {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Connection Status Bar */}
+        <div className={cn(
+          "px-4 py-1.5 text-center text-[11px] font-bold transition-all duration-300 z-50",
+          isOnline 
+            ? "bg-emerald-500 text-white" 
+            : "bg-red-600 text-white animate-pulse"
+        )}>
+          <div className="flex items-center justify-center gap-2">
+            <div className={cn(
+              "w-2 h-2 rounded-full",
+              isOnline ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]" : "bg-white"
+            )} />
+            {isOnline 
+              ? "Your software is online" 
+              : "Your software is offline, please do not put data"
+            }
+          </div>
+        </div>
+
         {isSubscribed && subscriptionDays <= 7 && subscriptionDays > 0 && (
           <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center justify-center gap-2 text-amber-800 text-xs sm:text-sm font-medium z-30">
             <Bell size={16} className="animate-bounce shrink-0" />
