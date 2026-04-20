@@ -638,15 +638,15 @@ const Layout = ({ children, user, logout, subscription }: any) => {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Connection Status Bar */}
         <div className={cn(
-          "px-4 py-1.5 text-center text-[11px] font-bold transition-all duration-300 z-50",
+          "px-4 py-2 text-center text-sm sm:text-base font-extrabold uppercase tracking-wide transition-all duration-300 z-50",
           isOnline 
-            ? "bg-emerald-500 text-white" 
-            : "bg-red-600 text-white animate-pulse"
+            ? "bg-emerald-500 text-white shadow-md" 
+            : "bg-red-600 text-white animate-pulse shadow-lg"
         )}>
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex items-center justify-center gap-3">
             <div className={cn(
-              "w-2 h-2 rounded-full",
-              isOnline ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]" : "bg-white"
+              "w-3 h-3 rounded-full border border-white/20",
+              isOnline ? "bg-white shadow-[0_0_10px_rgba(255,255,255,1)]" : "bg-white animate-ping"
             )} />
             {isOnline 
               ? "Your software is online" 
