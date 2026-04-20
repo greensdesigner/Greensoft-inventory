@@ -2032,6 +2032,8 @@ const Sales = ({ data }: any) => {
 
 const Suppliers = ({ data }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
   const [newSupplier, setNewSupplier] = useState({ name: '', category: '', contact: '', address: '' });
 
   const handleAdd = (e: FormEvent) => {
@@ -2039,6 +2041,11 @@ const Suppliers = ({ data }: any) => {
     data.addSupplier(newSupplier);
     setNewSupplier({ name: '', category: '', contact: '', address: '' });
     setIsModalOpen(false);
+  };
+
+  const handleView = (supplier: any) => {
+    setSelectedSupplier(supplier);
+    setIsViewModalOpen(true);
   };
 
   return (
@@ -2077,7 +2084,10 @@ const Suppliers = ({ data }: any) => {
                   </div>
                 )}
               </div>
-              <button className="w-full mt-6 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors">
+              <button 
+                onClick={() => handleView(item)}
+                className="w-full mt-6 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors"
+              >
                 View Details
               </button>
             </Card>
@@ -2094,6 +2104,52 @@ const Suppliers = ({ data }: any) => {
           />
         </Card>
       )}
+
+      {/* View Supplier Modal */}
+      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Supplier Details">
+        {selectedSupplier && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="w-16 h-16 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-2xl font-bold">
+                <Truck size={32} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">{selectedSupplier.name}</h3>
+                <p className="text-sm text-slate-500">{selectedSupplier.category}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Contact Information</p>
+                <div className="flex items-center gap-2 text-slate-700">
+                  <Users size={16} className="text-blue-500" />
+                  <span>{selectedSupplier.contact}</span>
+                </div>
+              </div>
+              
+              {selectedSupplier.address && (
+                <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Office Address</p>
+                  <div className="flex items-start gap-2 text-slate-700">
+                    <MapPin size={16} className="text-blue-500 mt-1" />
+                    <span>{selectedSupplier.address}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="pt-4 border-t border-slate-100">
+              <button 
+                onClick={() => setIsViewModalOpen(false)}
+                className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Supplier">
         <form onSubmit={handleAdd} className="space-y-4">
