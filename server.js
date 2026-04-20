@@ -44,27 +44,24 @@ async function ensureAllTables() {
         
         console.log('Synchronizing database schema...');
 
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`users\` (id INT AUTO_INCREMENT PRIMARY KEY, businessName VARCHAR(255), fullName VARCHAR(255), phoneNumber VARCHAR(20), email VARCHAR(255) UNIQUE, password VARCHAR(255), logo TEXT, createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`inventory\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`quantity\` INT DEFAULT 0, \`price\` DECIMAL(10,2) DEFAULT 0)`);
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`sales\` (id VARCHAR(255) PRIMARY KEY, \`customerName\` VARCHAR(255), \`items\` JSON, \`total\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50))`);
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`suppliers\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`contact\` VARCHAR(255))`);
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`customers\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`phone\` VARCHAR(20))`);
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`expenses\` (id VARCHAR(255) PRIMARY KEY, \`category\` VARCHAR(255), \`amount\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50))`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`users\` (id INT AUTO_INCREMENT PRIMARY KEY, businessName VARCHAR(255), fullName VARCHAR(255), phoneNumber VARCHAR(20), email VARCHAR(255) UNIQUE, password VARCHAR(255), logo TEXT, createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, expiryDate VARCHAR(50))`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`inventory\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`quantity\` INT DEFAULT 0, \`price\` DECIMAL(10,2) DEFAULT 0)`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`sales\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`customerName\` VARCHAR(255), \`items\` JSON, \`total\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50))`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`suppliers\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`contact\` VARCHAR(255))`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`customers\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`name\` VARCHAR(255), \`phone\` VARCHAR(20))`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`expenses\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`category\` VARCHAR(255), \`amount\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50))`);
         
         // --- NEW: SUBSCRIPTION SYSTEM TABLES ---
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`subscription_settings\` (id INT PRIMARY KEY, \`expiryDate\` VARCHAR(50))`);
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`activation_codes\` (id INT AUTO_INCREMENT PRIMARY KEY, \`code\` VARCHAR(255) UNIQUE, \`isUsed\` TINYINT(1) DEFAULT 0, \`usedAt\` VARCHAR(50))`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`activation_codes\` (id INT AUTO_INCREMENT PRIMARY KEY, \`code\` VARCHAR(255) UNIQUE, \`isUsed\` TINYINT(1) DEFAULT 0, \`usedAt\` VARCHAR(50), \`usedByUserId\` INT)`);
 
-        // Initialize subscription if empty (Default to expired)
-        const [subRows] = await conn.query('SELECT * FROM \`subscription_settings\` WHERE id = 1');
-        if (subRows.length === 0) {
-            console.log('Initializing subscription settings...');
-            const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(); // 1 day ago
-            await conn.query('INSERT INTO \`subscription_settings\` (id, expiryDate) VALUES (1, ?)', [pastDate]);
+        // Sync columns for existing installations
+        await checkAndAddColumn(conn, 'users', 'expiryDate', 'VARCHAR(50)');
+        
+        const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
+        for (const ent of entities) {
+            await checkAndAddColumn(conn, ent, 'userId', 'INT');
         }
-        // ------------------------------------------
-
-        // Sync columns
+        await checkAndAddColumn(conn, 'activation_codes', 'usedByUserId', 'INT');
         await checkAndAddColumn(conn, 'inventory', 'price', 'DECIMAL(10,2) DEFAULT 0');
         await checkAndAddColumn(conn, 'inventory', 'sku', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'inventory', 'minStock', 'INT DEFAULT 5');
@@ -113,9 +110,15 @@ app.post('/api/auth/register', async (req, res) => {
         const { businessName, fullName, phoneNumber, email, password } = req.body;
         const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
         if (existing.length > 0) return res.status(400).json({ error: 'Email already exists' });
+        
         const hashed = await bcrypt.hash(password, 10);
-        await pool.query('INSERT INTO users (businessName, fullName, phoneNumber, email, password) VALUES (?, ?, ?, ?, ?)', [businessName, fullName, phoneNumber, email, hashed]);
-        res.status(201).json({ success: true, user: { email, businessName, name: fullName } });
+        
+        // --- TRIAL SYSTEM: 7 Days from Registration ---
+        const trialExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        
+        const [result] = await pool.query('INSERT INTO users (businessName, fullName, phoneNumber, email, password, expiryDate) VALUES (?, ?, ?, ?, ?, ?)', [businessName, fullName, phoneNumber, email, hashed, trialExpiry]);
+        
+        res.status(201).json({ success: true, user: { id: result.insertId, email, businessName, name: fullName, expiryDate: trialExpiry } });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -126,14 +129,19 @@ app.post('/api/auth/login', async (req, res) => {
         if (rows.length === 0) return res.status(401).json({ error: 'User not found' });
         const match = await bcrypt.compare(password, rows[0].password);
         if (!match) return res.status(401).json({ error: 'Wrong password' });
-        res.json({ success: true, user: { id: rows[0].id, email: rows[0].email, businessName: rows[0].businessName, name: rows[0].fullName } });
+        res.json({ success: true, user: { id: rows[0].id, email: rows[0].email, businessName: rows[0].businessName, name: rows[0].fullName, expiryDate: rows[0].expiryDate } });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // --- SUBSCRIPTION API ---
 app.get('/api/subscription/status', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT expiryDate FROM subscription_settings WHERE id = 1');
+        const userId = req.query.userId;
+        if (!userId) return res.status(400).json({ error: 'User ID required' });
+        
+        const [rows] = await pool.query('SELECT expiryDate FROM users WHERE id = ?', [userId]);
+        if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
+        
         const expiryDate = rows[0].expiryDate;
         const isActive = new Date(expiryDate) > new Date();
         res.json({ active: isActive, expiryDate });
@@ -142,24 +150,25 @@ app.get('/api/subscription/status', async (req, res) => {
 
 app.post('/api/subscription/activate', async (req, res) => {
     try {
-        const { code } = req.body;
+        const { code, userId } = req.body;
         if (!code) return res.status(400).json({ error: 'Code is required' });
-
+        if (!userId) return res.status(400).json({ error: 'User ID is required' });
+x
         const [codes] = await pool.query('SELECT * FROM activation_codes WHERE code = ? AND isUsed = 0', [code]);
         if (codes.length === 0) {
             return res.status(401).json({ error: 'Invalid or already used activation code' });
         }
 
-        // Mark code as used
-        await pool.query('UPDATE activation_codes SET isUsed = 1, usedAt = ? WHERE id = ?', [new Date().toISOString(), codes[0].id]);
+        // Mark code as used by this user
+        await pool.query('UPDATE activation_codes SET isUsed = 1, usedAt = ?, usedByUserId = ? WHERE id = ?', [new Date().toISOString(), userId, codes[0].id]);
 
-        // Extend subscription by 30 days from now or extend existing
-        const [subRows] = await pool.query('SELECT expiryDate FROM subscription_settings WHERE id = 1');
-        let currentExpiry = new Date(subRows[0].expiryDate);
+        // Extend user subscription by 30 days
+        const [userRows] = await pool.query('SELECT expiryDate FROM users WHERE id = ?', [userId]);
+        let currentExpiry = new Date(userRows[0].expiryDate);
         let baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
         
         const newExpiry = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        await pool.query('UPDATE subscription_settings SET expiryDate = ? WHERE id = 1', [newExpiry]);
+        await pool.query('UPDATE users SET expiryDate = ? WHERE id = ?', [newExpiry, userId]);
 
         res.json({ success: true, expiryDate: newExpiry });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -189,7 +198,9 @@ const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
 entities.forEach(entity => {
     app.get(`/api/${entity}`, async (req, res) => {
         try {
-            const [rows] = await pool.query(`SELECT * FROM \`${entity}\``);
+            const userId = req.query.userId;
+            if (!userId) return res.status(400).json({ error: 'User ID required' });
+            const [rows] = await pool.query(`SELECT * FROM \`${entity}\` WHERE userId = ?`, [userId]);
             res.json(rows);
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
@@ -197,6 +208,8 @@ entities.forEach(entity => {
     app.post(`/api/${entity}`, async (req, res) => {
         try {
             const data = req.body;
+            if (!data.userId) return res.status(400).json({ error: 'User ID required' });
+            
             const columns = Object.keys(data);
             const values = Object.values(data).map(v => typeof v === 'object' ? JSON.stringify(v) : v);
             const backtickedCols = columns.map(c => `\`${c}\``).join(', ');
@@ -210,7 +223,9 @@ entities.forEach(entity => {
 
     app.delete(`/api/${entity}/:id`, async (req, res) => {
         try {
-            await pool.query(`DELETE FROM \`${entity}\` WHERE id = ?`, [req.params.id]);
+            const userId = req.query.userId;
+            if (!userId) return res.status(400).json({ error: 'User ID required' });
+            await pool.query(`DELETE FROM \`${entity}\` WHERE id = ? AND userId = ?`, [req.params.id, userId]);
             res.json({ success: true });
         } catch (err) { res.status(500).json({ error: err.message }); }
     });

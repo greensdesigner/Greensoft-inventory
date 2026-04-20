@@ -85,7 +85,7 @@ const f2 = (num: any) => (Number(num) || 0).toFixed(2);
 const WHATSAPP_NUM = "01720150101";
 
 // --- SUBSCRIPTION HOOK ---
-const useSubscription = () => {
+const useSubscription = (user: any) => {
   const [subscription, setSubscription] = useState<{ active: boolean, expiryDate: string | null, loading: boolean }>({
     active: true,
     expiryDate: null,
@@ -93,8 +93,12 @@ const useSubscription = () => {
   });
 
   const checkStatus = async () => {
+    if (!user?.id) {
+      setSubscription(prev => ({ ...prev, loading: false }));
+      return { active: false };
+    }
     try {
-      const res = await fetch('/api/subscription/status');
+      const res = await fetch(`/api/subscription/status?userId=${user.id}`);
       const data = await res.json();
       setSubscription({ active: !!data.active, expiryDate: data.expiryDate, loading: false });
       return data;
@@ -105,19 +109,30 @@ const useSubscription = () => {
   };
 
   useEffect(() => {
-    checkStatus();
-  }, []);
+    if (user?.id) checkStatus();
+    else setSubscription(prev => ({ ...prev, loading: false }));
+  }, [user?.id]);
 
   const activate = async (code: string) => {
+    if (!user?.id) return { success: false, error: 'User not authenticated' };
     try {
       const res = await fetch('/api/subscription/activate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code })
+        body: JSON.stringify({ code, userId: user.id })
       });
       const data = await res.json();
       if (data.success) {
         setSubscription({ active: true, expiryDate: data.expiryDate, loading: false });
+        
+        // Update local user data with new expiry
+        const savedUser = localStorage.getItem('greensoft_user');
+        if (savedUser) {
+          const u = JSON.parse(savedUser);
+          u.expiryDate = data.expiryDate;
+          localStorage.setItem('greensoft_user', JSON.stringify(u));
+        }
+        
         return { success: true };
       }
       return { success: false, error: data.error };
@@ -131,7 +146,7 @@ const useSubscription = () => {
 
 // --- REAL AUTH HOOK ---
 const useAuth = () => {
-  const [user, setUser] = useState<{ email: string; businessName: string; logo?: string; name?: string; phone?: string } | null>(null);
+  const [user, setUser] = useState<{ id: number; email: string; businessName: string; logo?: string; name?: string; phone?: string; expiryDate?: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -187,13 +202,12 @@ const useAuth = () => {
 };
 
 // --- DATA HOOK ---
-const useData = () => {
+const useData = (user: any) => {
   const [inventory, setInventory] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
-  const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Sanitization helper
@@ -235,66 +249,74 @@ const useData = () => {
     }
     return item;
   };
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
-        const setters: any = {
-          inventory: setInventory,
-          sales: setSales,
-          suppliers: setSuppliers,
-          customers: setCustomers,
-          expenses: setExpenses
-        };
 
-        for (const entity of entities) {
-          try {
-            const res = await fetch(`/api/${entity}`);
-            if (res.ok) {
-              const data = await res.json();
-              if (Array.isArray(data)) {
-                const sanitizedData = data.map(item => sanitizeItem(entity, item));
-                
-                if (entity === 'sales') {
-                  const formattedSales = sanitizedData.map((s: any) => {
-                    let items = [];
-                    try {
-                      items = typeof s.items === 'string' ? JSON.parse(s.items) : (s.items || []);
-                    } catch (e) { items = []; }
-                    return { ...s, items: Array.isArray(items) ? items : [] };
-                  });
-                  setSales(formattedSales);
-                } else {
-                  setters[entity](sanitizedData);
-                }
+  const fetchData = async () => {
+    if (!user?.id) {
+      setIsLoaded(true);
+      return;
+    }
+    try {
+      const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
+      const setters: any = {
+        inventory: setInventory,
+        sales: setSales,
+        suppliers: setSuppliers,
+        customers: setCustomers,
+        expenses: setExpenses
+      };
+
+      for (const entity of entities) {
+        try {
+          const res = await fetch(`/api/${entity}?userId=${user.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              const sanitizedData = data.map(item => sanitizeItem(entity, item));
+              
+              if (entity === 'sales') {
+                const formattedSales = sanitizedData.map((s: any) => {
+                  let items = [];
+                  try {
+                    items = typeof s.items === 'string' ? JSON.parse(s.items) : (s.items || []);
+                  } catch (e) { items = []; }
+                  return { ...s, items: Array.isArray(items) ? items : [] };
+                });
+                setSales(formattedSales);
+              } else {
+                setters[entity](sanitizedData);
               }
             }
-          } catch (e) {
-            console.error(`Field to parse ${entity}:`, e);
           }
+        } catch (e) {
+          console.error(`Field to parse ${entity}:`, e);
         }
-
-        setIsLoaded(true);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setIsLoaded(true);
       }
-    };
 
+      setIsLoaded(true);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setIsLoaded(true);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
-  }, []);
+  }, [user?.id]);
 
   const saveData = (key: string, data: any) => {
-    localStorage.setItem(`greensoft_${key}`, JSON.stringify(data));
+    localStorage.setItem(`greensoft_${key}_${user?.id || 'guest'}`, JSON.stringify(data));
   };
 
   const addItem = async (key: string, item: any, setter: any) => {
-    // Generate a more robust ID to prevent collisions during rapid saves
-    const newItem = { ...item, id: item.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` };
+    if (!user?.id) return;
+    const newItem = { 
+      ...item, 
+      userId: user.id,
+      id: item.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` 
+    };
     const sanitizedItem = sanitizeItem(key, newItem);
     
     try {
-      console.log(`[SYNC] Attempting to save ${key}...`, sanitizedItem);
       const res = await fetch(`/api/${key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -305,28 +327,25 @@ const useData = () => {
         const errorData = await res.json();
         throw new Error(errorData.error || 'Server rejected the data');
       }
-      
-      console.log(`[SYNC] ${key} saved to database!`);
     } catch (error: any) {
-      console.error(`[CRITICAL ERROR] Failed to save ${key} to DB:`, error.message);
-      // We don't alert here to avoid blocking loops, but it's logged
+      console.error(`[SYNC ERROR] ${key}:`, error.message);
     }
 
     setter((prev: any[]) => {
-      const newData = [...prev, sanitizedItem];
+      const newData = [sanitizedItem, ...prev];
       saveData(key, newData);
       return newData;
     });
   };
 
   const editItem = async (key: string, id: string, updatedFields: any, setter: any) => {
+    if (!user?.id) return;
     setter((prev: any[]) => {
       const item = prev.find((i: any) => i.id === id);
       if (!item) return prev;
       
-      const fullUpdatedItem = sanitizeItem(key, { ...item, ...updatedFields });
+      const fullUpdatedItem = sanitizeItem(key, { ...item, ...updatedFields, userId: user.id });
       
-      // Async update in background
       fetch(`/api/${key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -334,6 +353,20 @@ const useData = () => {
       }).catch(err => console.error(`Error syncing edit for ${key}:`, err));
 
       const newData = prev.map((i: any) => i.id === id ? fullUpdatedItem : i);
+      saveData(key, newData);
+      return newData;
+    });
+  };
+
+  const deleteItem = async (key: string, id: string, setter: any) => {
+    if (!user?.id) return;
+    try {
+      await fetch(`/api/${key}/${id}?userId=${user.id}`, { method: 'DELETE' });
+    } catch (error) {
+      console.error(`Error deleting ${key}:`, error);
+    }
+    setter((prev: any[]) => {
+      const newData = prev.filter((item: any) => item.id !== id);
       saveData(key, newData);
       return newData;
     });
@@ -350,20 +383,10 @@ const useData = () => {
     addSupplier: (item: any) => addItem('suppliers', item, setSuppliers),
     addCustomer: (item: any) => addItem('customers', item, setCustomers),
     addExpense: (item: any) => addItem('expenses', item, setExpenses),
-    deleteItem: async (key: string, id: string, setter: any) => {
-      try {
-        await fetch(`/api/${key}/${id}`, { method: 'DELETE' });
-      } catch (error) {
-        console.error(`Error deleting ${key}:`, error);
-      }
-      setter((prev: any[]) => {
-        const newData = prev.filter((item: any) => item.id !== id);
-        saveData(key, newData);
-        return newData;
-      });
-    },
+    deleteItem,
     editItem,
-    isLoaded
+    isLoaded,
+    fetchData
   };
 };
 
@@ -3463,8 +3486,8 @@ const AuthPage = ({ type, login, signup }: any) => {
 
 export default function App() {
   const { user, loading, login, signup, logout } = useAuth();
-  const data = useData();
-  const subscription = useSubscription();
+  const data = useData(user);
+  const subscription = useSubscription(user);
 
   if (loading || !data.isLoaded || subscription.loading) {
     return (
