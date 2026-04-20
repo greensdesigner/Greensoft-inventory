@@ -602,8 +602,8 @@ const Layout = ({ children, user, logout, subscription }: any) => {
         {isSubscribed && subscriptionDays <= 7 && subscriptionDays > 0 && (
           <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center justify-center gap-2 text-amber-800 text-xs sm:text-sm font-medium z-30">
             <Bell size={16} className="animate-bounce shrink-0" />
-            আপনার সাবস্ক্রিপশন শেষ হতে আর মাত্র {subscriptionDays} দিন বাকি আছে। দয়া করে রিনিউ করুন।
-            <Link to="/subscription" className="underline font-bold ml-2 whitespace-nowrap">রিনিউ করুন</Link>
+            Only {subscriptionDays} days left until your subscription expires. Please renew.
+            <Link to="/subscription" className="underline font-bold ml-2 whitespace-nowrap">Renew Now</Link>
           </div>
         )}
         {!isSubscribed && (
@@ -611,8 +611,8 @@ const Layout = ({ children, user, logout, subscription }: any) => {
             <div className="flex items-center gap-3">
               <ShieldCheck size={24} className="shrink-0" />
               <div>
-                <p className="font-bold text-sm sm:text-base">পে ইউর সাবস্ক্রিপশন ফি এবং প্লিজ একটিভ ইউর সফটওয়্যার</p>
-                <p className="text-xs opacity-90">Pay your subscription fee and please activate your software</p>
+                <p className="font-bold text-sm sm:text-base">Pay your subscription fee and activate your software</p>
+                <p className="text-xs opacity-90">Please contact the owner to receive your activation code.</p>
               </div>
             </div>
             <a 
@@ -1417,7 +1417,7 @@ const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () 
       }
     } catch (err) {
       console.error("Print error:", err);
-      setError("প্রিন্ট করতে সমস্যা হচ্ছে। অনুগ্রহ করে ব্রাউজারের প্রিন্ট অপশন ব্যবহার করুন।");
+      setError("Printing issue. Please use the browser's print option.");
     } finally {
       setIsGenerating(false);
     }
@@ -1492,7 +1492,7 @@ const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () 
         setTimeout(() => URL.revokeObjectURL(url), 100);
       } catch (fallbackErr) {
         console.error('Fallback PDF Error:', fallbackErr);
-        setError('PDF ডাউনলোড করতে সমস্যা হচ্ছে। অনুগ্রহ করে প্রিন্ট বাটনটি ব্যবহার করে "Save as PDF" সিলেক্ট করুন।');
+        setError('PDF download issue. Please use the print button and select "Save as PDF".');
       }
     } finally {
       setIsGenerating(false);
@@ -1572,7 +1572,7 @@ const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () 
       `);
       newWindow.document.close();
     } else {
-      alert("পপ-আপ ব্লক করা হয়েছে। অনুগ্রহ করে ব্রাউজারের পপ-আপ অ্যালাউ করুন।");
+      alert("Pop-up blocked. Please allow pop-ups in your browser.");
     }
   };
 
@@ -1600,7 +1600,7 @@ const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () 
       
     } catch (err) {
       console.error('Image Generation Error:', err);
-      setError('ইমেজ ডাউনলোড করতে সমস্যা হচ্ছে।');
+      setError('Image download issue.');
     } finally {
       setIsGenerating(false);
     }
@@ -2811,8 +2811,8 @@ const Subscription = ({ subscription }: any) => {
             <div className="bg-red-50 border-2 border-red-200 p-6 rounded-3xl flex items-center gap-4 animate-bounce">
               <ShieldCheck className="text-red-500 shrink-0" size={32} />
               <div>
-                <h4 className="font-bold text-red-800">পে ইউর সাবস্ক্রিপশন ফি এবং প্লিজ একটিভ ইউর সফটওয়্যার</h4>
-                <p className="text-sm text-red-600">আপনার সফটওয়্যারটির মেয়াদ শেষ হয়েছে। অনুগ্রহ করে সক্রিয় করুন।</p>
+                <h4 className="font-bold text-red-800">Pay your subscription fee and activate your software</h4>
+                <p className="text-sm text-red-600">Your software plan has expired. Please activate to continue.</p>
               </div>
             </div>
           )}
@@ -2974,12 +2974,12 @@ const Settings = ({ user, data }: any) => {
     try {
       const res = await fetch('/api/health');
       if (res.ok) {
-        setDbStatus('Database Connection: OK (সার্ভার সচল আছে)');
+        setDbStatus('Database Connection: OK (Server is online)');
       } else {
-        setDbStatus('Database Connection: FAILED (সার্ভারের সাথে যোগাযোগ বিচ্ছিন্ন)');
+        setDbStatus('Database Connection: FAILED (Server connection lost)');
       }
     } catch (err) {
-      setDbStatus('Database Connection: ERROR (সার্ভারে সমস্যা)');
+      setDbStatus('Database Connection: ERROR (Server error)');
     } finally {
       setIsRefreshingDB(false);
     }
@@ -3020,16 +3020,16 @@ const Settings = ({ user, data }: any) => {
           <div>
             <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <ShieldCheck size={20} className="text-emerald-600" />
-              সিস্টেম চেক (System Debugger)
+              System Debugger
             </h3>
-            <p className="text-sm text-slate-500 mt-1">যদি আপনার ডাটা সেভ না হয় বা সাদা স্ক্রিন আসে, তবে নিচের বাটনে ক্লিক করে চেক করুন।</p>
+            <p className="text-sm text-slate-500 mt-1">If your data isn't saving or you see a white screen, click the button below to check.</p>
           </div>
           <button 
             onClick={checkDatabaseConnection}
             disabled={isRefreshingDB}
             className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
           >
-            {isRefreshingDB ? 'চেক করা হচ্ছে...' : 'কানেকশন চেক করুন'}
+            {isRefreshingDB ? 'Checking...' : 'Check Connection'}
           </button>
         </div>
         {dbStatus && (
@@ -3472,7 +3472,7 @@ export default function App() {
         <div className="flex flex-col items-center gap-4 text-center">
           <ShieldCheck className="w-12 h-12 text-emerald-600 animate-pulse mb-2" />
           <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-500 font-medium">সফটওয়্যার লোড হচ্ছে...</p>
+          <p className="text-slate-500 font-medium">Software is loading...</p>
         </div>
       </div>
     );
@@ -3480,7 +3480,7 @@ export default function App() {
 
   return (
     <Router>
-      <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center"><div className="bg-white p-10 rounded-3xl border border-red-100 shadow-xl max-w-md"><h2 className="text-xl font-bold text-red-600">সফটওয়্যারে একটি মারাত্মক সমস্যা হয়েছে।</h2><p className="text-slate-500 mt-4">সম্ভবত ডাটাবেজ বা ব্রাউজারের কোনো তথ্যে ত্রুটি রয়েছে। নিচের বাটনে ক্লিক করে ড্যাশবোর্ডে ফিরে যান অথবা ডাটা রিসেট করুন।</p><div className="flex flex-col gap-3 mt-8"><button onClick={() => window.location.href='/'} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors">হোম পেজে যান</button><button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors">ডাটা রিসেট করুন (লগআউট)</button></div></div></div>}>
+      <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center"><div className="bg-white p-10 rounded-3xl border border-red-100 shadow-xl max-w-md"><h2 className="text-xl font-bold text-red-600">A critical error has occurred.</h2><p className="text-slate-500 mt-4">There may be an error with the database or browser data. Use the buttons below to return or reset.</p><div className="flex flex-col gap-3 mt-8"><button onClick={() => window.location.href='/'} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors">Go to Home</button><button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors">Reset Data (Logout)</button></div></div></div>}>
         <Routes>
           <Route path="/login" element={!user ? <AuthPage type="login" login={login} signup={signup} /> : <Navigate to="/" />} />
           <Route path="/signup" element={!user ? <AuthPage type="signup" login={login} signup={signup} /> : <Navigate to="/" />} />
