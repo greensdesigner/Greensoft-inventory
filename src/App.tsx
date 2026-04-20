@@ -2966,6 +2966,36 @@ const Settings = ({ user, data }: any) => {
   const [isRefreshingDB, setIsRefreshingDB] = useState(false);
   const [dbStatus, setDbStatus] = useState<string | null>(null);
 
+  // Admin license generator state
+  const [adminSecret, setAdminSecret] = useState('');
+  const [codesCount, setCodesCount] = useState(5);
+  const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
+  const [isAdminLoading, setIsAdminLoading] = useState(false);
+  const [adminError, setAdminError] = useState<string | null>(null);
+
+  const generateCodes = async () => {
+    setIsAdminLoading(true);
+    setAdminError(null);
+    try {
+      const res = await fetch('/api/admin/generate-codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: codesCount, secret: adminSecret })
+      });
+      const data = await res.json();
+      if (data.codes) {
+        setGeneratedCodes(data.codes);
+        setAdminSecret('');
+      } else {
+        setAdminError(data.error || 'Failed to generate codes');
+      }
+    } catch (err: any) {
+      setAdminError(err.message);
+    } finally {
+      setIsAdminLoading(false);
+    }
+  };
+
   const checkDatabaseConnection = async () => {
     setIsRefreshingDB(true);
     setDbStatus(null);
@@ -3127,6 +3157,77 @@ const Settings = ({ user, data }: any) => {
               <p className="text-xs text-slate-400">Version 1.0.0</p>
               <p className="text-xs text-slate-400 mt-1">© {new Date().getFullYear()} {user?.businessName || 'Greensoft'}</p>
             </div>
+          </Card>
+
+          <Card className="p-6 bg-slate-900 text-white border-none">
+            <div className="flex items-center gap-2 mb-4">
+              <ShieldCheck className="text-emerald-400" size={20} />
+              <h3 className="font-bold text-white uppercase tracking-wider text-sm">Admin Dashboard</h3>
+            </div>
+            <p className="text-xs text-slate-400 mb-6 font-mono">License Code Generation Engine</p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Owner Secret Key</label>
+                <input 
+                  type="password" 
+                  value={adminSecret}
+                  onChange={e => setAdminSecret(e.target.value)}
+                  placeholder="Enter secret to unlock"
+                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl focus:ring-1 focus:ring-emerald-500 outline-none text-white text-sm" 
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Batch Size</label>
+                  <input 
+                    type="number" 
+                    value={codesCount}
+                    onChange={e => setCodesCount(parseInt(e.target.value))}
+                    min="1" max="50"
+                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl focus:ring-1 focus:ring-emerald-500 outline-none text-white text-sm" 
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button 
+                    onClick={generateCodes}
+                    disabled={isAdminLoading || !adminSecret}
+                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all text-sm"
+                  >
+                    {isAdminLoading ? 'Generating...' : 'Run Engine'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {adminError && (
+              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 text-red-500 text-xs rounded-lg font-mono">
+                [ERROR] {adminError}
+              </div>
+            )}
+
+            {generatedCodes.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-slate-800">
+                <p className="text-[10px] font-bold text-emerald-400 uppercase mb-3">Generated Batch:</p>
+                <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                  {generatedCodes.map((c, i) => (
+                    <div key={i} className="flex items-center justify-between p-2 bg-slate-800/50 rounded-lg border border-slate-700 group cursor-pointer hover:bg-slate-800" onClick={() => {
+                      navigator.clipboard.writeText(c);
+                      alert('Code copied!');
+                    }}>
+                      <span className="font-mono text-sm tracking-widest text-emerald-100">{c}</span>
+                      <Copy size={14} className="text-slate-500 group-hover:text-emerald-400" />
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  onClick={() => setGeneratedCodes([])}
+                  className="mt-4 text-[10px] font-bold text-slate-500 hover:text-slate-300 uppercase underline"
+                >
+                  Clear Results
+                </button>
+              </div>
+            )}
           </Card>
         </div>
       </div>
