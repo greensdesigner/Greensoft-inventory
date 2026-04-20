@@ -50,6 +50,19 @@ async function ensureAllTables() {
         await conn.query(`CREATE TABLE IF NOT EXISTS \`suppliers\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`contact\` VARCHAR(255))`);
         await conn.query(`CREATE TABLE IF NOT EXISTS \`customers\` (id VARCHAR(255) PRIMARY KEY, \`name\` VARCHAR(255), \`phone\` VARCHAR(20))`);
         await conn.query(`CREATE TABLE IF NOT EXISTS \`expenses\` (id VARCHAR(255) PRIMARY KEY, \`category\` VARCHAR(255), \`amount\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50))`);
+        
+        // --- NEW: SUBSCRIPTION SYSTEM TABLES ---
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`subscription_settings\` (id INT PRIMARY KEY, \`expiryDate\` VARCHAR(50))`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`activation_codes\` (id INT AUTO_INCREMENT PRIMARY KEY, \`code\` VARCHAR(255) UNIQUE, \`isUsed\` TINYINT(1) DEFAULT 0, \`usedAt\` VARCHAR(50))`);
+
+        // Initialize subscription if empty (Default to expired)
+        const [subRows] = await conn.query('SELECT * FROM \`subscription_settings\` WHERE id = 1');
+        if (subRows.length === 0) {
+            console.log('Initializing subscription settings...');
+            const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(); // 1 day ago
+            await conn.query('INSERT INTO \`subscription_settings\` (id, expiryDate) VALUES (1, ?)', [pastDate]);
+        }
+        // ------------------------------------------
 
         // Sync columns
         await checkAndAddColumn(conn, 'inventory', 'price', 'DECIMAL(10,2) DEFAULT 0');
@@ -114,6 +127,60 @@ app.post('/api/auth/login', async (req, res) => {
         const match = await bcrypt.compare(password, rows[0].password);
         if (!match) return res.status(401).json({ error: 'Wrong password' });
         res.json({ success: true, user: { id: rows[0].id, email: rows[0].email, businessName: rows[0].businessName, name: rows[0].fullName } });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- SUBSCRIPTION API ---
+app.get('/api/subscription/status', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT expiryDate FROM subscription_settings WHERE id = 1');
+        const expiryDate = rows[0].expiryDate;
+        const isActive = new Date(expiryDate) > new Date();
+        res.json({ active: isActive, expiryDate });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/subscription/activate', async (req, res) => {
+    try {
+        const { code } = req.body;
+        if (!code) return res.status(400).json({ error: 'Code is required' });
+
+        const [codes] = await pool.query('SELECT * FROM activation_codes WHERE code = ? AND isUsed = 0', [code]);
+        if (codes.length === 0) {
+            return res.status(401).json({ error: 'Invalid or already used activation code' });
+        }
+
+        // Mark code as used
+        await pool.query('UPDATE activation_codes SET isUsed = 1, usedAt = ? WHERE id = ?', [new Date().toISOString(), codes[0].id]);
+
+        // Extend subscription by 30 days from now or extend existing
+        const [subRows] = await pool.query('SELECT expiryDate FROM subscription_settings WHERE id = 1');
+        let currentExpiry = new Date(subRows[0].expiryDate);
+        let baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+        
+        const newExpiry = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        await pool.query('UPDATE subscription_settings SET expiryDate = ? WHERE id = 1', [newExpiry]);
+
+        res.json({ success: true, expiryDate: newExpiry });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Admin-only: Generate codes (Optional, but useful for the owner)
+app.post('/api/admin/generate-codes', async (req, res) => {
+    try {
+        const { count, secret } = req.body; 
+        // Simple protection: only if secret matches (owner can change this in code)
+        if (secret !== 'greensoft_admin_2024') return res.status(403).json({ error: 'Forbidden' });
+
+        const codes = [];
+        for (let i = 0; i < (count || 5); i++) {
+            const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+            try {
+                await pool.query('INSERT INTO activation_codes (code) VALUES (?)', [code]);
+                codes.push(code);
+            } catch (e) { /* ignore duplicate randoms */ }
+        }
+        res.json({ codes });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

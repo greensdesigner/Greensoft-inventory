@@ -80,6 +80,52 @@ import { cn } from './lib/utils';
 
 // --- HELPERS ---
 const f2 = (num: any) => (Number(num) || 0).toFixed(2);
+const WHATSAPP_NUM = "01720150101";
+
+// --- SUBSCRIPTION HOOK ---
+const useSubscription = () => {
+  const [subscription, setSubscription] = useState<{ active: boolean, expiryDate: string | null, loading: boolean }>({
+    active: true,
+    expiryDate: null,
+    loading: true
+  });
+
+  const checkStatus = async () => {
+    try {
+      const res = await fetch('/api/subscription/status');
+      const data = await res.json();
+      setSubscription({ active: !!data.active, expiryDate: data.expiryDate, loading: false });
+      return data;
+    } catch (e) {
+      setSubscription(prev => ({ ...prev, loading: false }));
+      return { active: false };
+    }
+  };
+
+  useEffect(() => {
+    checkStatus();
+  }, []);
+
+  const activate = async (code: string) => {
+    try {
+      const res = await fetch('/api/subscription/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSubscription({ active: true, expiryDate: data.expiryDate, loading: false });
+        return { success: true };
+      }
+      return { success: false, error: data.error };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  };
+
+  return { ...subscription, checkStatus, activate };
+};
 
 // --- REAL AUTH HOOK ---
 const useAuth = () => {
@@ -436,43 +482,12 @@ const SidebarItem = ({ icon: Icon, label, to, active, collapsed }: any) => (
   </Link>
 );
 
-const Layout = ({ children, user, logout }: any) => {
+const Layout = ({ children, user, logout, subscription }: any) => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [subscriptionDays, setSubscriptionDays] = useState<number | null>(null);
-  const [subscriptionDay, setSubscriptionDay] = useState<number | null>(null);
   const location = useLocation();
 
-  useEffect(() => {
-    const checkSubscription = () => {
-      const savedStatus = localStorage.getItem('greensoft_subscription');
-      if (savedStatus) {
-        const status = JSON.parse(savedStatus);
-        if (status.active && status.expiryDate) {
-          const expiry = new Date(status.expiryDate);
-          const now = new Date();
-          const diffTime = expiry.getTime() - now.getTime();
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          setSubscriptionDays(diffDays);
-
-          if (status.activatedAt) {
-            const start = new Date(status.activatedAt);
-            const elapsed = now.getTime() - start.getTime();
-            const currentDay = Math.floor(elapsed / (1000 * 60 * 60 * 24)) + 1;
-            setSubscriptionDay(currentDay > 30 ? 30 : currentDay);
-          }
-        } else {
-          setSubscriptionDays(0);
-          setSubscriptionDay(null);
-        }
-      } else {
-        setSubscriptionDays(0);
-        setSubscriptionDay(null);
-      }
-    };
-
-    checkSubscription();
-  }, [location.pathname]);
+  const isSubscribed = subscription?.active;
 
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
@@ -486,8 +501,21 @@ const Layout = ({ children, user, logout }: any) => {
     { icon: SettingsIcon, label: 'Settings', to: '/settings' },
   ];
 
+  // If not subscribed, only allow access to Subscription page
+  const filteredNavItems = isSubscribed 
+    ? navItems 
+    : navItems.filter(item => item.to === '/subscription');
+
+  const subscriptionDays = subscription?.expiryDate 
+    ? Math.ceil((new Date(subscription.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
+      {!isSubscribed && location.pathname !== '/subscription' && (
+        <Navigate to="/subscription" replace />
+      )}
+      
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
@@ -522,7 +550,7 @@ const Layout = ({ children, user, logout }: any) => {
           </div>
 
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-            {navItems.map((item) => (
+            {filteredNavItems.map((item) => (
               <SidebarItem
                 key={item.to}
                 {...item}
@@ -538,12 +566,12 @@ const Layout = ({ children, user, logout }: any) => {
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Subscription</span>
                   <ShieldCheck size={12} className={cn(
-                    localStorage.getItem('greensoft_subscription') ? "text-emerald-500" : "text-red-500"
+                    isSubscribed ? "text-emerald-500" : "text-red-500"
                   )} />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-700">
-                    {localStorage.getItem('greensoft_subscription') ? "Active Plan" : "Inactive"}
+                    {isSubscribed ? "Active Plan" : "Inactive"}
                   </span>
                   <ChevronRight size={12} className="text-slate-400" />
                 </div>
@@ -569,18 +597,30 @@ const Layout = ({ children, user, logout }: any) => {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {subscriptionDays !== null && subscriptionDays <= 7 && subscriptionDays > 0 && (
+        {isSubscribed && subscriptionDays <= 7 && subscriptionDays > 0 && (
           <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center justify-center gap-2 text-amber-800 text-xs sm:text-sm font-medium z-30">
             <Bell size={16} className="animate-bounce shrink-0" />
             আপনার সাবস্ক্রিপশন শেষ হতে আর মাত্র {subscriptionDays} দিন বাকি আছে। দয়া করে রিনিউ করুন।
             <Link to="/subscription" className="underline font-bold ml-2 whitespace-nowrap">রিনিউ করুন</Link>
           </div>
         )}
-        {subscriptionDays !== null && subscriptionDays <= 0 && (
-          <div className="bg-red-50 border-b border-red-100 px-4 py-2 flex items-center justify-center gap-2 text-red-800 text-xs sm:text-sm font-medium z-30">
-            <ShieldCheck size={16} className="shrink-0" />
-            আপনার সাবস্ক্রিপশন শেষ হয়ে গেছে। দয়া করে রিনিউ করুন।
-            <Link to="/subscription" className="underline font-bold ml-2 whitespace-nowrap">রিনিউ করুন</Link>
+        {!isSubscribed && (
+          <div className="bg-red-600 text-white px-4 py-3 flex items-center justify-between gap-4 z-50 shadow-xl overflow-hidden animate-pulse">
+            <div className="flex items-center gap-3">
+              <ShieldCheck size={24} className="shrink-0" />
+              <div>
+                <p className="font-bold text-sm sm:text-base">পে ইউর সাবস্ক্রিপশন ফি এবং প্লিজ একটিভ ইউর সফটওয়্যার</p>
+                <p className="text-xs opacity-90">Pay your subscription fee and please activate your software</p>
+              </div>
+            </div>
+            <a 
+              href={`https://wa.me/${WHATSAPP_NUM}?text=Hello, I want to pay my subscription fee for Greensoft.`} 
+              target="_blank" 
+              rel="noreferrer"
+              className="bg-white text-red-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all shrink-0"
+            >
+              Contact Owner
+            </a>
           </div>
         )}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 shrink-0">
@@ -607,7 +647,7 @@ const Layout = ({ children, user, logout }: any) => {
                     <Calendar size={12} className="text-slate-400" />
                     <span className="text-[10px] font-bold text-slate-600 whitespace-nowrap">
                       {subscriptionDays > 0 ? `${subscriptionDays} Days Left` : 'Expired'}
-                      {subscriptionDay !== null && ` • Day ${subscriptionDay}/30`}
+                      {subscriptionDays > 0 && subscriptionDays <= 30 && ` • Day ${31 - subscriptionDays}/30`}
                     </span>
                   </div>
                   <div className="hidden md:flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-100 w-fit">
@@ -2729,41 +2769,23 @@ const Reports = ({ data }: any) => {
   );
 };
 
-const Subscription = () => {
+const Subscription = ({ subscription }: any) => {
   const [code, setCode] = useState('');
-  const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  useEffect(() => {
-    const savedStatus = localStorage.getItem('greensoft_subscription');
-    if (savedStatus) {
-      setStatus(JSON.parse(savedStatus));
-    }
-  }, []);
-
-  const handleActivate = (e: FormEvent) => {
+  const handleActivate = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
-    // Simple mock activation logic: code must be 8 characters
-    setTimeout(() => {
-      if (code.length >= 8) {
-        const newStatus = {
-          active: true,
-          expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
-          activatedAt: new Date().toISOString(),
-          code: code
-        };
-        localStorage.setItem('greensoft_subscription', JSON.stringify(newStatus));
-        setStatus(newStatus);
-        alert('Software successfully activated for 30 days!');
-      } else {
-        alert('Invalid activation code. Please contact the provider.');
-      }
-      setLoading(false);
+    const result = await subscription.activate(code);
+    if (result.success) {
+      alert('Software successfully activated! All features are now available.');
       setCode('');
-    }, 1500);
+    } else {
+      alert(result.error || 'Invalid activation code. Please contact WhatsApp Support.');
+    }
+    setLoading(false);
   };
 
   const copyToClipboard = (text: string, type: string) => {
@@ -2772,7 +2794,7 @@ const Subscription = () => {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const isExpired = status?.expiryDate ? new Date(status.expiryDate) < new Date() : true;
+  const isExpired = !subscription.active;
 
   return (
     <div className="space-y-6">
@@ -2783,6 +2805,16 @@ const Subscription = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {!subscription.active && (
+            <div className="bg-red-50 border-2 border-red-200 p-6 rounded-3xl flex items-center gap-4 animate-bounce">
+              <ShieldCheck className="text-red-500 shrink-0" size={32} />
+              <div>
+                <h4 className="font-bold text-red-800">পে ইউর সাবস্ক্রিপশন ফি এবং প্লিজ একটিভ ইউর সফটওয়্যার</h4>
+                <p className="text-sm text-red-600">আপনার সফটওয়্যারটির মেয়াদ শেষ হয়েছে। অনুগ্রহ করে সক্রিয় করুন।</p>
+              </div>
+            </div>
+          )}
+
           {/* Status Card */}
           <Card className="p-8">
             <div className="flex items-center justify-between mb-8">
@@ -2792,11 +2824,11 @@ const Subscription = () => {
               </div>
               <div className={cn(
                 "px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2",
-                status?.active && !isExpired 
+                subscription.active 
                   ? "bg-emerald-50 text-emerald-600 border border-emerald-100" 
                   : "bg-red-50 text-red-600 border border-red-100"
               )}>
-                {status?.active && !isExpired ? (
+                {subscription.active ? (
                   <><CheckCircle2 size={16} /> Active</>
                 ) : (
                   <><X size={16} /> Inactive / Expired</>
@@ -2804,19 +2836,17 @@ const Subscription = () => {
               </div>
             </div>
 
-            {status?.active && !isExpired ? (
+            {subscription.active ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-xs text-slate-500 font-medium mb-1 uppercase tracking-wider">Activated On</p>
-                  <p className="text-lg font-bold text-slate-900">
-                    {new Date(status.activatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </p>
-                </div>
                 <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
                   <p className="text-xs text-emerald-600 font-medium mb-1 uppercase tracking-wider">Expiry Date</p>
                   <p className="text-lg font-bold text-emerald-700">
-                    {new Date(status.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {new Date(subscription.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </p>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-xs text-slate-500 font-medium mb-1 uppercase tracking-wider">Plan Type</p>
+                  <p className="text-lg font-bold text-slate-900">Monthly Standard</p>
                 </div>
               </div>
             ) : (
@@ -3302,11 +3332,16 @@ const AuthPage = ({ type, login, signup }: any) => {
 export default function App() {
   const { user, loading, login, signup, logout } = useAuth();
   const data = useData();
+  const subscription = useSubscription();
 
-  if (loading || !data.isLoaded) {
+  if (loading || !data.isLoaded || subscription.loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex flex-col items-center gap-4 text-center">
+          <ShieldCheck className="w-12 h-12 text-emerald-600 animate-pulse mb-2" />
+          <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-500 font-medium">সফটওয়্যার লোড হচ্ছে...</p>
+        </div>
       </div>
     );
   }
@@ -3322,17 +3357,17 @@ export default function App() {
             path="/*"
             element={
               user ? (
-                <Layout user={user} logout={logout}>
+                <Layout user={user} logout={logout} subscription={subscription}>
                   <Routes>
-                    <Route path="/" element={<Dashboard data={data} />} />
-                    <Route path="/inventory" element={<Inventory data={data} />} />
-                    <Route path="/sales" element={<Sales data={data} />} />
-                    <Route path="/suppliers" element={<Suppliers data={data} />} />
-                    <Route path="/customers" element={<Customers data={data} />} />
-                    <Route path="/expenses" element={<Expenses data={data} />} />
-                    <Route path="/reports" element={<Reports data={data} />} />
-                    <Route path="/subscription" element={<Subscription />} />
-                    <Route path="/settings" element={<Settings user={user} data={data} />} />
+                    <Route path="/" element={subscription.active ? <Dashboard data={data} /> : <Navigate to="/subscription" />} />
+                    <Route path="/inventory" element={subscription.active ? <Inventory data={data} /> : <Navigate to="/subscription" />} />
+                    <Route path="/sales" element={subscription.active ? <Sales data={data} /> : <Navigate to="/subscription" />} />
+                    <Route path="/suppliers" element={subscription.active ? <Suppliers data={data} /> : <Navigate to="/subscription" />} />
+                    <Route path="/customers" element={subscription.active ? <Customers data={data} /> : <Navigate to="/subscription" />} />
+                    <Route path="/expenses" element={subscription.active ? <Expenses data={data} /> : <Navigate to="/subscription" />} />
+                    <Route path="/reports" element={subscription.active ? <Reports data={data} /> : <Navigate to="/subscription" />} />
+                    <Route path="/subscription" element={<Subscription subscription={subscription} />} />
+                    <Route path="/settings" element={subscription.active ? <Settings user={user} data={data} /> : <Navigate to="/subscription" />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </Layout>
