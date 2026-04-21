@@ -46,7 +46,8 @@ import {
   PlusCircle,
   QrCode,
   Zap,
-  AlertCircle
+  AlertCircle,
+  RotateCcw
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
@@ -208,6 +209,7 @@ const useData = (user: any) => {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
+  const [returns, setReturns] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Sanitization helper
@@ -240,6 +242,12 @@ const useData = (user: any) => {
         amount: n(item.amount)
       };
     }
+    if (key === 'returns') {
+      return {
+        ...item,
+        totalAmount: n(item.totalAmount)
+      };
+    }
     if (key === 'customers') {
       return {
         ...item,
@@ -256,13 +264,14 @@ const useData = (user: any) => {
       return;
     }
     try {
-      const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
+      const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses', 'returns'];
       const setters: any = {
         inventory: setInventory,
         sales: setSales,
         suppliers: setSuppliers,
         customers: setCustomers,
-        expenses: setExpenses
+        expenses: setExpenses,
+        returns: setReturns
       };
 
       for (const entity of entities) {
@@ -378,11 +387,13 @@ const useData = (user: any) => {
     suppliers, setSuppliers: (d: any) => { setSuppliers(d); saveData('suppliers', d); },
     customers, setCustomers: (d: any) => { setCustomers(d); saveData('customers', d); },
     expenses, setExpenses: (d: any) => { setExpenses(d); saveData('expenses', d); },
+    returns, setReturns: (d: any) => { setReturns(d); saveData('returns', d); },
     addInventory: (item: any) => addItem('inventory', item, setInventory),
     addSale: (item: any) => addItem('sales', item, setSales),
     addSupplier: (item: any) => addItem('suppliers', item, setSuppliers),
     addCustomer: (item: any) => addItem('customers', item, setCustomers),
     addExpense: (item: any) => addItem('expenses', item, setExpenses),
+    addReturn: (item: any) => addItem('returns', item, setReturns),
     deleteItem,
     editItem,
     isLoaded,
@@ -535,6 +546,7 @@ const Layout = ({ children, user, logout, subscription }: any) => {
     { icon: Truck, label: 'Suppliers', to: '/suppliers' },
     { icon: Users, label: 'Customers', to: '/customers' },
     { icon: Receipt, label: 'Expenses', to: '/expenses' },
+    { icon: RotateCcw, label: 'Return & Replace', to: '/returns' },
     { icon: BarChart3, label: 'Reports', to: '/reports' },
     { icon: ShieldCheck, label: 'Subscription', to: '/subscription' },
     { icon: SettingsIcon, label: 'Settings', to: '/settings' },
@@ -2679,8 +2691,218 @@ const Expenses = ({ data }: any) => {
   );
 };
 
+const Returns = ({ data }: any) => {
+  const [invoiceNo, setInvoiceNo] = useState('');
+  const [foundSale, setFoundSale] = useState<any>(null);
+  const [searchError, setSearchError] = useState('');
+  const [returnType, setReturnType] = useState<'Return' | 'Replace'>('Return');
+  const [reason, setReason] = useState('');
+  const [replaceAmount, setReplaceAmount] = useState('0');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleSearch = () => {
+    setSearchError('');
+    setFoundSale(null);
+    const cleanInp = invoiceNo.replace('INV-', '').toUpperCase();
+    const sale = data.sales.find((s: any) => 
+      (s.invoiceNo && s.invoiceNo.toUpperCase().includes(cleanInp)) || 
+      s.id.toUpperCase().endsWith(cleanInp) ||
+      s.id === invoiceNo
+    );
+    if (sale) {
+      setFoundSale(sale);
+    } else {
+      setSearchError('Invoice not found. Search by last 4-6 digits of Invoice #');
+    }
+  };
+
+  const handleProcess = async () => {
+    if (!foundSale) return;
+    setIsProcessing(true);
+    
+    try {
+      const returnId = `${Date.now()}`;
+      const amount = returnType === 'Return' ? foundSale.total : parseFloat(replaceAmount);
+      
+      const returnData = {
+        id: returnId,
+        invoiceNo: foundSale.invoiceNo || foundSale.id,
+        customerName: foundSale.customerName,
+        totalAmount: amount,
+        reason,
+        type: returnType,
+        date: new Date().toISOString().split('T')[0]
+      };
+
+      await data.addReturn(returnData);
+      
+      alert(`${returnType} processed successfully!`);
+      setFoundSale(null);
+      setInvoiceNo('');
+      setReason('');
+      setReplaceAmount('0');
+      if (data.fetchData) data.fetchData();
+    } catch (e) {
+      alert('Error processing return.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader 
+        title="Return & Replace" 
+        description="Handle customer returns and product replacements." 
+      />
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          <Card className="p-6">
+            <h3 className="font-bold text-slate-900 mb-4">Find Invoice</h3>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Enter Invoice No..." 
+                  value={invoiceNo}
+                  onChange={(e) => setInvoiceNo(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
+              <button 
+                onClick={handleSearch}
+                className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+              >
+                Find
+              </button>
+            </div>
+            {searchError && <p className="text-xs text-red-500 mt-2 font-medium">{searchError}</p>}
+          </Card>
+
+          {foundSale && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <Card className="p-6 border-l-4 border-l-emerald-500">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900">{foundSale.customerName}</h3>
+                    <p className="text-sm text-slate-500">Invoice: #{foundSale.id.slice(-6).toUpperCase()}</p>
+                    <p className="text-sm text-slate-500">Date: {foundSale.date}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-slate-400 uppercase">Sale Amount</p>
+                    <p className="text-2xl font-black text-emerald-600">${f2(foundSale.total)}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex p-1 bg-slate-100 rounded-xl">
+                    <button 
+                      onClick={() => setReturnType('Return')}
+                      className={cn(
+                        "flex-1 py-2 text-sm font-bold rounded-lg transition-all",
+                        returnType === 'Return' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                      )}
+                    >
+                      Full Return
+                    </button>
+                    <button 
+                      onClick={() => setReturnType('Replace')}
+                      className={cn(
+                        "flex-1 py-2 text-sm font-bold rounded-lg transition-all",
+                        returnType === 'Replace' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                      )}
+                    >
+                      Replace Item
+                    </button>
+                  </div>
+
+                  {returnType === 'Replace' && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Adjustment Amount (+/-)
+                      </label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input 
+                          type="number" step="0.01"
+                          value={replaceAmount}
+                          onChange={(e) => setReplaceAmount(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1 italic">
+                        * Positive for refund/credit, negative for additional charges.
+                      </p>
+                    </motion.div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Reason for {returnType}</label>
+                    <textarea 
+                      rows={3}
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 resize-none"
+                      placeholder={`Why is the customer ${returnType.toLowerCase()}ing?`}
+                    />
+                  </div>
+
+                  <button 
+                    onClick={handleProcess}
+                    disabled={isProcessing || !reason}
+                    className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-600/10 disabled:opacity-50"
+                  >
+                    {isProcessing ? "Processing..." : `Process ${returnType}`}
+                  </button>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <Card className="p-6">
+            <h3 className="font-bold text-slate-900 mb-6">Recent Records</h3>
+            {data.returns.length > 0 ? (
+              <div className="space-y-4">
+                {[...data.returns].sort((a,b) => b.id.localeCompare(a.id)).slice(0, 10).map((ret: any) => (
+                  <div key={ret.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900">{ret.customerName}</span>
+                        <span className={cn(
+                          "px-2 py-0.5 text-[10px] font-black rounded-full uppercase",
+                          ret.type === 'Return' ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"
+                        )}>{ret.type}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">Inv: #{ret.invoiceNo.slice(-6)} • {ret.date}</p>
+                      <p className="text-[10px] text-slate-400 mt-1 italic">"{ret.reason}"</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-red-600">-${f2(ret.totalAmount)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-slate-400">
+                <RotateCcw className="mx-auto mb-3 opacity-20" size={48} />
+                <p>No records found.</p>
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Reports = ({ data }: any) => {
-  const totalRevenue = data.sales.reduce((acc: number, s: any) => acc + s.total, 0);
+  const totalReturns = data.returns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  const totalRevenue = data.sales.reduce((acc: number, s: any) => acc + s.total, 0) - totalReturns;
   
   let totalSalesProfit = 0;
   let totalSalesLoss = 0;
@@ -3561,6 +3783,7 @@ export default function App() {
                     <Route path="/" element={subscription.active ? <Dashboard data={data} /> : <Navigate to="/subscription" />} />
                     <Route path="/inventory" element={subscription.active ? <Inventory data={data} /> : <Navigate to="/subscription" />} />
                     <Route path="/sales" element={subscription.active ? <Sales data={data} /> : <Navigate to="/subscription" />} />
+                    <Route path="/returns" element={subscription.active ? <Returns data={data} /> : <Navigate to="/subscription" />} />
                     <Route path="/suppliers" element={subscription.active ? <Suppliers data={data} /> : <Navigate to="/subscription" />} />
                     <Route path="/customers" element={subscription.active ? <Customers data={data} /> : <Navigate to="/subscription" />} />
                     <Route path="/expenses" element={subscription.active ? <Expenses data={data} /> : <Navigate to="/subscription" />} />
