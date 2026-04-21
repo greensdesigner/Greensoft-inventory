@@ -64,6 +64,7 @@ async function ensureAllTables() {
         await checkAndAddColumn(conn, 'activation_codes', 'usedByUserId', 'INT');
         await checkAndAddColumn(conn, 'inventory', 'price', 'DECIMAL(10,2) DEFAULT 0');
         await checkAndAddColumn(conn, 'inventory', 'sku', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'inventory', 'modelNumber', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'inventory', 'minStock', 'INT DEFAULT 5');
         
         await checkAndAddColumn(conn, 'sales', 'customerName', 'VARCHAR(255)');

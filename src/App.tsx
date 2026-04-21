@@ -1077,7 +1077,7 @@ const Inventory = ({ data }: any) => {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [selectedQRItem, setSelectedQRItem] = useState<any>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [newItem, setNewItem] = useState({ name: '', category: '', quantity: '', price: '', minStock: '5' });
+  const [newItem, setNewItem] = useState({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '' });
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
 
@@ -1098,7 +1098,7 @@ const Inventory = ({ data }: any) => {
         minStock: parseInt(newItem.minStock)
       });
     }
-    setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5' });
+    setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '' });
     setEditingItem(null);
     setIsModalOpen(false);
   };
@@ -1110,7 +1110,8 @@ const Inventory = ({ data }: any) => {
       category: item.category,
       quantity: item.quantity.toString(),
       price: item.price.toString(),
-      minStock: item.minStock.toString()
+      minStock: item.minStock.toString(),
+      modelNumber: item.modelNumber || ''
     });
     setIsModalOpen(true);
   };
@@ -1138,7 +1139,7 @@ const Inventory = ({ data }: any) => {
         title="Inventory Management" 
         description="Track and manage your stock levels." 
         action="Add Item" 
-        onAction={() => { setEditingItem(null); setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5' }); setIsModalOpen(true); }}
+        onAction={() => { setEditingItem(null); setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '' }); setIsModalOpen(true); }}
       />
       <Card>
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
@@ -1170,6 +1171,7 @@ const Inventory = ({ data }: any) => {
               <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="font-medium text-slate-900">{item.name}</div>
+                  {item.modelNumber && <div className="text-[10px] text-emerald-600 font-bold uppercase">Model: {item.modelNumber}</div>}
                   <div className="text-xs text-slate-500">SKU-{item.id.slice(-4)}</div>
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{item.category}</td>
@@ -1230,6 +1232,15 @@ const Inventory = ({ data }: any) => {
               type="text" required 
               value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})}
               className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Model / Serial Number</label>
+            <input 
+              type="text" 
+              value={newItem.modelNumber} onChange={e => setNewItem({...newItem, modelNumber: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              placeholder="Enter model or serial number"
             />
           </div>
           <div>
