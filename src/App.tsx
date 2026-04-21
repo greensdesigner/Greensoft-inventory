@@ -763,6 +763,8 @@ const Layout = ({ children, user, logout, subscription }: any) => {
 // --- PAGES ---
 
 const Dashboard = ({ data }: any) => {
+  const totalReturns = (data.returns || []).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  
   // Calculate Profit and Loss
   let totalSalesProfit = 0;
   let totalSalesLoss = 0;
@@ -787,10 +789,11 @@ const Dashboard = ({ data }: any) => {
 
   const totalExpenses = data.expenses.reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
   const rawProfit = totalSalesProfit;
-  const rawLoss = totalSalesLoss + totalExpenses;
+  const rawLoss = totalSalesLoss + totalExpenses + totalReturns;
   
   const currentProfit = rawProfit >= rawLoss ? rawProfit - rawLoss : 0;
   const currentLoss = rawLoss > rawProfit ? rawLoss - rawProfit : 0;
+  const netProfit = rawProfit - rawLoss;
 
   // Calculate Daily Profit and Loss for Chart
   const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -825,35 +828,32 @@ const Dashboard = ({ data }: any) => {
       .filter((e: any) => e.date === date)
       .reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
 
+    const dailyReturns = (data.returns || [])
+      .filter((r: any) => r.date === date)
+      .reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+
     return {
       date: date.split('-').slice(1).join('/'),
       profit: parseFloat(f2(dailyProfit)),
-      loss: parseFloat(f2(dailyLoss + dailyExpenses)),
-      net: parseFloat(f2(dailyProfit - (dailyLoss + dailyExpenses))),
+      loss: parseFloat(f2(dailyLoss + dailyExpenses + dailyReturns)),
+      net: parseFloat(f2(dailyProfit - (dailyLoss + dailyExpenses + dailyReturns))),
     };
   });
 
   const stats = [
     { 
       label: 'Total Revenue', 
-      value: `$${data.sales.reduce((acc: number, s: any) => acc + (s.total || 0), 0).toLocaleString()}`, 
+      value: `$${(data.sales.reduce((acc: number, s: any) => acc + (s.total || 0), 0) - totalReturns).toLocaleString()}`, 
       change: '0%', 
       icon: DollarSign, 
       color: 'bg-emerald-500' 
     },
     { 
-      label: 'Current Profit', 
-      value: `$${currentProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
-      change: 'Profit', 
-      icon: TrendingUp, 
-      color: 'bg-emerald-600' 
-    },
-    { 
-      label: 'Current Loss', 
-      value: `$${currentLoss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
-      change: 'Loss', 
-      icon: ArrowDownRight, 
-      color: 'bg-red-500' 
+      label: 'Net Profit', 
+      value: `$${netProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
+      change: netProfit >= 0 ? 'Profit' : 'Loss', 
+      icon: netProfit >= 0 ? TrendingUp : ArrowDownRight, 
+      color: netProfit >= 0 ? 'bg-emerald-600' : 'bg-red-600' 
     },
     { 
       label: 'Total Sales', 
@@ -2901,7 +2901,7 @@ const Returns = ({ data }: any) => {
 };
 
 const Reports = ({ data }: any) => {
-  const totalReturns = data.returns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  const totalReturns = (data.returns || []).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   const totalRevenue = data.sales.reduce((acc: number, s: any) => acc + s.total, 0) - totalReturns;
   
   let totalSalesProfit = 0;
@@ -2927,7 +2927,7 @@ const Reports = ({ data }: any) => {
 
   const totalExpenses = data.expenses.reduce((acc: number, e: any) => acc + e.amount, 0);
   const rawProfit = totalSalesProfit;
-  const rawLoss = totalSalesLoss + totalExpenses;
+  const rawLoss = totalSalesLoss + totalExpenses + totalReturns;
   
   const currentProfit = rawProfit >= rawLoss ? rawProfit - rawLoss : 0;
   const currentLoss = rawLoss > rawProfit ? rawLoss - rawProfit : 0;
