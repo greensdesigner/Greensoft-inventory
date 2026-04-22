@@ -81,6 +81,221 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 
+// --- TRANSLATIONS ---
+const translations: any = {
+  en: {
+    dashboard: "Dashboard",
+    inventory: "Inventory",
+    sales: "Sales",
+    returns: "Returns",
+    suppliers: "Suppliers",
+    customers: "Customers",
+    expenses: "Expenses",
+    reports: "Reports",
+    settings: "Settings",
+    subscription: "Subscription",
+    netRevenue: "Net Revenue",
+    currentProfit: "Current Profit",
+    currentLoss: "Current Loss",
+    totalExpenses: "Total Expenses",
+    totalRefunds: "Total Refunds",
+    totalSales: "Total Sales",
+    today: "Today",
+    last7Days: "7 Days",
+    last30Days: "30 Days",
+    logout: "Logout",
+    search: "Search anything...",
+    searchInvoice: "Search Invoice",
+    newSale: "New Sale",
+    addItem: "Add Item",
+    lowStock: "Low Stock Items",
+    recentSales: "Recent Sales",
+    recentRecords: "Recent Records",
+    daysLeft: "Days Left",
+    expired: "Expired",
+    businessPerformance: "Business performance metrics and analytics.",
+    totalReturn: "Full Return",
+    replaceItem: "Replace Item",
+    reasonFor: "Reason for",
+    process: "Process",
+    adjustmentAmount: "Adjustment Amount",
+    replacementProduct: "Replacement Product details",
+    refund: "Refund",
+    extra: "Extra",
+    welcome: "Welcome",
+    softwareOnline: "Your software is online",
+    softwareOffline: "Your software is offline, please do not put data",
+    welcomeBack: "Welcome back",
+    createAccount: "Create your account",
+    loginDesc: "Enter your credentials to access your business dashboard.",
+    signupDesc: "Start managing your local business more efficiently today.",
+    businessNameLabel: "Business Name",
+    fullNameLabel: "Full Name",
+    phoneLabel: "Phone Number",
+    emailLabel: "Email Address",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm Password",
+    signIn: "Sign In",
+    createAccountBtn: "Create Account",
+    noAccount: "Don't have an account?",
+    haveAccount: "Already have an account?",
+    signup: "Sign up",
+    login: "Log in",
+    processing: "Processing...",
+    softwareLoading: "Software is loading...",
+  },
+  bn: {
+    dashboard: "ড্যাশবোর্ড",
+    inventory: "ইনভেন্টরি",
+    sales: "বিক্রয়",
+    returns: "রিটার্ন",
+    suppliers: "সরবরাহকারী",
+    customers: "গ্রাহক",
+    expenses: "খরচ",
+    reports: "রিপোর্ট",
+    settings: "সেটিংস",
+    subscription: "সাবস্ক্রিপশন",
+    netRevenue: "নিট রাজস্ব",
+    currentProfit: "বর্তমান লাভ",
+    currentLoss: "বর্তমান ক্ষতি",
+    totalExpenses: "মোট খরচ",
+    totalRefunds: "মোট ফেরত",
+    totalSales: "মোট বিক্রয়",
+    today: "আজ",
+    last7Days: "৭ দিন",
+    last30Days: "৩০ দিন",
+    logout: "লগআউট",
+    search: "যেকোন কিছু খুঁজুন...",
+    searchInvoice: "ইনভয়েস খুঁজুন",
+    newSale: "নতুন বিক্রয়",
+    addItem: "পণ্য যোগ করুন",
+    lowStock: "স্বল্প স্টকের পণ্য",
+    recentSales: "সাম্প্রতিক বিক্রয়",
+    recentRecords: "সাম্প্রতিক রেকর্ড",
+    daysLeft: "দিন বাকি",
+    expired: "মেয়াদ শেষ",
+    businessPerformance: "ব্যবসায়িক পারফরম্যান্স মেট্রিক্স এবং বিশ্লেষণ।",
+    dashboardOverview: "ড্যাশবোর্ড ওভারভিউ",
+    totalReturn: "সম্পূর্ণ রিটার্ন",
+    replaceItem: "পণ্য পরিবর্তন",
+    reasonFor: "কারণ",
+    process: "প্রসেস করুন",
+    adjustmentAmount: "মূল্য সমন্বয়",
+    replacementProduct: "নতুন প্রোডাক্টের বিবরণ",
+    refund: "ফেরত",
+    extra: "অতিরিক্ত",
+    welcome: "স্বাগতম",
+    softwareOnline: "আপনার সফটওয়্যার অনলাইন আছে",
+    softwareOffline: "আপনার সফটওয়্যার অফলাইন, দয়া করে ডাটা এন্ট্রি করবেন না",
+    welcomeBack: "স্বাগতম",
+    createAccount: "অ্যাকাউন্ট তৈরি করুন",
+    loginDesc: "আপনার ড্যাশবোর্ডে প্রবেশের জন্য লগইন করুন।",
+    signupDesc: "আজই আপনার ব্যবসা ম্যানেজ করা শুরু করুন।",
+    businessNameLabel: "ব্যবসার নাম",
+    fullNameLabel: "পুরো নাম",
+    phoneLabel: "ফোন নম্বর",
+    emailLabel: "ইমেইল ঠিকানা",
+    passwordLabel: "পাসওয়ার্ড",
+    confirmPasswordLabel: "পাসওয়ার্ড নিশ্চিত করুন",
+    signIn: "সাইন ইন",
+    createAccountBtn: "অ্যাকাউন্ট তৈরি করুন",
+    noAccount: "অ্যাকাউন্ট নেই?",
+    haveAccount: "অ্যাকাউন্ট আছে?",
+    signup: "সাইন আপ",
+    login: "লগইন",
+    processing: "প্রসেসিং...",
+    softwareLoading: "সফটওয়্যার লোড হচ্ছে...",
+  },
+  es: {
+    dashboard: "Tablero",
+    inventory: "Inventario",
+    sales: "Ventas",
+    returns: "Devoluciones",
+    suppliers: "Proveedores",
+    customers: "Clientes",
+    expenses: "Gastos",
+    reports: "Informes",
+    settings: "Configuración",
+    subscription: "Suscripción",
+    netRevenue: "Ingresos Netos",
+    currentProfit: "Ganancia Actual",
+    currentLoss: "Pérdida Actual",
+    totalExpenses: "Gastos Totales",
+    totalRefunds: "Reembolsos Totales",
+    totalSales: "Ventas Totales",
+    today: "Hoy",
+    last7Days: "7 Días",
+    last30Days: "30 Días",
+    logout: "Cerrar sesión",
+    search: "Buscar algo...",
+    searchInvoice: "Buscar factura",
+    newSale: "Nueva venta",
+    addItem: "Añadir artículo",
+    lowStock: "Artículos con poco stock",
+    recentSales: "Ventas recientes",
+    recentRecords: "Registros recientes",
+    daysLeft: "Días restantes",
+    expired: "Expirado",
+    businessPerformance: "Métricas y análisis del rendimiento empresarial.",
+    dashboardOverview: "Resumen del Tablero",
+    totalReturn: "Devolución total",
+    replaceItem: "Reemplazar artículo",
+    reasonFor: "Razón de",
+    process: "Procesar",
+    adjustmentAmount: "Monto de ajuste",
+    replacementProduct: "Detalles del producto de reemplazo",
+    refund: "Reembolso",
+    extra: "Extra",
+    welcome: "Bienvenido",
+    softwareOnline: "Tu software está en línea",
+    softwareOffline: "Tu software está fuera de línea, por favor no ingreses datos",
+    welcomeBack: "Bienvenido de nuevo",
+    createAccount: "Crea tu cuenta",
+    loginDesc: "Ingrese sus credenciales para acceder a su tablero de negocios.",
+    signupDesc: "Comience a administrar su negocio local de manera más eficiente hoy.",
+    businessNameLabel: "Nombre del negocio",
+    fullNameLabel: "Nombre completo",
+    phoneLabel: "Número de teléfono",
+    emailLabel: "Correo electrónico",
+    passwordLabel: "Contraseña",
+    confirmPasswordLabel: "Confirmar contraseña",
+    signIn: "Iniciar sesión",
+    createAccountBtn: "Crear cuenta",
+    noAccount: "¿No tienes una cuenta?",
+    haveAccount: "¿Ya tienes una cuenta?",
+    signup: "Regístrate",
+    login: "Iniciar sesión",
+    processing: "Procesando...",
+    softwareLoading: "El software se está cargando...",
+  }
+};
+
+const LanguageContext = React.createContext({
+  lang: 'en',
+  setLang: (l: string) => {},
+  t: (key: string) => key
+});
+
+const LanguageProvider = ({ children }: { children: ReactNode }) => {
+  const [lang, setLang] = useState(localStorage.getItem('app_lang') || 'en');
+
+  useEffect(() => {
+    localStorage.setItem('app_lang', lang);
+  }, [lang]);
+
+  const t = (key: string) => {
+    return translations[lang][key] || key;
+  };
+
+  return (
+    <LanguageContext.Provider value={{ lang, setLang, t }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+};
+
+const useTranslation = () => React.useContext(LanguageContext);
+
 // --- HELPERS ---
 const f2 = (num: any) => (Number(num) || 0).toFixed(2);
 const WHATSAPP_NUM = "01720150101";
@@ -523,6 +738,7 @@ const Layout = ({ children, user, logout, subscription }: any) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const location = useLocation();
+  const { t, lang, setLang } = useTranslation();
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -540,16 +756,16 @@ const Layout = ({ children, user, logout, subscription }: any) => {
   const isSubscribed = subscription?.active;
 
   const navItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
-    { icon: Package, label: 'Inventory', to: '/inventory' },
-    { icon: ShoppingCart, label: 'Sales', to: '/sales' },
-    { icon: Truck, label: 'Suppliers', to: '/suppliers' },
-    { icon: Users, label: 'Customers', to: '/customers' },
-    { icon: Receipt, label: 'Expenses', to: '/expenses' },
-    { icon: RotateCcw, label: 'Return & Replace', to: '/returns' },
-    { icon: BarChart3, label: 'Reports', to: '/reports' },
-    { icon: ShieldCheck, label: 'Subscription', to: '/subscription' },
-    { icon: SettingsIcon, label: 'Settings', to: '/settings' },
+    { icon: LayoutDashboard, label: t('dashboard'), to: '/' },
+    { icon: Package, label: t('inventory'), to: '/inventory' },
+    { icon: ShoppingCart, label: t('sales'), to: '/sales' },
+    { icon: Truck, label: t('suppliers'), to: '/suppliers' },
+    { icon: Users, label: t('customers'), to: '/customers' },
+    { icon: Receipt, label: t('expenses'), to: '/expenses' },
+    { icon: RotateCcw, label: t('returns'), to: '/returns' },
+    { icon: BarChart3, label: t('reports'), to: '/reports' },
+    { icon: ShieldCheck, label: t('subscription'), to: '/subscription' },
+    { icon: SettingsIcon, label: t('settings'), to: '/settings' },
   ];
 
   // If not subscribed, only allow access to Subscription page
@@ -638,7 +854,7 @@ const Layout = ({ children, user, logout, subscription }: any) => {
               <button
                 onClick={logout}
                 className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="Logout"
+                title={t('logout')}
               >
                 <LogOut size={20} />
               </button>
@@ -661,8 +877,8 @@ const Layout = ({ children, user, logout, subscription }: any) => {
               isOnline ? "bg-white shadow-[0_0_10px_rgba(255,255,255,1)]" : "bg-white animate-ping"
             )} />
             {isOnline 
-              ? "Your software is online" 
-              : "Your software is offline, please do not put data"
+              ? t('softwareOnline') 
+              : t('softwareOffline')
             }
           </div>
         </div>
@@ -670,7 +886,7 @@ const Layout = ({ children, user, logout, subscription }: any) => {
         {isSubscribed && subscriptionDays <= 7 && subscriptionDays > 0 && (
           <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center justify-center gap-2 text-amber-800 text-xs sm:text-sm font-medium z-30">
             <Bell size={16} className="animate-bounce shrink-0" />
-            Only {subscriptionDays} days left until your subscription expires. Please renew.
+            Only {subscriptionDays} {t('daysLeft')} until your subscription expires. Please renew.
             <Link to="/subscription" className="underline font-bold ml-2 whitespace-nowrap">Renew Now</Link>
           </div>
         )}
@@ -709,14 +925,14 @@ const Layout = ({ children, user, logout, subscription }: any) => {
             </button>
             <div className="flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-4">
               <h1 className="text-lg font-semibold text-slate-800 capitalize leading-none">
-                {location.pathname === '/' ? 'Dashboard' : location.pathname.substring(1)}
+                {location.pathname === '/' ? t('dashboard') : t(location.pathname.substring(1))}
               </h1>
               {subscriptionDays !== null && (
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 rounded-full border border-slate-100 w-fit">
                     <Calendar size={12} className="text-slate-400" />
                     <span className="text-[10px] font-bold text-slate-600 whitespace-nowrap">
-                      {subscriptionDays > 0 ? `${subscriptionDays} Days Left` : 'Expired'}
+                      {subscriptionDays > 0 ? `${subscriptionDays} ${t('daysLeft')}` : t('expired')}
                       {subscriptionDays > 0 && subscriptionDays <= 30 && ` • Day ${31 - subscriptionDays}/30`}
                     </span>
                   </div>
@@ -732,12 +948,43 @@ const Layout = ({ children, user, logout, subscription }: any) => {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Language Selector */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl mr-2">
+              <button 
+                onClick={() => setLang('en')}
+                className={cn(
+                  "px-2 py-1 text-[10px] font-bold rounded-lg transition-all",
+                  lang === 'en' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500"
+                )}
+              >
+                EN
+              </button>
+              <button 
+                onClick={() => setLang('bn')}
+                className={cn(
+                  "px-2 py-1 text-[10px] font-bold rounded-lg transition-all",
+                  lang === 'bn' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500"
+                )}
+              >
+                বাংলা
+              </button>
+              <button 
+                onClick={() => setLang('es')}
+                className={cn(
+                  "px-2 py-1 text-[10px] font-bold rounded-lg transition-all",
+                  lang === 'es' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500"
+                )}
+              >
+                ES
+              </button>
+            </div>
+
             <div className="relative hidden sm:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
                 type="text"
-                placeholder="Search anything..."
-                className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-64"
+                placeholder={t('search')}
+                className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-48 lg:w-64"
               />
             </div>
             <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg relative">
@@ -764,6 +1011,7 @@ const Layout = ({ children, user, logout, subscription }: any) => {
 
 const Dashboard = ({ data }: any) => {
   const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days'>('30days');
+  const { t } = useTranslation();
 
   // Helper to filter by date
   const isWithinRange = (dateStr: string) => {
@@ -876,42 +1124,42 @@ const Dashboard = ({ data }: any) => {
 
   const stats = [
     { 
-      label: 'Net Revenue', 
+      label: t('netRevenue'), 
       value: `$${netRevenue.toLocaleString()}`, 
       change: 'Sales - Returns', 
       icon: DollarSign, 
       color: 'bg-indigo-500' 
     },
     { 
-      label: 'Current Profit', 
+      label: t('currentProfit'), 
       value: `$${currentProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
-      change: 'Profit', 
+      change: t('currentProfit'), 
       icon: TrendingUp, 
       color: 'bg-emerald-500' 
     },
     { 
-      label: 'Current Loss', 
+      label: t('currentLoss'), 
       value: `$${currentLoss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
-      change: 'Loss', 
+      change: t('currentLoss'), 
       icon: ArrowDownRight, 
       color: 'bg-red-500' 
     },
     { 
-      label: 'Total Expenses', 
+      label: t('totalExpenses'), 
       value: `$${totalExpenses.toLocaleString()}`, 
       change: 'Outflow', 
       icon: Receipt, 
       color: 'bg-orange-500' 
     },
     { 
-      label: 'Total Refunds', 
+      label: t('totalRefunds'), 
       value: `$${totalReturnAmount.toLocaleString()}`, 
-      change: 'Returns', 
+      change: t('returns'), 
       icon: RotateCcw, 
       color: 'bg-slate-500' 
     },
     { 
-      label: 'Total Sales', 
+      label: t('totalSales'), 
       value: filteredSales.length.toString(), 
       change: 'Orders', 
       icon: ShoppingCart, 
@@ -925,8 +1173,8 @@ const Dashboard = ({ data }: any) => {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black text-slate-900">Dashboard Overview</h2>
-          <p className="text-sm text-slate-500">Business performance metrics and analytics.</p>
+          <h2 className="text-2xl font-black text-slate-900">{t('dashboardOverview')}</h2>
+          <p className="text-sm text-slate-500">{t('businessPerformance')}</p>
         </div>
         <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl w-fit">
           <button 
@@ -936,7 +1184,7 @@ const Dashboard = ({ data }: any) => {
               timeFilter === 'today' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}
           >
-            Today
+            {t('today')}
           </button>
           <button 
             onClick={() => setTimeFilter('7days')}
@@ -945,7 +1193,7 @@ const Dashboard = ({ data }: any) => {
               timeFilter === '7days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}
           >
-            7 Days
+            {t('last7Days')}
           </button>
           <button 
             onClick={() => setTimeFilter('30days')}
@@ -954,7 +1202,7 @@ const Dashboard = ({ data }: any) => {
               timeFilter === '30days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}
           >
-            30 Days
+            {t('last30Days')}
           </button>
         </div>
       </div>
@@ -2776,6 +3024,7 @@ const Returns = ({ data }: any) => {
   const [reason, setReason] = useState('');
   const [replaceAmount, setReplaceAmount] = useState('0');
   const [isProcessing, setIsProcessing] = useState(false);
+  const { t, lang } = useTranslation();
 
   const handleSearch = () => {
     setSearchError('');
@@ -2832,27 +3081,31 @@ const Returns = ({ data }: any) => {
   return (
     <div className="space-y-6">
       <PageHeader 
-        title="Return & Replace" 
+        title={t('returns')} 
         description="Handle customer returns and product replacements." 
       />
       
       {!foundSale && (
         <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl mb-6 flex items-center gap-3 text-blue-700">
           <AlertCircle size={20} />
-          <p className="text-sm font-medium">ইনভয়েস নম্বর দিয়ে সার্চ করুন - এরপর আপনি রিটার্ন বা রিপ্লেস অপশনগুলো দেখতে পাবেন।</p>
+          <p className="text-sm font-medium">
+            {t('lang') === 'bn' 
+              ? "ইনভয়েস নম্বর দিয়ে সার্চ করুন - এরপর আপনি রিটার্ন বা রিপ্লেস অপশনগুলো দেখতে পাবেন।" 
+              : t('searchInvoice') + " to see return/replace options."}
+          </p>
         </div>
       )}
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
           <Card className="p-6">
-            <h3 className="font-bold text-slate-900 mb-4">Find Invoice</h3>
+            <h3 className="font-bold text-slate-900 mb-4">{t('searchInvoice')}</h3>
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
                   type="text" 
-                  placeholder="Enter Invoice No..." 
+                  placeholder={t('searchInvoice') + "..."} 
                   value={invoiceNo}
                   onChange={(e) => setInvoiceNo(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
@@ -2862,7 +3115,7 @@ const Returns = ({ data }: any) => {
                 onClick={handleSearch}
                 className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
               >
-                Find
+                {t('process')}
               </button>
             </div>
             {searchError && <p className="text-xs text-red-500 mt-2 font-medium">{searchError}</p>}
@@ -2892,7 +3145,7 @@ const Returns = ({ data }: any) => {
                         returnType === 'Return' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                       )}
                     >
-                      Full Return
+                      {t('totalReturn')}
                     </button>
                     <button 
                       onClick={() => setReturnType('Replace')}
@@ -2901,7 +3154,7 @@ const Returns = ({ data }: any) => {
                         returnType === 'Replace' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                       )}
                     >
-                      Replace Item
+                      {t('replaceItem')}
                     </button>
                   </div>
 
@@ -2909,7 +3162,7 @@ const Returns = ({ data }: any) => {
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Adjustment Amount (মূল্য সমন্বয়)
+                          {t('adjustmentAmount')}
                         </label>
                         <div className="relative">
                           <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -2921,7 +3174,7 @@ const Returns = ({ data }: any) => {
                                 parseFloat(replaceAmount) >= 0 ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-600"
                               )}
                             >
-                              {parseFloat(replaceAmount) >= 0 ? "Refund (-)" : "Extra (+)"}
+                              {parseFloat(replaceAmount) >= 0 ? `${t('refund')} (-)` : `${t('extra')} (+)`}
                             </button>
                           </div>
                           <input 
@@ -2937,25 +3190,30 @@ const Returns = ({ data }: any) => {
                           />
                         </div>
                         <p className="text-[10px] text-slate-500 mt-1">
-                          {parseFloat(replaceAmount) >= 0 
-                            ? "গ্রাহককে টাকা ফেরত দিলে (Refund) লাল মোড ব্যবহার করুন।" 
-                            : "গ্রাহক বাড়তি টাকা দিলে (Extra Charge) সবুজ মোড ব্যবহার করুন।"}
+                          {lang === 'bn' 
+                            ? (parseFloat(replaceAmount) >= 0 
+                              ? "গ্রাহককে টাকা ফেরত দিলে (Refund) লাল মোড ব্যবহার করুন।" 
+                              : "গ্রাহক বাড়তি টাকা দিলে (Extra Charge) সবুজ মোড ব্যবহার করুন।")
+                            : (parseFloat(replaceAmount) >= 0
+                              ? "Use Red Mode if refunding money to customer."
+                              : "Use Green Mode if customer pays extra.")
+                          }
                         </p>
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Replacement Product details</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">{t('replacementProduct')}</label>
                         <input 
                           type="text"
                           className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
-                          placeholder="নতুন প্রোডাক্টের নাম বা মডেল..."
+                          placeholder={t('replacementProduct')}
                         />
                       </div>
                     </motion.div>
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Reason for {returnType}</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('reasonFor')} {returnType}</label>
                     <textarea 
                       rows={3}
                       value={reason}
@@ -2970,7 +3228,7 @@ const Returns = ({ data }: any) => {
                     disabled={isProcessing || !reason}
                     className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-600/10 disabled:opacity-50"
                   >
-                    {isProcessing ? "Processing..." : `Process ${returnType}`}
+                    {isProcessing ? "Processing..." : `${t('process')} ${returnType}`}
                   </button>
                 </div>
               </Card>
@@ -2980,7 +3238,7 @@ const Returns = ({ data }: any) => {
 
         <div className="space-y-6">
           <Card className="p-6">
-            <h3 className="font-bold text-slate-900 mb-6">Recent Records</h3>
+            <h3 className="font-bold text-slate-900 mb-6">{t('recentRecords')}</h3>
             {data.returns.length > 0 ? (
               <div className="space-y-4">
                 {[...data.returns].sort((a,b) => b.id.localeCompare(a.id)).slice(0, 10).map((ret: any) => (
@@ -3022,6 +3280,7 @@ const Returns = ({ data }: any) => {
 
 const Reports = ({ data }: any) => {
   const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days'>('30days');
+  const { t } = useTranslation();
 
   // Helper to filter by date
   const isWithinRange = (dateStr: string) => {
@@ -3095,7 +3354,7 @@ const Reports = ({ data }: any) => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <PageHeader title="Business Reports" description="Analyze your business performance over time." />
+        <PageHeader title={t('reports')} description="Analyze your business performance over time." />
         <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl w-fit shrink-0">
           <button 
             onClick={() => setTimeFilter('today')}
@@ -3104,7 +3363,7 @@ const Reports = ({ data }: any) => {
               timeFilter === 'today' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}
           >
-            Today
+            {t('today')}
           </button>
           <button 
             onClick={() => setTimeFilter('7days')}
@@ -3113,7 +3372,7 @@ const Reports = ({ data }: any) => {
               timeFilter === '7days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}
           >
-            7 Days
+            {t('last7Days')}
           </button>
           <button 
             onClick={() => setTimeFilter('30days')}
@@ -3122,7 +3381,7 @@ const Reports = ({ data }: any) => {
               timeFilter === '30days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}
           >
-            30 Days
+            {t('last30Days')}
           </button>
         </div>
       </div>
@@ -3138,7 +3397,7 @@ const Reports = ({ data }: any) => {
           </div>
         </Card>
         <Card className="p-6">
-          <p className="text-sm text-slate-500 font-medium">Total Revenue</p>
+          <p className="text-sm text-slate-500 font-medium">{t('netRevenue')}</p>
           <h3 className="text-2xl font-bold text-slate-900 mt-1">
             ${f2(totalRevenue)}
           </h3>
@@ -3147,7 +3406,7 @@ const Reports = ({ data }: any) => {
           </div>
         </Card>
         <Card className="p-6">
-          <p className="text-sm text-slate-500 font-medium text-emerald-600">Current Profit</p>
+          <p className="text-sm text-slate-500 font-medium text-emerald-600">{t('currentProfit')}</p>
           <h3 className="text-2xl font-bold text-emerald-600 mt-1">
             ${f2(currentProfit)}
           </h3>
@@ -3156,7 +3415,7 @@ const Reports = ({ data }: any) => {
           </div>
         </Card>
         <Card className="p-6">
-          <p className="text-sm text-slate-500 font-medium text-red-600">Current Loss</p>
+          <p className="text-sm text-slate-500 font-medium text-red-600">{t('currentLoss')}</p>
           <h3 className="text-2xl font-bold text-red-600 mt-1">
             ${f2(currentLoss)}
           </h3>
@@ -3745,6 +4004,7 @@ const AuthPage = ({ type, login, signup }: any) => {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -3807,12 +4067,12 @@ const AuthPage = ({ type, login, signup }: any) => {
             G
           </div>
           <h2 className="text-2xl font-bold text-slate-900">
-            {type === 'login' ? 'Welcome back' : 'Create your account'}
+            {type === 'login' ? t('welcomeBack') : t('createAccount')}
           </h2>
           <p className="text-slate-500 text-center mt-2">
             {type === 'login' 
-              ? 'Enter your credentials to access your business dashboard.' 
-              : 'Start managing your local business more efficiently today.'}
+              ? t('loginDesc') 
+              : t('signupDesc')}
           </p>
         </div>
 
@@ -3826,7 +4086,7 @@ const AuthPage = ({ type, login, signup }: any) => {
           {type === 'signup' && (
             <>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Business Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('businessNameLabel')}</label>
                 <input
                   type="text"
                   required
@@ -3837,7 +4097,7 @@ const AuthPage = ({ type, login, signup }: any) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('fullNameLabel')}</label>
                 <input
                   type="text"
                   required
@@ -3848,7 +4108,7 @@ const AuthPage = ({ type, login, signup }: any) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('phoneLabel')}</label>
                 <input
                   type="tel"
                   required
@@ -3861,7 +4121,7 @@ const AuthPage = ({ type, login, signup }: any) => {
             </>
           )}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t('emailLabel')}</label>
             <input
               type="email"
               required
@@ -3872,7 +4132,7 @@ const AuthPage = ({ type, login, signup }: any) => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t('passwordLabel')}</label>
             <input
               type="password"
               required
@@ -3884,7 +4144,7 @@ const AuthPage = ({ type, login, signup }: any) => {
           </div>
           {type === 'signup' && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('confirmPasswordLabel')}</label>
               <input
                 type="password"
                 required
@@ -3904,22 +4164,22 @@ const AuthPage = ({ type, login, signup }: any) => {
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Processing...
+                {t('processing')}
               </span>
             ) : (
-              type === 'login' ? 'Sign In' : 'Create Account'
+              type === 'login' ? t('signIn') : t('createAccountBtn')
             )}
           </button>
         </form>
 
         <div className="mt-8 text-center">
           <p className="text-sm text-slate-500">
-            {type === 'login' ? "Don't have an account?" : "Already have an account?"}{' '}
+            {type === 'login' ? t('noAccount') : t('haveAccount')}{' '}
             <Link
               to={type === 'login' ? '/signup' : '/login'}
               className="text-emerald-600 font-bold hover:underline"
             >
-              {type === 'login' ? 'Sign up' : 'Log in'}
+              {type === 'login' ? t('signup') : t('login')}
             </Link>
           </p>
         </div>
@@ -3930,10 +4190,12 @@ const AuthPage = ({ type, login, signup }: any) => {
 
 // --- MAIN APP COMPONENT ---
 
-export default function App() {
+// --- MAIN APP CONTENT ---
+const MainApp = () => {
   const { user, loading, login, signup, logout } = useAuth();
   const data = useData(user);
   const subscription = useSubscription(user);
+  const { t } = useTranslation();
 
   if (loading || !data.isLoaded || subscription.loading) {
     return (
@@ -3941,7 +4203,7 @@ export default function App() {
         <div className="flex flex-col items-center gap-4 text-center">
           <ShieldCheck className="w-12 h-12 text-emerald-600 animate-pulse mb-2" />
           <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-500 font-medium">Software is loading...</p>
+          <p className="text-slate-500 font-medium">{t('softwareLoading')}</p>
         </div>
       </div>
     );
@@ -3981,5 +4243,13 @@ export default function App() {
         </Routes>
       </ErrorBoundary>
     </Router>
+  );
+};
+
+export default function App() {
+  return (
+    <LanguageProvider>
+      <MainApp />
+    </LanguageProvider>
   );
 }
