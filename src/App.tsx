@@ -763,15 +763,38 @@ const Layout = ({ children, user, logout, subscription }: any) => {
 // --- PAGES ---
 
 const Dashboard = ({ data }: any) => {
-  const returns = data.returns || [];
-  const returnedInvoices = new Set(returns.filter((r: any) => r.type === 'Return').map((r: any) => r.invoiceNo));
-  const totalReturnAmount = returns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days'>('30days');
+
+  // Helper to filter by date
+  const isWithinRange = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (timeFilter === 'today') {
+      return date.toISOString().split('T')[0] === today.toISOString().split('T')[0];
+    }
+    
+    const rangeDate = new Date();
+    rangeDate.setHours(0, 0, 0, 0);
+    if (timeFilter === '7days') rangeDate.setDate(today.getDate() - 7);
+    if (timeFilter === '30days') rangeDate.setDate(today.getDate() - 30);
+    
+    return date >= rangeDate;
+  };
+
+  const filteredSales = data.sales.filter((s: any) => isWithinRange(s.date));
+  const filteredExpenses = data.expenses.filter((e: any) => isWithinRange(e.date));
+  const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r.date));
+
+  const returnedInvoices = new Set(filteredReturns.filter((r: any) => r.type === 'Return').map((r: any) => r.invoiceNo));
+  const totalReturnAmount = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   
   // Calculate Profit and Loss from ACTIVE sales
   let totalSalesProfit = 0;
   let totalSalesLoss = 0;
 
-  data.sales.forEach((s: any) => {
+  filteredSales.forEach((s: any) => {
     const inv = s.invoiceNo || s.id;
     if (returnedInvoices.has(inv)) return; // Skip fully returned sales for profit
 
@@ -792,12 +815,9 @@ const Dashboard = ({ data }: any) => {
     }
   });
 
-  const totalExpenses = data.expenses.reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
+  const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
   
-  // Adjusted Profit/Loss calculation
-  // We don't add full return amount to loss anymore, instead we skip those sales in profit
-  // Total Revenue also subtracts refunds/returns
-  const totalRevenueBase = data.sales.reduce((acc: number, s: any) => acc + (s.total || 0), 0);
+  const totalRevenueBase = filteredSales.reduce((acc: number, s: any) => acc + (s.total || 0), 0);
   const netRevenue = totalRevenueBase - totalReturnAmount;
 
   const rawProfit = totalSalesProfit;
@@ -858,44 +878,44 @@ const Dashboard = ({ data }: any) => {
     { 
       label: 'Net Revenue', 
       value: `$${netRevenue.toLocaleString()}`, 
-      change: 'After Refunds', 
+      change: 'Sales - Returns', 
       icon: DollarSign, 
+      color: 'bg-indigo-500' 
+    },
+    { 
+      label: 'Current Profit', 
+      value: `$${currentProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
+      change: 'Profit', 
+      icon: TrendingUp, 
       color: 'bg-emerald-500' 
+    },
+    { 
+      label: 'Current Loss', 
+      value: `$${currentLoss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
+      change: 'Loss', 
+      icon: ArrowDownRight, 
+      color: 'bg-red-500' 
+    },
+    { 
+      label: 'Total Expenses', 
+      value: `$${totalExpenses.toLocaleString()}`, 
+      change: 'Outflow', 
+      icon: Receipt, 
+      color: 'bg-orange-500' 
     },
     { 
       label: 'Total Refunds', 
       value: `$${totalReturnAmount.toLocaleString()}`, 
       change: 'Returns', 
       icon: RotateCcw, 
-      color: 'bg-red-400' 
-    },
-    { 
-      label: 'Net Profit', 
-      value: `$${netProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
-      change: netProfit >= 0 ? 'Income' : 'Loss', 
-      icon: netProfit >= 0 ? TrendingUp : ArrowDownRight, 
-      color: netProfit >= 0 ? 'bg-emerald-600' : 'bg-red-600' 
+      color: 'bg-slate-500' 
     },
     { 
       label: 'Total Sales', 
-      value: data.sales.length.toString(), 
-      change: '0%', 
+      value: filteredSales.length.toString(), 
+      change: 'Orders', 
       icon: ShoppingCart, 
       color: 'bg-blue-500' 
-    },
-    { 
-      label: 'Inventory Items', 
-      value: data.inventory.length.toString(), 
-      change: '0%', 
-      icon: Package, 
-      color: 'bg-orange-500' 
-    },
-    { 
-      label: 'Active Customers', 
-      value: data.customers.length.toString(), 
-      change: '0%', 
-      icon: Users, 
-      color: 'bg-purple-500' 
     },
   ];
 
@@ -903,6 +923,42 @@ const Dashboard = ({ data }: any) => {
 
   return (
     <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-black text-slate-900">Dashboard Overview</h2>
+          <p className="text-sm text-slate-500">Business performance metrics and analytics.</p>
+        </div>
+        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl w-fit">
+          <button 
+            onClick={() => setTimeFilter('today')}
+            className={cn(
+              "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+              timeFilter === 'today' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Today
+          </button>
+          <button 
+            onClick={() => setTimeFilter('7days')}
+            className={cn(
+              "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+              timeFilter === '7days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            7 Days
+          </button>
+          <button 
+            onClick={() => setTimeFilter('30days')}
+            className={cn(
+              "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+              timeFilter === '30days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            30 Days
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {stats.map((stat, i) => (
           <motion.div
@@ -2941,7 +2997,12 @@ const Returns = ({ data }: any) => {
                       <p className="text-[10px] text-slate-400 mt-1 italic">"{ret.reason}"</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-red-600">-${f2(ret.totalAmount)}</p>
+                      <p className={cn(
+                        "font-bold",
+                        ret.totalAmount > 0 ? "text-red-500" : "text-emerald-500"
+                      )}>
+                        {ret.totalAmount > 0 ? '-' : '+'}${f2(Math.abs(ret.totalAmount))}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -2960,13 +3021,42 @@ const Returns = ({ data }: any) => {
 };
 
 const Reports = ({ data }: any) => {
-  const totalReturns = (data.returns || []).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
-  const totalRevenue = data.sales.reduce((acc: number, s: any) => acc + s.total, 0) - totalReturns;
+  const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days'>('30days');
+
+  // Helper to filter by date
+  const isWithinRange = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (timeFilter === 'today') {
+      return date.toISOString().split('T')[0] === today.toISOString().split('T')[0];
+    }
+    
+    const rangeDate = new Date();
+    rangeDate.setHours(0, 0, 0, 0);
+    if (timeFilter === '7days') rangeDate.setDate(today.getDate() - 7);
+    if (timeFilter === '30days') rangeDate.setDate(today.getDate() - 30);
+    
+    return date >= rangeDate;
+  };
+
+  const filteredSales = data.sales.filter((s: any) => isWithinRange(s.date));
+  const filteredExpenses = data.expenses.filter((e: any) => isWithinRange(e.date));
+  const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r.date));
+
+  const totalReturns = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  const totalRevenue = filteredSales.reduce((acc: number, s: any) => acc + s.total, 0) - totalReturns;
   
+  const returnedInvoices = new Set(filteredReturns.filter((r: any) => r.type === 'Return').map((r: any) => r.invoiceNo));
+
   let totalSalesProfit = 0;
   let totalSalesLoss = 0;
 
-  data.sales.forEach((s: any) => {
+  filteredSales.forEach((s: any) => {
+    const inv = s.invoiceNo || s.id;
+    if (returnedInvoices.has(inv)) return;
+
     if (s.items) {
       s.items.forEach((item: any) => {
         const buyPrice = item.buyPrice || 0;
@@ -2984,13 +3074,13 @@ const Reports = ({ data }: any) => {
     }
   });
 
-  const totalExpenses = data.expenses.reduce((acc: number, e: any) => acc + e.amount, 0);
+  const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + e.amount, 0);
   const rawProfit = totalSalesProfit;
-  const rawLoss = totalSalesLoss + totalExpenses + totalReturns;
+  const rawLoss = totalSalesLoss + totalExpenses;
   
-  const currentProfit = rawProfit >= rawLoss ? rawProfit - rawLoss : 0;
-  const currentLoss = rawLoss > rawProfit ? rawLoss - rawProfit : 0;
-  const netProfit = rawProfit - rawLoss;
+  const netProfit = rawProfit - rawLoss - totalReturns;
+  const currentProfit = netProfit >= 0 ? netProfit : 0;
+  const currentLoss = netProfit < 0 ? Math.abs(netProfit) : 0;
 
   // Group sales by date for a simple chart
   const salesByDate = data.sales.reduce((acc: any, s: any) => {
@@ -3004,7 +3094,38 @@ const Reports = ({ data }: any) => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Business Reports" description="Analyze your business performance over time." />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <PageHeader title="Business Reports" description="Analyze your business performance over time." />
+        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl w-fit shrink-0">
+          <button 
+            onClick={() => setTimeFilter('today')}
+            className={cn(
+              "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+              timeFilter === 'today' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Today
+          </button>
+          <button 
+            onClick={() => setTimeFilter('7days')}
+            className={cn(
+              "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+              timeFilter === '7days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            7 Days
+          </button>
+          <button 
+            onClick={() => setTimeFilter('30days')}
+            className={cn(
+              "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+              timeFilter === '30days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            30 Days
+          </button>
+        </div>
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         <Card className="p-6">
