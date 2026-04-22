@@ -803,9 +803,11 @@ const Dashboard = ({ data }: any) => {
   const rawProfit = totalSalesProfit;
   const rawLoss = totalSalesLoss + totalExpenses;
   
-  const currentProfit = rawProfit >= rawLoss ? rawProfit - rawLoss : 0;
-  const currentLoss = rawLoss > rawProfit ? rawLoss - rawProfit : 0;
-  const netProfit = rawProfit - rawLoss;
+  // Net profit must also subtract/add the adjustments from replacements
+  const netProfit = rawProfit - rawLoss - totalReturnAmount;
+  
+  const currentProfit = netProfit >= 0 ? netProfit : 0;
+  const currentLoss = netProfit < 0 ? Math.abs(netProfit) : 0;
 
   // Calculate Daily Profit and Loss for Chart
   const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -2841,23 +2843,51 @@ const Returns = ({ data }: any) => {
                   </div>
 
                   {returnType === 'Replace' && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Adjustment Amount (+/-)
-                      </label>
-                      <div className="relative">
-                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Adjustment Amount (মূল্য সমন্বয়)
+                        </label>
+                        <div className="relative">
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                            <button 
+                              type="button"
+                              onClick={() => setReplaceAmount(prev => (parseFloat(prev) * -1).toString())}
+                              className={cn(
+                                "p-1 rounded text-[10px] font-bold uppercase",
+                                parseFloat(replaceAmount) >= 0 ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-600"
+                              )}
+                            >
+                              {parseFloat(replaceAmount) >= 0 ? "Refund (-)" : "Extra (+)"}
+                            </button>
+                          </div>
+                          <input 
+                            type="number" step="0.01"
+                            value={Math.abs(parseFloat(replaceAmount))}
+                            onChange={(e) => {
+                              const val = Math.abs(parseFloat(e.target.value) || 0);
+                              const isNegative = parseFloat(replaceAmount) < 0 || (replaceAmount === '-0' && e.target.value === '0');
+                              setReplaceAmount(isNegative ? (val * -1).toString() : val.toString());
+                            }}
+                            className="w-full pl-20 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          {parseFloat(replaceAmount) >= 0 
+                            ? "গ্রাহককে টাকা ফেরত দিলে (Refund) লাল মোড ব্যবহার করুন।" 
+                            : "গ্রাহক বাড়তি টাকা দিলে (Extra Charge) সবুজ মোড ব্যবহার করুন।"}
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Replacement Product details</label>
                         <input 
-                          type="number" step="0.01"
-                          value={replaceAmount}
-                          onChange={(e) => setReplaceAmount(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
-                          placeholder="0.00"
+                          type="text"
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          placeholder="নতুন প্রোডাক্টের নাম বা মডেল..."
                         />
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1 italic">
-                        * Positive for refund/credit, negative for additional charges.
-                      </p>
                     </motion.div>
                   )}
 
