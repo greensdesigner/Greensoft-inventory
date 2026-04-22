@@ -114,6 +114,7 @@ const translations: any = {
     daysLeft: "Days Left",
     expired: "Expired",
     businessPerformance: "Business performance metrics and analytics.",
+    dashboardOverview: "Dashboard Overview",
     totalReturn: "Full Return",
     replaceItem: "Replace Item",
     reasonFor: "Reason for",
@@ -949,11 +950,11 @@ const Layout = ({ children, user, logout, subscription }: any) => {
 
           <div className="flex items-center gap-3">
             {/* Language Selector */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl mr-2">
+            <div className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-2xl mr-2">
               <button 
                 onClick={() => setLang('en')}
                 className={cn(
-                  "px-2 py-1 text-[10px] font-bold rounded-lg transition-all",
+                  "px-3 py-1.5 text-xs font-bold rounded-xl transition-all",
                   lang === 'en' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500"
                 )}
               >
@@ -962,7 +963,7 @@ const Layout = ({ children, user, logout, subscription }: any) => {
               <button 
                 onClick={() => setLang('bn')}
                 className={cn(
-                  "px-2 py-1 text-[10px] font-bold rounded-lg transition-all",
+                  "px-3 py-1.5 text-xs font-bold rounded-xl transition-all",
                   lang === 'bn' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500"
                 )}
               >
@@ -971,7 +972,7 @@ const Layout = ({ children, user, logout, subscription }: any) => {
               <button 
                 onClick={() => setLang('es')}
                 className={cn(
-                  "px-2 py-1 text-[10px] font-bold rounded-lg transition-all",
+                  "px-3 py-1.5 text-xs font-bold rounded-xl transition-all",
                   lang === 'es' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500"
                 )}
               >
