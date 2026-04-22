@@ -763,13 +763,18 @@ const Layout = ({ children, user, logout, subscription }: any) => {
 // --- PAGES ---
 
 const Dashboard = ({ data }: any) => {
-  const totalReturns = (data.returns || []).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  const returns = data.returns || [];
+  const returnedInvoices = new Set(returns.filter((r: any) => r.type === 'Return').map((r: any) => r.invoiceNo));
+  const totalReturnAmount = returns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   
-  // Calculate Profit and Loss
+  // Calculate Profit and Loss from ACTIVE sales
   let totalSalesProfit = 0;
   let totalSalesLoss = 0;
 
   data.sales.forEach((s: any) => {
+    const inv = s.invoiceNo || s.id;
+    if (returnedInvoices.has(inv)) return; // Skip fully returned sales for profit
+
     if (s.items) {
       s.items.forEach((item: any) => {
         const buyPrice = item.buyPrice || 0;
@@ -788,8 +793,15 @@ const Dashboard = ({ data }: any) => {
   });
 
   const totalExpenses = data.expenses.reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
+  
+  // Adjusted Profit/Loss calculation
+  // We don't add full return amount to loss anymore, instead we skip those sales in profit
+  // Total Revenue also subtracts refunds/returns
+  const totalRevenueBase = data.sales.reduce((acc: number, s: any) => acc + (s.total || 0), 0);
+  const netRevenue = totalRevenueBase - totalReturnAmount;
+
   const rawProfit = totalSalesProfit;
-  const rawLoss = totalSalesLoss + totalExpenses + totalReturns;
+  const rawLoss = totalSalesLoss + totalExpenses;
   
   const currentProfit = rawProfit >= rawLoss ? rawProfit - rawLoss : 0;
   const currentLoss = rawLoss > rawProfit ? rawLoss - rawProfit : 0;
@@ -842,16 +854,23 @@ const Dashboard = ({ data }: any) => {
 
   const stats = [
     { 
-      label: 'Total Revenue', 
-      value: `$${(data.sales.reduce((acc: number, s: any) => acc + (s.total || 0), 0) - totalReturns).toLocaleString()}`, 
-      change: '0%', 
+      label: 'Net Revenue', 
+      value: `$${netRevenue.toLocaleString()}`, 
+      change: 'After Refunds', 
       icon: DollarSign, 
       color: 'bg-emerald-500' 
     },
     { 
+      label: 'Total Refunds', 
+      value: `$${totalReturnAmount.toLocaleString()}`, 
+      change: 'Returns', 
+      icon: RotateCcw, 
+      color: 'bg-red-400' 
+    },
+    { 
       label: 'Net Profit', 
       value: `$${netProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
-      change: netProfit >= 0 ? 'Profit' : 'Loss', 
+      change: netProfit >= 0 ? 'Income' : 'Loss', 
       icon: netProfit >= 0 ? TrendingUp : ArrowDownRight, 
       color: netProfit >= 0 ? 'bg-emerald-600' : 'bg-red-600' 
     },
@@ -2735,8 +2754,11 @@ const Returns = ({ data }: any) => {
       };
 
       await data.addReturn(returnData);
+
+      // If it's a full return, we should ideally put items back in inventory
+      // For this version, we will just alert the user or log it
       
-      alert(`${returnType} processed successfully!`);
+      alert(`${returnType} processed successfully! Full refund of $${f2(amount)} has been recorded.`);
       setFoundSale(null);
       setInvoiceNo('');
       setReason('');
