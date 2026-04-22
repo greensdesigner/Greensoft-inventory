@@ -134,6 +134,7 @@ const translations: any = {
     fullNameLabel: "Full Name",
     phoneLabel: "Phone Number",
     emailLabel: "Email Address",
+    addressLabel: "Address",
     passwordLabel: "Password",
     confirmPasswordLabel: "Confirm Password",
     signIn: "Sign In",
@@ -196,6 +197,7 @@ const translations: any = {
     fullNameLabel: "পুরো নাম",
     phoneLabel: "ফোন নম্বর",
     emailLabel: "ইমেইল ঠিকানা",
+    addressLabel: "ঠিকানা",
     passwordLabel: "পাসওয়ার্ড",
     confirmPasswordLabel: "পাসওয়ার্ড নিশ্চিত করুন",
     signIn: "সাইন ইন",
@@ -363,7 +365,7 @@ const useSubscription = (user: any) => {
 
 // --- REAL AUTH HOOK ---
 const useAuth = () => {
-  const [user, setUser] = useState<{ id: number; email: string; businessName: string; logo?: string; name?: string; phone?: string; expiryDate?: string } | null>(null);
+  const [user, setUser] = useState<{ id: number; email: string; businessName: string; logo?: string; name?: string; phoneNumber?: string; address?: string; expiryDate?: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -410,12 +412,31 @@ const useAuth = () => {
     }
   };
 
+  const updateProfile = async (profileData: any) => {
+    try {
+      const res = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...profileData, userId: user?.id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.setItem('greensoft_user', JSON.stringify(data.user));
+        setUser(data.user);
+        return { success: true };
+      }
+      return { success: false, error: data.error || 'Update failed' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('greensoft_user');
     setUser(null);
   };
 
-  return { user, loading, login, signup, logout };
+  return { user, loading, login, signup, updateProfile, logout };
 };
 
 // --- DATA HOOK ---
@@ -1655,28 +1676,42 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
       margin: '0 auto'
     }}
   >
-    <div className="flex justify-between items-start mb-8">
-      <div>
-        <h2 className="text-3xl font-bold mb-1" style={{ color: '#0f172a', margin: 0 }}>INVOICE</h2>
-        <p className="font-medium" style={{ color: '#64748b', margin: 0 }}>#INV-{sale.id.slice(-4)}</p>
+    <div className="flex justify-between items-start mb-8 border-b-2 border-slate-100 pb-6">
+      <div className="flex items-center gap-4">
+        {user?.logo && <img src={user.logo} alt="Logo" className="w-16 h-16 object-contain" />}
+        <div>
+          <h3 className="text-2xl font-black" style={{ color: '#0f172a', margin: 0, letterSpacing: '-0.025em' }}>{user?.businessName || 'Greensoft'}</h3>
+          <p className="text-xs font-bold uppercase tracking-widest mt-1" style={{ color: '#64748b' }}>Business Management Solutions</p>
+        </div>
       </div>
       <div className="text-right">
-        <h3 className="text-xl font-bold" style={{ color: '#059669', margin: 0 }}>{user?.businessName || 'Greensoft'}</h3>
+        <h2 className="text-3xl font-black mb-1" style={{ color: '#0f172a', margin: 0 }}>INVOICE</h2>
+        <p className="font-bold text-sm" style={{ color: '#64748b', margin: 0 }}>#INV-{sale.id.slice(-6).toUpperCase()}</p>
       </div>
     </div>
 
-    <div className="grid grid-cols-2 gap-8 mb-8" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+    <div className="grid grid-cols-2 gap-8 mb-10" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
       <div>
-        <h4 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Bill To:</h4>
-        <div className="font-bold text-lg" style={{ color: '#0f172a', fontSize: '1.125rem' }}>{sale.customerName}</div>
-        {sale.customerPhone && <div style={{ color: '#475569' }}>{sale.customerPhone}</div>}
-        {sale.customerEmail && <div style={{ color: '#475569' }}>{sale.customerEmail}</div>}
-        {sale.customerAddress && <div className="italic mt-1" style={{ color: '#475569' }}>{sale.customerAddress}</div>}
+        <h4 className="text-[10px] font-bold uppercase tracking-widest mb-3 border-b border-slate-100 pb-1 w-fit" style={{ color: '#94a3b8' }}>From:</h4>
+        <div className="font-black text-slate-900" style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{user?.businessName}</div>
+        <div className="text-sm font-medium text-slate-600 space-y-1">
+          {user?.email && <div className="flex items-center gap-2"><span>✉</span> {user.email}</div>}
+          {user?.phoneNumber && <div className="flex items-center gap-2"><span>📞</span> {user.phoneNumber}</div>}
+          {user?.address && <div className="flex items-start gap-2 pt-1 opacity-80 leading-snug"><span>📍</span> {user.address}</div>}
+        </div>
       </div>
-      <div className="text-right">
-        <h4 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Invoice Details:</h4>
-        <div style={{ color: '#475569' }}><span className="font-medium">Date:</span> {sale.date}</div>
-        <div style={{ color: '#475569' }}><span className="font-medium">Status:</span> <span style={{ color: '#059669', fontWeight: 'bold' }}>PAID</span></div>
+      <div className="text-right flex flex-col items-end">
+        <h4 className="text-[10px] font-bold uppercase tracking-widest mb-3 border-b border-slate-100 pb-1 w-fit ml-auto" style={{ color: '#94a3b8' }}>Bill To:</h4>
+        <div className="font-black text-slate-900" style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{sale.customerName}</div>
+        <div className="text-sm font-medium text-slate-600 space-y-1">
+          {sale.customerPhone && <div className="flex items-center gap-2 justify-end"> {sale.customerPhone} <span>📞</span></div>}
+          {sale.customerEmail && <div className="flex items-center gap-2 justify-end"> {sale.customerEmail} <span>✉</span></div>}
+          {sale.customerAddress && <div className="flex items-start gap-2 pt-1 leading-snug justify-end max-w-[250px] ml-auto"> {sale.customerAddress} <span>📍</span></div>}
+          <div className="pt-4 flex flex-col items-end gap-1">
+            <span className="text-[10px] font-bold uppercase text-slate-400">Invoice Date</span>
+            <span className="font-bold text-slate-700">{sale.date}</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -3688,14 +3723,17 @@ const Subscription = ({ subscription }: any) => {
   );
 };
 
-const Settings = ({ user, data }: any) => {
+const Settings = ({ user, data, updateProfile }: any) => {
   const [businessName, setBusinessName] = useState(user?.businessName || '');
   const [email, setEmail] = useState(user?.email || '');
   const [name, setName] = useState(user?.name || '');
-  const [phone, setPhone] = useState(user?.phone || '');
+  const [phone, setPhone] = useState(user?.phoneNumber || '');
+  const [address, setAddress] = useState(user?.address || '');
   const [logo, setLogo] = useState(user?.logo || '');
   const [isRefreshingDB, setIsRefreshingDB] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [dbStatus, setDbStatus] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   const checkDatabaseConnection = async () => {
     setIsRefreshingDB(true);
@@ -3725,11 +3763,16 @@ const Settings = ({ user, data }: any) => {
     }
   };
 
-  const handleUpdate = (e: FormEvent) => {
+  const handleUpdate = async (e: FormEvent) => {
     e.preventDefault();
-    const updatedUser = { ...user, businessName, email, logo, name, phone };
-    localStorage.setItem('greensoft_user', JSON.stringify(updatedUser));
-    window.location.reload(); 
+    setIsUpdating(true);
+    const success = await updateProfile({ businessName, email, name, phoneNumber: phone, address, logo });
+    setIsUpdating(false);
+    if (success) {
+      alert('Profile updated successfully!');
+    } else {
+      alert('Failed to update profile.');
+    }
   };
 
   const clearAllData = () => {
@@ -3820,17 +3863,26 @@ const Settings = ({ user, data }: any) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('phoneLabel')}</label>
                     <input 
                       type="tel" required 
                       value={phone} onChange={e => setPhone(e.target.value)}
                       className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
                     />
                   </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('addressLabel')}</label>
+                    <textarea 
+                      required 
+                      value={address} onChange={e => setAddress(e.target.value)}
+                      rows={2}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none resize-none" 
+                    />
+                  </div>
                 </div>
               </div>
-              <button type="submit" className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-all">
-                Update Profile
+              <button type="submit" disabled={isUpdating} className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-all disabled:opacity-50">
+                {isUpdating ? 'Updating...' : 'Update Profile'}
               </button>
             </form>
           </Card>
@@ -4193,7 +4245,7 @@ const AuthPage = ({ type, login, signup }: any) => {
 
 // --- MAIN APP CONTENT ---
 const MainApp = () => {
-  const { user, loading, login, signup, logout } = useAuth();
+  const { user, loading, login, signup, updateProfile, logout } = useAuth();
   const data = useData(user);
   const subscription = useSubscription(user);
   const { t } = useTranslation();
@@ -4232,7 +4284,7 @@ const MainApp = () => {
                     <Route path="/expenses" element={subscription.active ? <Expenses data={data} /> : <Navigate to="/subscription" />} />
                     <Route path="/reports" element={subscription.active ? <Reports data={data} /> : <Navigate to="/subscription" />} />
                     <Route path="/subscription" element={<Subscription subscription={subscription} />} />
-                    <Route path="/settings" element={subscription.active ? <Settings user={user} data={data} /> : <Navigate to="/subscription" />} />
+                    <Route path="/settings" element={subscription.active ? <Settings user={user} data={data} updateProfile={updateProfile} /> : <Navigate to="/subscription" />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </Layout>

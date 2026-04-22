@@ -57,6 +57,7 @@ async function ensureAllTables() {
 
         // Sync columns for existing installations
         await checkAndAddColumn(conn, 'users', 'expiryDate', 'VARCHAR(50)');
+        await checkAndAddColumn(conn, 'users', 'address', 'TEXT');
         
         const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
         for (const ent of entities) {
@@ -131,7 +132,30 @@ app.post('/api/auth/login', async (req, res) => {
         if (rows.length === 0) return res.status(401).json({ error: 'User not found' });
         const match = await bcrypt.compare(password, rows[0].password);
         if (!match) return res.status(401).json({ error: 'Wrong password' });
-        res.json({ success: true, user: { id: rows[0].id, email: rows[0].email, businessName: rows[0].businessName, name: rows[0].fullName, expiryDate: rows[0].expiryDate } });
+        res.json({ success: true, user: { id: rows[0].id, email: rows[0].email, businessName: rows[0].businessName, name: rows[0].fullName, expiryDate: rows[0].expiryDate, phoneNumber: rows[0].phoneNumber, address: rows[0].address } });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/api/auth/profile', async (req, res) => {
+    try {
+        const { userId, businessName, fullName, phoneNumber, address, email } = req.body;
+        if (!userId) return res.status(400).json({ error: 'User ID required' });
+
+        await pool.query('UPDATE users SET businessName = ?, fullName = ?, phoneNumber = ?, address = ?, email = ? WHERE id = ?', [businessName, fullName, phoneNumber, address, email, userId]);
+
+        const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [userId]);
+        res.json({ 
+            success: true, 
+            user: { 
+                id: rows[0].id, 
+                email: rows[0].email, 
+                businessName: rows[0].businessName, 
+                name: rows[0].fullName, 
+                expiryDate: rows[0].expiryDate, 
+                phoneNumber: rows[0].phoneNumber, 
+                address: rows[0].address 
+            } 
+        });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
