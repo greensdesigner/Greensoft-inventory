@@ -3766,7 +3766,7 @@ const Settings = ({ user, data, updateProfile }: any) => {
   const handleUpdate = async (e: FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
-    const success = await updateProfile({ businessName, email, name, phoneNumber: phone, address, logo });
+    const success = await updateProfile({ businessName, email, fullName: name, phoneNumber: phone, address, logo });
     setIsUpdating(false);
     if (success) {
       alert('Profile updated successfully!');
