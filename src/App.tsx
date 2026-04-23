@@ -1691,7 +1691,13 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
         {user?.logo && <img src={user.logo} alt="Logo" className="w-16 h-16 object-contain" />}
         <div>
           <h3 className="text-2xl font-black" style={{ color: '#0f172a', margin: 0, letterSpacing: '-0.025em' }}>{user?.businessName || 'Greensoft'}</h3>
-          <p className="text-xs font-bold uppercase tracking-widest mt-1" style={{ color: '#64748b' }}>Business Management Solutions</p>
+          <div className="text-[10px] font-medium text-slate-500 mt-1 uppercase tracking-wider leading-relaxed">
+            {user?.address && <div>{user.address}</div>}
+            <div className="flex gap-3">
+              {user?.email && <span>{user.email}</span>}
+              {user?.phoneNumber && <span>{user.phoneNumber}</span>}
+            </div>
+          </div>
         </div>
       </div>
       <div className="text-right">
@@ -1702,25 +1708,18 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
 
     <div className="grid grid-cols-2 gap-8 mb-10" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
       <div>
-        <h4 className="text-[10px] font-bold uppercase tracking-widest mb-3 border-b border-slate-100 pb-1 w-fit" style={{ color: '#94a3b8' }}>From:</h4>
-        <div className="font-black text-slate-900" style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{user?.businessName}</div>
-        <div className="text-sm font-medium text-slate-600 space-y-1">
-          {user?.email && <div className="flex items-center gap-2"><span>✉</span> {user.email}</div>}
-          {user?.phoneNumber && <div className="flex items-center gap-2"><span>📞</span> {user.phoneNumber}</div>}
-          {user?.address && <div className="flex items-start gap-2 pt-1 opacity-80 leading-snug"><span>📍</span> {user.address}</div>}
-        </div>
-      </div>
-      <div className="text-right flex flex-col items-end">
-        <h4 className="text-[10px] font-bold uppercase tracking-widest mb-3 border-b border-slate-100 pb-1 w-fit ml-auto" style={{ color: '#94a3b8' }}>Bill To:</h4>
+        <h4 className="text-[10px] font-bold uppercase tracking-widest mb-3 border-b border-slate-100 pb-1 w-fit" style={{ color: '#94a3b8' }}>Bill To:</h4>
         <div className="font-black text-slate-900" style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{sale.customerName}</div>
         <div className="text-sm font-medium text-slate-600 space-y-1">
-          {sale.customerPhone && <div className="flex items-center gap-2 justify-end"> {sale.customerPhone} <span>📞</span></div>}
-          {sale.customerEmail && <div className="flex items-center gap-2 justify-end"> {sale.customerEmail} <span>✉</span></div>}
-          {sale.customerAddress && <div className="flex items-start gap-2 pt-1 leading-snug justify-end max-w-[250px] ml-auto"> {sale.customerAddress} <span>📍</span></div>}
-          <div className="pt-4 flex flex-col items-end gap-1">
-            <span className="text-[10px] font-bold uppercase text-slate-400">Invoice Date</span>
-            <span className="font-bold text-slate-700">{sale.date}</span>
-          </div>
+          {sale.customerPhone && <div className="flex items-center gap-2"><span>📞</span> {sale.customerPhone}</div>}
+          {sale.customerEmail && <div className="flex items-center gap-2"><span>✉</span> {sale.customerEmail}</div>}
+          {sale.customerAddress && <div className="flex items-start gap-2 pt-1 leading-snug max-w-[250px]"><span>📍</span> {sale.customerAddress}</div>}
+        </div>
+      </div>
+      <div className="text-right flex flex-col items-end justify-center">
+        <div className="pt-4 flex flex-col items-end gap-1">
+          <span className="text-[10px] font-bold uppercase text-slate-400">Invoice Date</span>
+          <span className="font-bold text-slate-700">{sale.date}</span>
         </div>
       </div>
     </div>
