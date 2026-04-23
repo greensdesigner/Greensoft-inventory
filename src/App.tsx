@@ -305,6 +305,31 @@ const useTranslation = () => React.useContext(LanguageContext);
 
 // --- HELPERS ---
 const f2 = (num: any) => (Number(num) || 0).toFixed(2);
+
+const useCurrency = () => {
+  const { lang } = useTranslation();
+  
+  const toBengaliNumber = (num: string | number): string => {
+    const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    return num.toString().replace(/\d/g, (digit) => bengaliDigits[parseInt(digit)]);
+  };
+
+  const formatCurrency = (amount: number | string, decimals: number = 2) => {
+    const num = Number(amount) || 0;
+    const formatted = num.toLocaleString(lang === 'bn' ? 'bn-BD' : 'en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    });
+
+    if (lang === 'bn') {
+      return `৳${toBengaliNumber(formatted)}`;
+    }
+    return `$${formatted}`;
+  };
+
+  return { formatCurrency, toBengaliNumber };
+};
+
 const getTodayStr = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1051,7 +1076,8 @@ const Layout = ({ children, user, logout, subscription }: any) => {
 
 const Dashboard = ({ data }: any) => {
   const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days'>('30days');
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
+  const { formatCurrency, toBengaliNumber } = useCurrency();
 
   // Helper to filter by date
   const isWithinRange = (dateStr: string) => {
@@ -1169,49 +1195,49 @@ const Dashboard = ({ data }: any) => {
   const stats = [
     { 
       label: t('netRevenue'), 
-      value: `$${netRevenue.toLocaleString()}`, 
+      value: formatCurrency(netRevenue, 0), 
       change: 'Sales - Returns', 
       icon: DollarSign, 
       color: 'bg-indigo-500' 
     },
     { 
       label: t('currentProfit'), 
-      value: `$${currentProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
+      value: formatCurrency(currentProfit), 
       change: t('currentProfit'), 
       icon: TrendingUp, 
       color: 'bg-emerald-500' 
     },
     { 
       label: t('currentLoss'), 
-      value: `$${currentLoss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
+      value: formatCurrency(currentLoss), 
       change: t('currentLoss'), 
       icon: ArrowDownRight, 
       color: 'bg-red-500' 
     },
     { 
       label: t('totalExpenses'), 
-      value: `$${totalExpenses.toLocaleString()}`, 
+      value: formatCurrency(totalExpenses, 0), 
       change: 'Outflow', 
       icon: Receipt, 
       color: 'bg-orange-500' 
     },
     { 
       label: t('totalRefunds'), 
-      value: `$${Math.abs(splitReturns.refunds).toLocaleString()}`, 
+      value: formatCurrency(Math.abs(splitReturns.refunds), 0), 
       change: t('returns'), 
       icon: RotateCcw, 
       color: 'bg-slate-500' 
     },
     { 
       label: t('totalReplacements'), 
-      value: `$${Math.abs(splitReturns.replacements).toLocaleString()}`, 
+      value: formatCurrency(Math.abs(splitReturns.replacements), 0), 
       change: 'Net Adj', 
       icon: RefreshCw, 
       color: 'bg-indigo-400' 
     },
     { 
       label: t('totalSales'), 
-      value: filteredSales.length.toString(), 
+      value: lang === 'bn' ? toBengaliNumber(filteredSales.length) : filteredSales.length.toString(), 
       change: 'Orders', 
       icon: ShoppingCart, 
       color: 'bg-blue-500' 
@@ -1325,7 +1351,7 @@ const Dashboard = ({ data }: any) => {
                     axisLine={false} 
                     tickLine={false} 
                     tick={{ fill: '#94a3b8', fontSize: 12 }}
-                    tickFormatter={(value) => `$${value}`}
+                    tickFormatter={(value) => lang === 'bn' ? `৳${toBengaliNumber(value)}` : `$${value}`}
                   />
                   <Tooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
@@ -1374,7 +1400,7 @@ const Dashboard = ({ data }: any) => {
                       <div className="text-xs text-slate-500">INV-{item.id.slice(-4)}</div>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-900">${item.total.toFixed(2)}</td>
+                    <td className="px-6 py-4 font-semibold text-slate-900">{formatCurrency(item.total)}</td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full">Completed</span>
                     </td>
@@ -1468,6 +1494,7 @@ const Inventory = ({ data }: any) => {
   const [newItem, setNewItem] = useState({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '' });
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
+  const { formatCurrency } = useCurrency();
 
   const handleAdd = (e: FormEvent) => {
     e.preventDefault();
@@ -1572,7 +1599,7 @@ const Inventory = ({ data }: any) => {
                     <span className="text-xs text-slate-400">units</span>
                   </div>
                 </td>
-                <td className="px-6 py-4 font-semibold text-slate-900">${f2(item.price)}</td>
+                <td className="px-6 py-4 font-semibold text-slate-900">{formatCurrency(item.price)}</td>
                 <td className="px-6 py-4">
                   <button 
                     onClick={() => openQR(item)}
@@ -3351,7 +3378,8 @@ const Returns = ({ data }: any) => {
 
 const Reports = ({ data }: any) => {
   const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days'>('30days');
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
+  const { formatCurrency, toBengaliNumber } = useCurrency();
 
   // Helper to filter by date
   const isWithinRange = (dateStr: string) => {
@@ -3467,7 +3495,7 @@ const Reports = ({ data }: any) => {
         <Card className="p-6">
           <p className="text-sm text-slate-500 font-medium">{t('netRevenue')}</p>
           <h3 className="text-2xl font-bold text-slate-900 mt-1">
-            ${f2(totalRevenue)}
+            {formatCurrency(totalRevenue)}
           </h3>
           <div className="mt-2 text-xs text-slate-400">
             Total Sales
@@ -3476,7 +3504,7 @@ const Reports = ({ data }: any) => {
         <Card className="p-6">
           <p className="text-sm text-slate-500 font-medium text-emerald-600">{t('currentProfit')}</p>
           <h3 className="text-2xl font-bold text-emerald-600 mt-1">
-            ${f2(currentProfit)}
+            {formatCurrency(currentProfit)}
           </h3>
           <div className="mt-2 text-xs text-slate-400">
             Profit from Sales
@@ -3485,7 +3513,7 @@ const Reports = ({ data }: any) => {
         <Card className="p-6">
           <p className="text-sm text-slate-500 font-medium text-red-600">{t('currentLoss')}</p>
           <h3 className="text-2xl font-bold text-red-600 mt-1">
-            ${f2(currentLoss)}
+            {formatCurrency(currentLoss)}
           </h3>
           <div className="mt-2 text-xs text-slate-400">
             Sales Loss + Expenses
