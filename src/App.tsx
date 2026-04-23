@@ -1494,7 +1494,7 @@ const Inventory = ({ data }: any) => {
   const [newItem, setNewItem] = useState({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '' });
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, toBengaliNumber } = useCurrency();
 
   const handleAdd = (e: FormEvent) => {
     e.preventDefault();
@@ -1704,7 +1704,7 @@ const Inventory = ({ data }: any) => {
             <div className="text-center">
               <h3 className="text-xl font-bold text-slate-900">{selectedQRItem.name}</h3>
               <p className="text-sm text-slate-500">SKU: SKU-{selectedQRItem.id.slice(-4)}</p>
-              <p className="text-lg font-bold text-emerald-600 mt-2">${f2(selectedQRItem.price)}</p>
+              <p className="text-lg font-bold text-emerald-600 mt-2">{formatCurrency(selectedQRItem.price)}</p>
             </div>
             <button 
               onClick={() => window.print()}
@@ -1719,9 +1719,11 @@ const Inventory = ({ data }: any) => {
   );
 };
 
-const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, contentRef?: any }) => (
-  <div 
-    ref={contentRef} 
+const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, contentRef?: any }) => {
+  const { formatCurrency } = useCurrency();
+  return (
+    <div 
+      ref={contentRef} 
     className="p-8 bg-white border border-slate-200 rounded-xl shadow-sm invoice-content" 
     style={{ 
       backgroundColor: '#ffffff', 
@@ -1789,9 +1791,9 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
                   <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {item.productCategory}</div>
                   {item.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {item.serialNumber}</div>}
                 </td>
-                <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155' }}>{item.quantity}</td>
-                <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>${f2(item.total / item.quantity)}</td>
-                <td style={{ padding: '1rem 0', textAlign: 'right', fontStyle: 'normal', fontWeight: 'bold', color: '#0f172a' }}>${f2(item.total)}</td>
+                <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155' }}>{sale.quantity}</td>
+                <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>{formatCurrency(item.total / item.quantity)}</td>
+                <td style={{ padding: '1rem 0', textAlign: 'right', fontStyle: 'normal', fontWeight: 'bold', color: '#0f172a' }}>{formatCurrency(item.total)}</td>
               </tr>
             ))
           ) : (
@@ -1802,8 +1804,8 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
                 {sale.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {sale.serialNumber}</div>}
               </td>
               <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155' }}>{sale.quantity}</td>
-              <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>${f2(sale.total / sale.quantity)}</td>
-              <td style={{ padding: '1rem 0', textAlign: 'right', fontStyle: 'normal', fontWeight: 'bold', color: '#0f172a' }}>${f2(sale.total)}</td>
+              <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>{formatCurrency(sale.total / sale.quantity)}</td>
+              <td style={{ padding: '1rem 0', textAlign: 'right', fontStyle: 'normal', fontWeight: 'bold', color: '#0f172a' }}>{formatCurrency(sale.total)}</td>
             </tr>
           )}
         </tbody>
@@ -1814,15 +1816,15 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
       <div style={{ width: '250px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.5rem' }}>
           <span>Subtotal</span>
-          <span>${f2(sale.total)}</span>
+          <span>{formatCurrency(sale.total)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.5rem' }}>
           <span>Tax (0%)</span>
-          <span>$0.00</span>
+          <span>{formatCurrency(0)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0', marginTop: '0.5rem' }}>
           <span>Total</span>
-          <span style={{ color: '#059669' }}>${f2(sale.total)}</span>
+          <span style={{ color: '#059669' }}>{formatCurrency(sale.total)}</span>
         </div>
       </div>
     </div>
@@ -1846,6 +1848,7 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
     </div>
   </div>
 );
+};
 
 const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () => void, sale: any }) => {
   const { user } = useAuth();
@@ -2131,6 +2134,8 @@ const Sales = ({ data }: any) => {
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<any>(null);
+  const { t, lang } = useTranslation();
+  const { formatCurrency, toBengaliNumber } = useCurrency();
   const [newSale, setNewSale] = useState({ 
     customerName: '', 
     customerPhone: '',
@@ -2356,7 +2361,7 @@ const Sales = ({ data }: any) => {
                   )}
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{(item.date || '').split('T')[0]}</td>
-                <td className="px-6 py-4 font-semibold text-slate-900">${f2(item.total)}</td>
+                <td className="px-6 py-4 font-semibold text-slate-900">{formatCurrency(item.total)}</td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <button 
@@ -2489,7 +2494,7 @@ const Sales = ({ data }: any) => {
                           .filter((p: any) => !item.productCategory || p.category === item.productCategory)
                           .map((p: any) => (
                             <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
-                              {p.name} (${f2(p.price)}) - Stock: {p.quantity}
+                              {p.name} ({formatCurrency(p.price)}) - Stock: {lang === 'bn' ? toBengaliNumber(p.quantity) : p.quantity}
                             </option>
                           ))
                         }
@@ -2532,7 +2537,7 @@ const Sales = ({ data }: any) => {
           <div className="pt-4 border-t border-slate-100">
             <div className="flex items-center justify-between mb-6 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
               <span className="font-bold text-emerald-800">Grand Total</span>
-              <span className="text-2xl font-black text-emerald-600">${f2(totalAmount)}</span>
+              <span className="text-2xl font-black text-emerald-600">{formatCurrency(totalAmount)}</span>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -2572,6 +2577,7 @@ const Suppliers = ({ data }: any) => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
   const [newSupplier, setNewSupplier] = useState({ name: '', category: '', contact: '', address: '' });
+  const { formatCurrency } = useCurrency();
 
   const handleAdd = (e: FormEvent) => {
     e.preventDefault();
@@ -2740,6 +2746,7 @@ const Customers = ({ data }: any) => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [newCustomer, setNewCustomer] = useState({ name: '', email: '', phone: '', address: '', orders: '0', spent: '0' });
+  const { formatCurrency, toBengaliNumber } = useCurrency();
 
   const handleAdd = (e: FormEvent) => {
     e.preventDefault();
@@ -2786,7 +2793,7 @@ const Customers = ({ data }: any) => {
                   {item.address && <div className="text-xs text-slate-400 italic">{item.address}</div>}
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{item.orders}</td>
-                <td className="px-6 py-4 font-semibold text-slate-900">${f2(item.spent)}</td>
+                <td className="px-6 py-4 font-semibold text-slate-900">{formatCurrency(item.spent)}</td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <button 
@@ -2839,7 +2846,7 @@ const Customers = ({ data }: any) => {
               </div>
               <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Spent</p>
-                <p className="text-2xl font-bold text-emerald-600">${f2(selectedCustomer.spent)}</p>
+                <p className="text-2xl font-bold text-emerald-600">{formatCurrency(selectedCustomer.spent)}</p>
               </div>
             </div>
 
@@ -2861,7 +2868,7 @@ const Customers = ({ data }: any) => {
                         <p className="text-xs text-slate-500">{sale.date}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-bold text-emerald-600">${f2(sale.total)}</p>
+                        <p className="text-sm font-bold text-emerald-600">{formatCurrency(sale.total)}</p>
                         <p className="text-[10px] text-slate-400">{sale.items?.length || 1} items</p>
                       </div>
                     </div>
@@ -2921,6 +2928,7 @@ const Customers = ({ data }: any) => {
 
 const Expenses = ({ data }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const { formatCurrency } = useCurrency();
   const [newExpense, setNewExpense] = useState({ 
     category: '', 
     description: '', 
@@ -2975,7 +2983,7 @@ const Expenses = ({ data }: any) => {
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-4 font-semibold text-red-600">-${f2(item.amount)}</td>
+                    <td className="px-6 py-4 font-semibold text-red-600">-{formatCurrency(item.amount)}</td>
                     <td className="px-6 py-4">
                       <button 
                         onClick={() => data.deleteItem('expenses', item.id, data.setExpenses)}
@@ -3004,7 +3012,7 @@ const Expenses = ({ data }: any) => {
             <div className="space-y-4">
               <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
                 <span className="text-sm text-slate-600 font-medium">Total Expenses</span>
-                <span className="text-lg font-bold text-red-600">-${f2(data.expenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0))}</span>
+                <span className="text-lg font-bold text-red-600">-{formatCurrency(data.expenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0))}</span>
               </div>
               <div className="pt-4 border-t border-slate-100">
                 <p className="text-xs text-slate-400 uppercase font-bold mb-3 tracking-wider">By Category</p>
@@ -3017,7 +3025,7 @@ const Expenses = ({ data }: any) => {
                   ).map(([category, amount]: [string, any]) => (
                     <div key={category} className="flex justify-between text-sm">
                       <span className="text-slate-600">{category}</span>
-                      <span className="font-semibold text-slate-900">${f2(amount)}</span>
+                      <span className="font-semibold text-slate-900">{formatCurrency(amount)}</span>
                     </div>
                   ))}
                 </div>
@@ -3115,7 +3123,7 @@ const Returns = ({ data }: any) => {
   const [reason, setReason] = useState('');
   const [replaceAmount, setReplaceAmount] = useState('0');
   const [isProcessing, setIsProcessing] = useState(false);
-  const { t, lang } = useTranslation();
+  const { formatCurrency, toBengaliNumber } = useCurrency();
 
   const handleSearch = () => {
     setSearchError('');
@@ -3154,10 +3162,7 @@ const Returns = ({ data }: any) => {
 
       await data.addReturn(returnData);
 
-      // If it's a full return, we should ideally put items back in inventory
-      // For this version, we will just alert the user or log it
-      
-      alert(`${returnType} processed successfully! Full refund of $${f2(amount)} has been recorded.`);
+      alert(`${returnType} processed successfully! Full refund of ${formatCurrency(amount)} has been recorded.`);
       setFoundSale(null);
       setInvoiceNo('');
       setReason('');
@@ -3224,7 +3229,7 @@ const Returns = ({ data }: any) => {
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-bold text-slate-400 uppercase">Sale Amount</p>
-                    <p className="text-2xl font-black text-emerald-600">${f2(foundSale.total)}</p>
+                    <p className="text-2xl font-black text-emerald-600">{formatCurrency(foundSale.total)}</p>
                   </div>
                 </div>
 
@@ -3283,10 +3288,10 @@ const Returns = ({ data }: any) => {
                         </div>
                         <p className="text-[10px] text-slate-500 mt-1">
                           {lang === 'bn' 
-                            ? (parseFloat(replaceAmount) >= 0 
+                            ? (parseFloat(replaceAmount) < 0 
                               ? "গ্রাহককে টাকা ফেরত দিলে (Refund) লাল মোড ব্যবহার করুন।" 
                               : "গ্রাহক বাড়তি টাকা দিলে (Extra Charge) সবুজ মোড ব্যবহার করুন।")
-                            : (parseFloat(replaceAmount) >= 0
+                            : (parseFloat(replaceAmount) < 0
                               ? "Use Red Mode if refunding money to customer."
                               : "Use Green Mode if customer pays extra.")
                           }
@@ -3351,7 +3356,7 @@ const Returns = ({ data }: any) => {
                         "font-bold",
                         ret.totalAmount < 0 ? "text-red-500" : "text-emerald-500"
                       )}>
-                        {ret.totalAmount < 0 ? '-' : '+'}${f2(Math.abs(ret.totalAmount))}
+                        {ret.totalAmount < 0 ? '-' : '+'}{formatCurrency(Math.abs(ret.totalAmount))}
                       </p>
                       <button 
                         onClick={() => data.deleteItem('returns', ret.id, data.setReturns)}
@@ -3486,7 +3491,7 @@ const Reports = ({ data }: any) => {
         <Card className="p-6">
           <p className="text-sm text-slate-500 font-medium">Net Profit</p>
           <h3 className={cn("text-2xl font-bold mt-1", netProfit >= 0 ? "text-emerald-600" : "text-red-600")}>
-            {netProfit >= 0 ? '' : '-'}${f2(Math.abs(netProfit))}
+            {netProfit >= 0 ? '' : '-'}{formatCurrency(Math.abs(netProfit))}
           </h3>
           <div className="mt-2 text-xs text-slate-400">
             Final Balance
@@ -3544,7 +3549,7 @@ const Reports = ({ data }: any) => {
                     style={{ height: `${(amount / Math.max(...Object.values(salesByDate) as number[])) * 100}%` }}
                   >
                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                      ${f2(amount)}
+                      {formatCurrency(amount, 0)}
                     </div>
                   </div>
                   <span className="text-[10px] text-slate-400 font-medium">{date.split('-').slice(1).join('/')}</span>
@@ -3599,6 +3604,7 @@ const Subscription = ({ subscription }: any) => {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const { formatCurrency, toBengaliNumber } = useCurrency();
 
   const handleActivate = async (e: FormEvent) => {
     e.preventDefault();
@@ -3754,7 +3760,7 @@ const Subscription = ({ subscription }: any) => {
               <p className="font-bold mb-1 underline">Instructions:</p>
               <ol className="list-decimal list-inside space-y-1 text-emerald-50">
                 <li>Send Money to any of the numbers above.</li>
-                <li>Monthly fee: 1500 BDT.</li>
+                <li>Monthly fee: {formatCurrency(1500, 0)}.</li>
                 <li>After payment, send a screenshot to our WhatsApp.</li>
                 <li>We will provide you the 8-digit activation code.</li>
               </ol>
