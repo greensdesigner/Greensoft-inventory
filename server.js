@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
+const { createServer: createViteServer } = require('vite');
 require('dotenv').config();
 
 console.log('--- GREENSOFT SYSTEM BOOTING: V4 (STABILITY FIX) ---');
@@ -138,12 +139,18 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.patch('/api/auth/profile', async (req, res) => {
     try {
+        console.log('PATCH /api/auth/profile received:', req.body);
         const { userId, businessName, fullName, phoneNumber, address, email, logo } = req.body;
-        if (!userId) return res.status(400).json({ error: 'User ID required' });
+        if (!userId) {
+            console.log('Update failed: userId missing');
+            return res.status(400).json({ error: 'User ID required' });
+        }
 
-        await pool.query('UPDATE users SET businessName = ?, fullName = ?, phoneNumber = ?, address = ?, email = ?, logo = ? WHERE id = ?', [businessName, fullName, phoneNumber, address, email, logo, userId]);
+        const [result] = await pool.query('UPDATE users SET businessName = ?, fullName = ?, phoneNumber = ?, address = ?, email = ?, logo = ? WHERE id = ?', [businessName, fullName, phoneNumber, address, email, logo, userId]);
+        console.log('Update result:', result);
 
         const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [userId]);
+        console.log('Updated user data fetched:', rows[0]);
         res.json({ 
             success: true, 
             user: { 
@@ -259,25 +266,43 @@ entities.forEach(entity => {
 });
 
 // --- STATIC SERVING ---
-// Using __dirname is safer for shared hosting like Hostinger
-const distPath = path.resolve(__dirname, 'dist');
-app.use(express.static(distPath));
+async function setupServer() {
+    const distPath = path.resolve(__dirname, 'dist');
 
-// Handle React Router paths
-app.get('*', (req, res) => {
-    if (req.path.startsWith('/api/')) {
-        return res.status(404).json({ error: 'API route not found' });
+    if (process.env.NODE_ENV !== 'production') {
+        const vite = await createViteServer({
+            server: { middlewareMode: true },
+            appType: 'spa',
+        });
+        app.use(vite.middlewares);
+        console.log('>>> VITE DEV MIDDLEWARE LOADED <<<');
+    } else {
+        app.use(express.static(distPath));
     }
-    const indexPath = path.join(distPath, 'index.html');
-    res.sendFile(indexPath, (err) => {
-        if (err) {
-            console.error('Error serving index.html:', err.message);
-            res.status(500).send('Frontend static files not found. Please ensure "npm run build" was executed.');
-        }
-    });
-});
 
-app.listen(PORT, '0.0.0.0', () => {
+    // Handle React Router paths
+    app.get('*', (req, res) => {
+        if (req.path.startsWith('/api/')) {
+            return res.status(404).json({ error: 'API route not found' });
+        }
+        
+        if (process.env.NODE_ENV !== 'production') {
+            // In dev, Vite handles the SPA fallback
+            return;
+        }
+
+        const indexPath = path.join(distPath, 'index.html');
+        res.sendFile(indexPath, (err) => {
+            if (err) {
+                console.error('Error serving index.html:', err.message);
+                res.status(500).send('Frontend static files not found. Please ensure "npm run build" was executed.');
+            }
+        });
+    });
+}
+
+const serverInstance = app.listen(PORT, '0.0.0.0', async () => {
     console.log(`Server started on port ${PORT}`);
-    ensureAllTables();
+    await ensureAllTables();
+    await setupServer();
 });

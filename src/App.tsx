@@ -414,12 +414,14 @@ const useAuth = () => {
 
   const updateProfile = async (profileData: any) => {
     try {
+      console.log('--- UPDATING PROFILE ---', profileData);
       const res = await fetch('/api/auth/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...profileData, userId: user?.id })
       });
       const data = await res.json();
+      console.log('--- UPDATE RESPONSE ---', data);
       if (data.success) {
         localStorage.setItem('greensoft_user', JSON.stringify(data.user));
         setUser(data.user);
@@ -3732,8 +3734,22 @@ const Settings = ({ user, data, updateProfile }: any) => {
   const [logo, setLogo] = useState(user?.logo || '');
   const [isRefreshingDB, setIsRefreshingDB] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
   const [dbStatus, setDbStatus] = useState<string | null>(null);
   const { t } = useTranslation();
+
+  // Sync state with props if user changesExternally (e.g. after update or re-login)
+  useEffect(() => {
+    if (user) {
+      console.log('--- SETTINGS SYNCING WITH USER PROP ---', user);
+      setBusinessName(user.businessName || '');
+      setEmail(user.email || '');
+      setName(user.name || '');
+      setPhone(user.phoneNumber || '');
+      setAddress(user.address || '');
+      setLogo(user.logo || '');
+    }
+  }, [user]);
 
   const checkDatabaseConnection = async () => {
     setIsRefreshingDB(true);
@@ -3766,12 +3782,28 @@ const Settings = ({ user, data, updateProfile }: any) => {
   const handleUpdate = async (e: FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
-    const success = await updateProfile({ businessName, email, fullName: name, phoneNumber: phone, address, logo });
+    setUpdateError(null);
+    
+    // Ensure all fields are sent as strings or nulls to avoid SQL issues
+    const payload = {
+      businessName: businessName || '',
+      email: email || '',
+      fullName: name || '',
+      phoneNumber: phone || '',
+      address: address || '',
+      logo: logo || ''
+    };
+
+    console.log('--- SENDING UPDATE PAYLOAD ---', payload);
+    
+    const result = await updateProfile(payload);
     setIsUpdating(false);
-    if (success) {
+    
+    if (result.success) {
       alert('Profile updated successfully!');
     } else {
-      alert('Failed to update profile.');
+      setUpdateError(result.error || 'Failed to update profile.');
+      alert('Failed: ' + (result.error || 'Check console tracker'));
     }
   };
 
@@ -3818,6 +3850,11 @@ const Settings = ({ user, data, updateProfile }: any) => {
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6">
             <h3 className="font-bold text-slate-900 mb-6">Business Profile</h3>
+            {updateError && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm font-bold flex items-center gap-2">
+                <AlertCircle size={18} /> {updateError}
+              </div>
+            )}
             <form onSubmit={handleUpdate} className="space-y-4">
               <div className="flex flex-col md:flex-row gap-6 mb-6">
                 <div className="flex flex-col items-center gap-4">
