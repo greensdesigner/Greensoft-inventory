@@ -47,7 +47,8 @@ import {
   QrCode,
   Zap,
   AlertCircle,
-  RotateCcw
+  RotateCcw,
+  RefreshCw
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
@@ -99,6 +100,7 @@ const translations: any = {
     currentLoss: "Current Loss",
     totalExpenses: "Total Expenses",
     totalRefunds: "Total Refunds",
+    totalReplacements: "Total Replacements",
     totalSales: "Total Sales",
     today: "Today",
     last7Days: "7 Days",
@@ -162,6 +164,7 @@ const translations: any = {
     currentLoss: "বর্তমান ক্ষতি",
     totalExpenses: "মোট খরচ",
     totalRefunds: "মোট ফেরত",
+    totalReplacements: "মোট পরিবর্তন",
     totalSales: "মোট বিক্রয়",
     today: "আজ",
     last7Days: "৭ দিন",
@@ -225,6 +228,7 @@ const translations: any = {
     currentLoss: "Pérdida Actual",
     totalExpenses: "Gastos Totales",
     totalRefunds: "Reembolsos Totales",
+    totalReplacements: "Reemplazos Totales",
     totalSales: "Ventas Totales",
     today: "Hoy",
     last7Days: "7 Días",
@@ -1068,8 +1072,14 @@ const Dashboard = ({ data }: any) => {
   const filteredExpenses = data.expenses.filter((e: any) => isWithinRange(e.date));
   const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r.date));
 
+  const splitReturns = filteredReturns.reduce((acc: any, r: any) => {
+    if (r.type === 'Return') acc.refunds += (Number(r.totalAmount) || 0);
+    else acc.replacements += (Number(r.totalAmount) || 0);
+    return acc;
+  }, { refunds: 0, replacements: 0 });
+
   const returnedInvoices = new Set(filteredReturns.filter((r: any) => r.type === 'Return').map((r: any) => r.invoiceNo));
-  const totalReturnAmount = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  const totalReturnAmount = splitReturns.refunds + splitReturns.replacements;
   
   // Calculate Profit and Loss from ACTIVE sales
   let totalSalesProfit = 0;
@@ -1186,10 +1196,17 @@ const Dashboard = ({ data }: any) => {
     },
     { 
       label: t('totalRefunds'), 
-      value: `$${totalReturnAmount.toLocaleString()}`, 
+      value: `$${splitReturns.refunds.toLocaleString()}`, 
       change: t('returns'), 
       icon: RotateCcw, 
       color: 'bg-slate-500' 
+    },
+    { 
+      label: t('totalReplacements'), 
+      value: `$${splitReturns.replacements.toLocaleString()}`, 
+      change: 'Replace', 
+      icon: RefreshCw, 
+      color: 'bg-indigo-400' 
     },
     { 
       label: t('totalSales'), 
