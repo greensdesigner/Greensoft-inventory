@@ -301,6 +301,10 @@ const useTranslation = () => React.useContext(LanguageContext);
 
 // --- HELPERS ---
 const f2 = (num: any) => (Number(num) || 0).toFixed(2);
+const getTodayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 const WHATSAPP_NUM = "01720150101";
 
 // --- SUBSCRIPTION HOOK ---
@@ -1047,18 +1051,15 @@ const Dashboard = ({ data }: any) => {
 
   // Helper to filter by date
   const isWithinRange = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
     if (timeFilter === 'today') {
-      return date.toISOString().split('T')[0] === today.toISOString().split('T')[0];
+      return dateStr === getTodayStr();
     }
     
+    const date = new Date(dateStr);
     const rangeDate = new Date();
     rangeDate.setHours(0, 0, 0, 0);
-    if (timeFilter === '7days') rangeDate.setDate(today.getDate() - 7);
-    if (timeFilter === '30days') rangeDate.setDate(today.getDate() - 30);
+    if (timeFilter === '7days') rangeDate.setDate(rangeDate.getDate() - 7);
+    if (timeFilter === '30days') rangeDate.setDate(rangeDate.getDate() - 30);
     
     return date >= rangeDate;
   };
@@ -1113,7 +1114,7 @@ const Dashboard = ({ data }: any) => {
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    return d.toISOString().split('T')[0];
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }).reverse();
 
   const dailyStats = last7Days.map(date => {
@@ -2099,7 +2100,7 @@ const Sales = ({ data }: any) => {
       buyPrice: 0,
       productName: ''
     }],
-    date: new Date().toISOString().split('T')[0] 
+    date: getTodayStr() 
   });
 
   const handleScan = (decodedText: string) => {
@@ -2274,7 +2275,7 @@ const Sales = ({ data }: any) => {
         buyPrice: 0,
         productName: ''
       }],
-      date: new Date().toISOString().split('T')[0] 
+      date: getTodayStr() 
     });
     setIsModalOpen(false);
   };
@@ -2879,7 +2880,7 @@ const Expenses = ({ data }: any) => {
     category: '', 
     description: '', 
     amount: '', 
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayStr(),
     employeeName: '',
     employeePhone: ''
   });
@@ -2894,7 +2895,7 @@ const Expenses = ({ data }: any) => {
       category: '', 
       description: '', 
       amount: '', 
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayStr(),
       employeeName: '',
       employeePhone: ''
     });
@@ -3102,7 +3103,7 @@ const Returns = ({ data }: any) => {
         totalAmount: amount,
         reason,
         type: returnType,
-        date: new Date().toISOString().split('T')[0]
+        date: getTodayStr()
       };
 
       await data.addReturn(returnData);
@@ -3335,18 +3336,15 @@ const Reports = ({ data }: any) => {
 
   // Helper to filter by date
   const isWithinRange = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
     if (timeFilter === 'today') {
-      return date.toISOString().split('T')[0] === today.toISOString().split('T')[0];
+      return dateStr === getTodayStr();
     }
     
+    const date = new Date(dateStr);
     const rangeDate = new Date();
     rangeDate.setHours(0, 0, 0, 0);
-    if (timeFilter === '7days') rangeDate.setDate(today.getDate() - 7);
-    if (timeFilter === '30days') rangeDate.setDate(today.getDate() - 30);
+    if (timeFilter === '7days') rangeDate.setDate(rangeDate.getDate() - 7);
+    if (timeFilter === '30days') rangeDate.setDate(rangeDate.getDate() - 30);
     
     return date >= rangeDate;
   };
