@@ -420,14 +420,22 @@ const useAuth = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...profileData, userId: user?.id })
       });
-      const data = await res.json();
-      console.log('--- UPDATE RESPONSE ---', data);
-      if (data.success) {
-        localStorage.setItem('greensoft_user', JSON.stringify(data.user));
-        setUser(data.user);
-        return { success: true };
+      
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        const data = await res.json();
+        console.log('--- UPDATE RESPONSE ---', data);
+        if (data.success) {
+          localStorage.setItem('greensoft_user', JSON.stringify(data.user));
+          setUser(data.user);
+          return { success: true };
+        }
+        return { success: false, error: data.error || 'Update failed' };
+      } else {
+        const text = await res.text();
+        console.error('--- NON-JSON RESPONSE ---', text);
+        return { success: false, error: 'Server returned an invalid response. This may be due to large file size (Logo).' };
       }
-      return { success: false, error: data.error || 'Update failed' };
     } catch (error: any) {
       return { success: false, error: error.message };
     }

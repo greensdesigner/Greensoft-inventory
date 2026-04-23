@@ -9,7 +9,9 @@ console.log('--- GREENSOFT SYSTEM BOOTING: V4 (STABILITY FIX) ---');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+// Increase limit for base64 images/logos
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 let pool = null;
 
@@ -44,7 +46,7 @@ async function ensureAllTables() {
         
         console.log('Synchronizing database schema...');
 
-        await conn.query(`CREATE TABLE IF NOT EXISTS \`users\` (id INT AUTO_INCREMENT PRIMARY KEY, businessName VARCHAR(255), fullName VARCHAR(255), phoneNumber VARCHAR(20), email VARCHAR(255) UNIQUE, password VARCHAR(255), logo TEXT, createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, expiryDate VARCHAR(50))`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`users\` (id INT AUTO_INCREMENT PRIMARY KEY, businessName VARCHAR(255), fullName VARCHAR(255), phoneNumber VARCHAR(20), email VARCHAR(255) UNIQUE, password VARCHAR(255), logo LONGTEXT, createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, expiryDate VARCHAR(50))`);
         await conn.query(`CREATE TABLE IF NOT EXISTS \`inventory\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`quantity\` INT DEFAULT 0, \`price\` DECIMAL(10,2) DEFAULT 0)`);
         await conn.query(`CREATE TABLE IF NOT EXISTS \`sales\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`customerName\` VARCHAR(255), \`items\` JSON, \`total\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50))`);
         await conn.query(`CREATE TABLE IF NOT EXISTS \`suppliers\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`contact\` VARCHAR(255))`);
@@ -58,6 +60,11 @@ async function ensureAllTables() {
         // Sync columns for existing installations
         await checkAndAddColumn(conn, 'users', 'expiryDate', 'VARCHAR(50)');
         await checkAndAddColumn(conn, 'users', 'address', 'TEXT');
+        
+        // Ensure logo can hold large base64 strings
+        try {
+            await conn.query('ALTER TABLE users MODIFY COLUMN logo LONGTEXT');
+        } catch (e) { console.log('Logo column already correct or update failed'); }
         
         const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
         for (const ent of entities) {
