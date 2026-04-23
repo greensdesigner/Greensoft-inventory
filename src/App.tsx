@@ -1180,15 +1180,18 @@ const Dashboard = ({ data }: any) => {
       .filter((e: any) => e.date === date)
       .reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
 
-    const dailyReturns = (data.returns || [])
-      .filter((r: any) => r.date === date)
-      .reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+    const dailyReturnsList = (data.returns || []).filter((r: any) => r.date === date);
+    const dailyRefunds = Math.abs(dailyReturnsList.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
+    const dailyExtraIncome = dailyReturnsList.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+
+    const currentDailyProfit = dailyProfit + dailyExtraIncome;
+    const currentDailyLoss = dailyLoss + dailyExpenses + dailyRefunds;
 
     return {
       date: date.split('-').slice(1).join('/'),
-      profit: parseFloat(f2(dailyProfit)),
-      loss: parseFloat(f2(dailyLoss + dailyExpenses + dailyReturns)),
-      net: parseFloat(f2(dailyProfit - (dailyLoss + dailyExpenses + dailyReturns))),
+      profit: parseFloat((currentDailyProfit).toFixed(2)),
+      loss: parseFloat((currentDailyLoss).toFixed(2)),
+      net: parseFloat((currentDailyProfit - currentDailyLoss).toFixed(2)),
     };
   });
 
