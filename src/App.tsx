@@ -3299,13 +3299,19 @@ const Returns = ({ data }: any) => {
                       <p className="text-xs text-slate-500 mt-1">Inv: #{ret.invoiceNo.slice(-6)} • {ret.date}</p>
                       <p className="text-[10px] text-slate-400 mt-1 italic">"{ret.reason}"</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right flex items-center gap-3">
                       <p className={cn(
                         "font-bold",
                         ret.totalAmount > 0 ? "text-red-500" : "text-emerald-500"
                       )}>
                         {ret.totalAmount > 0 ? '-' : '+'}${f2(Math.abs(ret.totalAmount))}
                       </p>
+                      <button 
+                        onClick={() => data.deleteItem('returns', ret.id, data.setReturns)}
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-100 rounded-xl transition-all"
+                      >
+                        <X size={16} />
+                      </button>
                     </div>
                   </div>
                 ))}
