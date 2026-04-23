@@ -3116,6 +3116,7 @@ const Expenses = ({ data }: any) => {
 };
 
 const Returns = ({ data }: any) => {
+  const { t, lang } = useTranslation();
   const [invoiceNo, setInvoiceNo] = useState('');
   const [foundSale, setFoundSale] = useState<any>(null);
   const [searchError, setSearchError] = useState('');
@@ -3186,7 +3187,7 @@ const Returns = ({ data }: any) => {
         <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl mb-6 flex items-center gap-3 text-blue-700">
           <AlertCircle size={20} />
           <p className="text-sm font-medium">
-            {t('lang') === 'bn' 
+            {lang === 'bn' 
               ? "ইনভয়েস নম্বর দিয়ে সার্চ করুন - এরপর আপনি রিটার্ন বা রিপ্লেস অপশনগুলো দেখতে পাবেন।" 
               : t('searchInvoice') + " to see return/replace options."}
           </p>
@@ -3348,7 +3349,7 @@ const Returns = ({ data }: any) => {
                           ret.type === 'Return' ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"
                         )}>{ret.type}</span>
                       </div>
-                      <p className="text-xs text-slate-500 mt-1">Inv: #{ret.invoiceNo.slice(-6)} • {ret.date}</p>
+                      <p className="text-xs text-slate-500 mt-1">Inv: #{(ret.invoiceNo || '').slice(-6)} • {ret.date}</p>
                       <p className="text-[10px] text-slate-400 mt-1 italic">"{ret.reason}"</p>
                     </div>
                     <div className="text-right flex items-center gap-3">
