@@ -2,7 +2,6 @@ const express = require('express');
 const path = require('path');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
-const { createServer: createViteServer } = require('vite');
 require('dotenv').config();
 
 console.log('--- GREENSOFT SYSTEM BOOTING: V4 (STABILITY FIX) ---');
@@ -187,7 +186,7 @@ app.post('/api/subscription/activate', async (req, res) => {
         const { code, userId } = req.body;
         if (!code) return res.status(400).json({ error: 'Code is required' });
         if (!userId) return res.status(400).json({ error: 'User ID is required' });
-x
+
         const [codes] = await pool.query('SELECT * FROM activation_codes WHERE code = ? AND isUsed = 0', [code]);
         if (codes.length === 0) {
             return res.status(401).json({ error: 'Invalid or already used activation code' });
@@ -266,10 +265,11 @@ entities.forEach(entity => {
 });
 
 // --- STATIC SERVING ---
-async function setupServer() {
+const setupServer = async () => {
     const distPath = path.resolve(__dirname, 'dist');
 
     if (process.env.NODE_ENV !== 'production') {
+        const { createServer: createViteServer } = require('vite');
         const vite = await createViteServer({
             server: { middlewareMode: true },
             appType: 'spa',
@@ -278,31 +278,19 @@ async function setupServer() {
         console.log('>>> VITE DEV MIDDLEWARE LOADED <<<');
     } else {
         app.use(express.static(distPath));
-    }
-
-    // Handle React Router paths
-    app.get('*', (req, res) => {
-        if (req.path.startsWith('/api/')) {
-            return res.status(404).json({ error: 'API route not found' });
-        }
-        
-        if (process.env.NODE_ENV !== 'production') {
-            // In dev, Vite handles the SPA fallback
-            return;
-        }
-
-        const indexPath = path.join(distPath, 'index.html');
-        res.sendFile(indexPath, (err) => {
-            if (err) {
-                console.error('Error serving index.html:', err.message);
-                res.status(500).send('Frontend static files not found. Please ensure "npm run build" was executed.');
+        app.get('*', (req, res) => {
+            if (req.path.startsWith('/api/')) {
+                return res.status(404).json({ error: 'API route not found' });
             }
+            res.sendFile(path.join(distPath, 'index.html'));
         });
-    });
-}
+    }
+};
 
-const serverInstance = app.listen(PORT, '0.0.0.0', async () => {
-    console.log(`Server started on port ${PORT}`);
+(async () => {
     await ensureAllTables();
     await setupServer();
-});
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server started on port ${PORT}`);
+    });
+})();
