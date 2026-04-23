@@ -1079,18 +1079,14 @@ const Dashboard = ({ data }: any) => {
   const { t, lang } = useTranslation();
   const { formatCurrency, toBengaliNumber } = useCurrency();
 
-  // Helper to filter by date
+  // --- CALCULATION LOGIC ---
   const isWithinRange = (dateStr: string) => {
-    if (timeFilter === 'today') {
-      return dateStr === getTodayStr();
-    }
-    
+    if (timeFilter === 'today') return dateStr === getTodayStr();
     const date = new Date(dateStr);
     const rangeDate = new Date();
     rangeDate.setHours(0, 0, 0, 0);
     if (timeFilter === '7days') rangeDate.setDate(rangeDate.getDate() - 7);
     if (timeFilter === '30days') rangeDate.setDate(rangeDate.getDate() - 30);
-    
     return date >= rangeDate;
   };
 
@@ -1098,56 +1094,42 @@ const Dashboard = ({ data }: any) => {
   const filteredExpenses = data.expenses.filter((e: any) => isWithinRange(e.date));
   const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r.date));
 
-  const splitReturns = filteredReturns.reduce((acc: any, r: any) => {
-    const val = Number(r.totalAmount) || 0;
-    if (r.type === 'Return') acc.refunds += val;
-    else acc.replacements += val;
-    return acc;
-  }, { refunds: 0, replacements: 0 });
-
-  const returnedInvoices = new Set(filteredReturns.filter((r: any) => r.type === 'Return').map((r: any) => r.invoiceNo));
-  const totalReturnAmount = splitReturns.refunds + splitReturns.replacements;
-  
-  // Calculate Profit and Loss from ACTIVE sales
+  // 1. Calculate Sales Profit/Loss for the filtered range
   let totalSalesProfit = 0;
   let totalSalesLoss = 0;
+  let totalSalesGross = 0;
 
   filteredSales.forEach((s: any) => {
-    const inv = s.invoiceNo || s.id;
-    if (returnedInvoices.has(inv)) return; // Skip fully returned sales for profit
-
+    totalSalesGross += (s.total || 0);
     if (s.items) {
       s.items.forEach((item: any) => {
-        const buyPrice = item.buyPrice || 0;
-        const cost = buyPrice * item.quantity;
+        const cost = (item.buyPrice || 0) * item.quantity;
         const profit = item.total - cost;
         if (profit > 0) totalSalesProfit += profit;
         else if (profit < 0) totalSalesLoss += Math.abs(profit);
       });
     } else {
-      const buyPrice = s.buyPrice || 0;
-      const cost = buyPrice * s.quantity;
-      const profit = s.total - cost;
+      const cost = (s.buyPrice || 0) * (s.quantity || 1);
+      const profit = (s.total || 0) - cost;
       if (profit > 0) totalSalesProfit += profit;
       else if (profit < 0) totalSalesLoss += Math.abs(profit);
     }
   });
 
+  // 2. Calculate Expenses and Returns
   const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
+  const totalRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
+  const totalExtraIncome = filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   
-  const totalRevenueBase = filteredSales.reduce((acc: number, s: any) => acc + (s.total || 0), 0);
-  const netRevenue = totalRevenueBase + totalReturnAmount;
+  const totalReturnsNet = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  const netRevenue = totalSalesGross + totalReturnsNet;
 
-  const rawProfit = totalSalesProfit;
-  const rawLoss = totalSalesLoss + totalExpenses;
-  
-  // Net profit must also subtract/add the adjustments from replacements
-  const netProfit = rawProfit - rawLoss + totalReturnAmount;
-  
-  const currentProfit = netProfit >= 0 ? netProfit : 0;
-  const currentLoss = netProfit < 0 ? Math.abs(netProfit) : 0;
+  // 3. Gross values (matching chart logic)
+  const currentProfitGross = totalSalesProfit + totalExtraIncome;
+  const currentLossGross = totalSalesLoss + totalExpenses + totalRefunds;
+  const netProfitTotal = currentProfitGross - currentLossGross;
 
-  // Calculate Daily Profit and Loss for Chart
+  // Calculate Daily Stats for Chart
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
@@ -1155,96 +1137,49 @@ const Dashboard = ({ data }: any) => {
   }).reverse();
 
   const dailyStats = last7Days.map(date => {
-    let dailyProfit = 0;
-    let dailyLoss = 0;
+    let dProfit = 0;
+    let dLoss = 0;
 
     data.sales.filter((s: any) => s.date === date).forEach((s: any) => {
       if (s.items) {
         s.items.forEach((item: any) => {
-          const buyPrice = item.buyPrice || 0;
-          const cost = buyPrice * item.quantity;
+          const cost = (item.buyPrice || 0) * item.quantity;
           const profit = item.total - cost;
-          if (profit > 0) dailyProfit += profit;
-          else if (profit < 0) dailyLoss += Math.abs(profit);
+          if (profit > 0) dProfit += profit;
+          else if (profit < 0) dLoss += Math.abs(profit);
         });
       } else {
-        const buyPrice = s.buyPrice || 0;
-        const cost = buyPrice * s.quantity;
-        const profit = s.total - cost;
-        if (profit > 0) dailyProfit += profit;
-        else if (profit < 0) dailyLoss += Math.abs(profit);
+        const cost = (s.buyPrice || 0) * (s.quantity || 1);
+        const profit = (s.total || 0) - cost;
+        if (profit > 0) dProfit += profit;
+        else if (profit < 0) dLoss += Math.abs(profit);
       }
     });
 
-    const dailyExpenses = data.expenses
-      .filter((e: any) => e.date === date)
-      .reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
+    const dExpenses = data.expenses.filter((e: any) => e.date === date).reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
+    const dReturnsList = (data.returns || []).filter((r: any) => r.date === date);
+    const dRefunds = Math.abs(dReturnsList.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
+    const dExtraInc = dReturnsList.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
 
-    const dailyReturnsList = (data.returns || []).filter((r: any) => r.date === date);
-    const dailyRefunds = Math.abs(dailyReturnsList.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
-    const dailyExtraIncome = dailyReturnsList.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
-
-    const currentDailyProfit = dailyProfit + dailyExtraIncome;
-    const currentDailyLoss = dailyLoss + dailyExpenses + dailyRefunds;
+    const dayProfit = dProfit + dExtraInc;
+    const dayLoss = dLoss + dExpenses + dRefunds;
 
     return {
       date: date.split('-').slice(1).join('/'),
-      profit: parseFloat((currentDailyProfit).toFixed(2)),
-      loss: parseFloat((currentDailyLoss).toFixed(2)),
-      net: parseFloat((currentDailyProfit - currentDailyLoss).toFixed(2)),
+      profit: parseFloat(dayProfit.toFixed(2)),
+      loss: parseFloat(dayLoss.toFixed(2)),
+      net: parseFloat((dayProfit - dayLoss).toFixed(2)),
     };
   });
 
   const stats = [
-    { 
-      label: t('netRevenue'), 
-      value: formatCurrency(netRevenue, 0), 
-      change: 'Sales - Returns', 
-      icon: DollarSign, 
-      color: 'bg-indigo-500' 
-    },
-    { 
-      label: t('currentProfit'), 
-      value: formatCurrency(currentProfit), 
-      change: t('currentProfit'), 
-      icon: TrendingUp, 
-      color: 'bg-emerald-500' 
-    },
-    { 
-      label: t('currentLoss'), 
-      value: formatCurrency(currentLoss), 
-      change: t('currentLoss'), 
-      icon: ArrowDownRight, 
-      color: 'bg-red-500' 
-    },
-    { 
-      label: t('totalExpenses'), 
-      value: formatCurrency(totalExpenses, 0), 
-      change: 'Outflow', 
-      icon: Receipt, 
-      color: 'bg-orange-500' 
-    },
-    { 
-      label: t('totalRefunds'), 
-      value: formatCurrency(Math.abs(splitReturns.refunds), 0), 
-      change: t('returns'), 
-      icon: RotateCcw, 
-      color: 'bg-slate-500' 
-    },
-    { 
-      label: t('totalReplacements'), 
-      value: formatCurrency(Math.abs(splitReturns.replacements), 0), 
-      change: 'Net Adj', 
-      icon: RefreshCw, 
-      color: 'bg-indigo-400' 
-    },
-    { 
-      label: t('totalSales'), 
-      value: lang === 'bn' ? toBengaliNumber(filteredSales.length) : filteredSales.length.toString(), 
-      change: 'Orders', 
-      icon: ShoppingCart, 
-      color: 'bg-blue-500' 
-    },
+    { label: t('netRevenue'), value: formatCurrency(netRevenue, 0), icon: DollarSign, color: 'bg-indigo-500' },
+    { label: t('currentProfit'), value: formatCurrency(currentProfitGross), icon: TrendingUp, color: 'bg-emerald-500' },
+    { label: t('currentLoss'), value: formatCurrency(currentLossGross), icon: ArrowDownRight, color: 'bg-red-500' },
+    { label: t('totalExpenses'), value: formatCurrency(totalExpenses, 0), icon: Receipt, color: 'bg-orange-500' },
+    { label: t('totalRefunds'), value: formatCurrency(totalRefunds, 0), icon: RotateCcw, color: 'bg-slate-500' },
+    { label: t('totalReplacements'), value: formatCurrency(totalExtraIncome, 0), icon: RefreshCw, color: 'bg-indigo-400' },
+    { label: t('totalSales'), value: lang === 'bn' ? toBengaliNumber(filteredSales.length) : filteredSales.length.toString(), icon: ShoppingCart, color: 'bg-blue-500' },
   ];
 
   const lowStockItems = data.inventory.filter((item: any) => item.quantity <= (item.minStock || 5));
