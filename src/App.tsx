@@ -1081,12 +1081,24 @@ const Dashboard = ({ data }: any) => {
 
   // --- CALCULATION LOGIC ---
   const isWithinRange = (dateStr: string) => {
-    if (timeFilter === 'today') return dateStr === getTodayStr();
-    const date = new Date(dateStr);
+    if (!dateStr) return false;
+    
+    // Parse YYYY-MM-DD as local date to avoid timezone shift issues with new Date(dateStr)
+    const parts = dateStr.split('-');
+    let date: Date;
+    if (parts.length === 3) {
+      date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    } else {
+      date = new Date(dateStr);
+    }
+    
     const rangeDate = new Date();
     rangeDate.setHours(0, 0, 0, 0);
+    
     if (timeFilter === '7days') rangeDate.setDate(rangeDate.getDate() - 7);
-    if (timeFilter === '30days') rangeDate.setDate(rangeDate.getDate() - 30);
+    else if (timeFilter === '30days') rangeDate.setDate(rangeDate.getDate() - 30);
+    // for 'today', rangeDate is already today at 00:00:00
+    
     return date >= rangeDate;
   };
 
@@ -3327,15 +3339,23 @@ const Reports = ({ data }: any) => {
 
   // Helper to filter by date
   const isWithinRange = (dateStr: string) => {
-    if (timeFilter === 'today') {
-      return dateStr === getTodayStr();
+    if (!dateStr) return false;
+    
+    // Parse YYYY-MM-DD as local date to avoid timezone shift issues with new Date(dateStr)
+    const parts = dateStr.split('-');
+    let date: Date;
+    if (parts.length === 3) {
+      date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    } else {
+      date = new Date(dateStr);
     }
     
-    const date = new Date(dateStr);
     const rangeDate = new Date();
     rangeDate.setHours(0, 0, 0, 0);
+    
     if (timeFilter === '7days') rangeDate.setDate(rangeDate.getDate() - 7);
-    if (timeFilter === '30days') rangeDate.setDate(rangeDate.getDate() - 30);
+    else if (timeFilter === '30days') rangeDate.setDate(rangeDate.getDate() - 30);
+    // else if 'today', rangeDate is already today at 00:00:00
     
     return date >= rangeDate;
   };
