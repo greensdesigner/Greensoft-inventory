@@ -1073,8 +1073,9 @@ const Dashboard = ({ data }: any) => {
   const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r.date));
 
   const splitReturns = filteredReturns.reduce((acc: any, r: any) => {
-    if (r.type === 'Return') acc.refunds += (Number(r.totalAmount) || 0);
-    else acc.replacements += (Number(r.totalAmount) || 0);
+    const val = Number(r.totalAmount) || 0;
+    if (r.type === 'Return') acc.refunds += val;
+    else acc.replacements += val;
     return acc;
   }, { refunds: 0, replacements: 0 });
 
@@ -1109,13 +1110,13 @@ const Dashboard = ({ data }: any) => {
   const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
   
   const totalRevenueBase = filteredSales.reduce((acc: number, s: any) => acc + (s.total || 0), 0);
-  const netRevenue = totalRevenueBase - totalReturnAmount;
+  const netRevenue = totalRevenueBase + totalReturnAmount;
 
   const rawProfit = totalSalesProfit;
   const rawLoss = totalSalesLoss + totalExpenses;
   
   // Net profit must also subtract/add the adjustments from replacements
-  const netProfit = rawProfit - rawLoss - totalReturnAmount;
+  const netProfit = rawProfit - rawLoss + totalReturnAmount;
   
   const currentProfit = netProfit >= 0 ? netProfit : 0;
   const currentLoss = netProfit < 0 ? Math.abs(netProfit) : 0;
@@ -1196,15 +1197,15 @@ const Dashboard = ({ data }: any) => {
     },
     { 
       label: t('totalRefunds'), 
-      value: `$${splitReturns.refunds.toLocaleString()}`, 
+      value: `$${Math.abs(splitReturns.refunds).toLocaleString()}`, 
       change: t('returns'), 
       icon: RotateCcw, 
       color: 'bg-slate-500' 
     },
     { 
       label: t('totalReplacements'), 
-      value: `$${splitReturns.replacements.toLocaleString()}`, 
-      change: 'Replace', 
+      value: `$${Math.abs(splitReturns.replacements).toLocaleString()}`, 
+      change: 'Net Adj', 
       icon: RefreshCw, 
       color: 'bg-indigo-400' 
     },
@@ -3111,7 +3112,8 @@ const Returns = ({ data }: any) => {
     
     try {
       const returnId = `${Date.now()}`;
-      const amount = returnType === 'Return' ? foundSale.total : parseFloat(replaceAmount);
+      // Negative for money out (Refund), Positive for money in (Extra)
+      const amount = returnType === 'Return' ? -foundSale.total : parseFloat(replaceAmount);
       
       const returnData = {
         id: returnId,
@@ -3234,10 +3236,10 @@ const Returns = ({ data }: any) => {
                               onClick={() => setReplaceAmount(prev => (parseFloat(prev) * -1).toString())}
                               className={cn(
                                 "p-1 rounded text-[10px] font-bold uppercase",
-                                parseFloat(replaceAmount) >= 0 ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-600"
+                                parseFloat(replaceAmount) < 0 ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-600"
                               )}
                             >
-                              {parseFloat(replaceAmount) >= 0 ? `${t('refund')} (-)` : `${t('extra')} (+)`}
+                              {parseFloat(replaceAmount) < 0 ? `${t('refund')} (-)` : `${t('extra')} (+)`}
                             </button>
                           </div>
                           <input 
@@ -3320,9 +3322,9 @@ const Returns = ({ data }: any) => {
                     <div className="text-right flex items-center gap-3">
                       <p className={cn(
                         "font-bold",
-                        ret.totalAmount > 0 ? "text-red-500" : "text-emerald-500"
+                        ret.totalAmount < 0 ? "text-red-500" : "text-emerald-500"
                       )}>
-                        {ret.totalAmount > 0 ? '-' : '+'}${f2(Math.abs(ret.totalAmount))}
+                        {ret.totalAmount < 0 ? '-' : '+'}${f2(Math.abs(ret.totalAmount))}
                       </p>
                       <button 
                         onClick={() => data.deleteItem('returns', ret.id, data.setReturns)}
@@ -3371,7 +3373,7 @@ const Reports = ({ data }: any) => {
   const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r.date));
 
   const totalReturns = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
-  const totalRevenue = filteredSales.reduce((acc: number, s: any) => acc + s.total, 0) - totalReturns;
+  const totalRevenue = filteredSales.reduce((acc: number, s: any) => acc + s.total, 0) + totalReturns;
   
   const returnedInvoices = new Set(filteredReturns.filter((r: any) => r.type === 'Return').map((r: any) => r.invoiceNo));
 
@@ -3403,7 +3405,7 @@ const Reports = ({ data }: any) => {
   const rawProfit = totalSalesProfit;
   const rawLoss = totalSalesLoss + totalExpenses;
   
-  const netProfit = rawProfit - rawLoss - totalReturns;
+  const netProfit = rawProfit - rawLoss + totalReturns;
   const currentProfit = netProfit >= 0 ? netProfit : 0;
   const currentLoss = netProfit < 0 ? Math.abs(netProfit) : 0;
 
