@@ -1136,10 +1136,16 @@ const Dashboard = ({ data }: any) => {
   const totalReturnsNet = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   const netRevenue = totalSalesGross + totalReturnsNet;
 
-  // 3. Gross values (matching chart logic)
-  const currentProfitGross = totalSalesProfit + totalExtraIncome;
-  const currentLossGross = totalSalesLoss + totalExpenses + totalRefunds;
-  const netProfitTotal = currentProfitGross - currentLossGross;
+  // 3. Net values logic (Addressing: losses should be deducted from profit)
+  const netSalesGainLoss = (totalSalesProfit - totalSalesLoss) + totalExtraIncome;
+  
+  // Display Profit is the net positive result from sales and extra income
+  const displayProfit = Math.max(0, netSalesGainLoss);
+  
+  // Display Loss is Expenses + Refunds + any remaining net loss from negative sales
+  const displayLoss = totalExpenses + totalRefunds + (netSalesGainLoss < 0 ? Math.abs(netSalesGainLoss) : 0);
+  
+  const netProfitTotal = displayProfit - displayLoss;
 
   // Calculate Daily Stats for Chart
   const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -1173,21 +1179,23 @@ const Dashboard = ({ data }: any) => {
     const dRefunds = Math.abs(dReturnsList.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
     const dExtraInc = dReturnsList.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
 
-    const dayProfit = dProfit + dExtraInc;
-    const dayLoss = dLoss + dExpenses + dRefunds;
+    // Apply the same 'Net Profit' logic per day
+    const netDaySales = (dProfit - dLoss) + dExtraInc;
+    const dayProfitDisplay = Math.max(0, netDaySales);
+    const dayLossDisplay = dExpenses + dRefunds + (netDaySales < 0 ? Math.abs(netDaySales) : 0);
 
     return {
       date: date.split('-').slice(1).join('/'),
-      profit: parseFloat(dayProfit.toFixed(2)),
-      loss: parseFloat(dayLoss.toFixed(2)),
-      net: parseFloat((dayProfit - dayLoss).toFixed(2)),
+      profit: parseFloat(dayProfitDisplay.toFixed(2)),
+      loss: parseFloat(dayLossDisplay.toFixed(2)),
+      net: parseFloat((dayProfitDisplay - dayLossDisplay).toFixed(2)),
     };
   });
 
   const stats = [
     { label: t('netRevenue'), value: formatCurrency(netRevenue, 0), icon: DollarSign, color: 'bg-indigo-500' },
-    { label: t('currentProfit'), value: formatCurrency(currentProfitGross), icon: TrendingUp, color: 'bg-emerald-500' },
-    { label: t('currentLoss'), value: formatCurrency(currentLossGross), icon: ArrowDownRight, color: 'bg-red-500' },
+    { label: t('currentProfit'), value: formatCurrency(displayProfit), icon: TrendingUp, color: 'bg-emerald-500' },
+    { label: t('currentLoss'), value: formatCurrency(displayLoss), icon: ArrowDownRight, color: 'bg-red-500' },
     { label: t('totalExpenses'), value: formatCurrency(totalExpenses, 0), icon: Receipt, color: 'bg-orange-500' },
     { label: t('totalRefunds'), value: formatCurrency(totalRefunds, 0), icon: RotateCcw, color: 'bg-slate-500' },
     { label: t('totalReplacements'), value: formatCurrency(totalExtraIncome, 0), icon: RefreshCw, color: 'bg-indigo-400' },
@@ -3364,42 +3372,41 @@ const Reports = ({ data }: any) => {
   const filteredExpenses = data.expenses.filter((e: any) => isWithinRange(e.date));
   const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r.date));
 
-  const totalReturns = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
-  const totalRevenue = filteredSales.reduce((acc: number, s: any) => acc + s.total, 0) + totalReturns;
-  
-  const returnedInvoices = new Set(filteredReturns.filter((r: any) => r.type === 'Return').map((r: any) => r.invoiceNo));
-
+  // Consistent calculations matching Dashboard
   let totalSalesProfit = 0;
   let totalSalesLoss = 0;
+  let totalSalesGross = 0;
 
   filteredSales.forEach((s: any) => {
-    const inv = s.invoiceNo || s.id;
-    if (returnedInvoices.has(inv)) return;
-
+    totalSalesGross += (s.total || 0);
     if (s.items) {
       s.items.forEach((item: any) => {
-        const buyPrice = item.buyPrice || 0;
-        const cost = buyPrice * item.quantity;
+        const cost = (item.buyPrice || 0) * item.quantity;
         const profit = item.total - cost;
         if (profit > 0) totalSalesProfit += profit;
         else if (profit < 0) totalSalesLoss += Math.abs(profit);
       });
     } else {
-      const buyPrice = s.buyPrice || 0;
-      const cost = buyPrice * s.quantity;
-      const profit = s.total - cost;
+      const cost = (s.buyPrice || 0) * (s.quantity || 1);
+      const profit = (s.total || 0) - cost;
       if (profit > 0) totalSalesProfit += profit;
       else if (profit < 0) totalSalesLoss += Math.abs(profit);
     }
   });
 
-  const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + e.amount, 0);
-  const rawProfit = totalSalesProfit;
-  const rawLoss = totalSalesLoss + totalExpenses;
+  const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
+  const totalRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
+  const totalExtraIncome = filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   
-  const netProfit = rawProfit - rawLoss + totalReturns;
-  const currentProfit = netProfit >= 0 ? netProfit : 0;
-  const currentLoss = netProfit < 0 ? Math.abs(netProfit) : 0;
+  const totalReturnsNet = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  const totalRevenue = totalSalesGross + totalReturnsNet;
+
+  // Addressing: losses should be deducted from profit
+  const netSalesGainLoss = (totalSalesProfit - totalSalesLoss) + totalExtraIncome;
+  
+  const currentProfit = Math.max(0, netSalesGainLoss);
+  const currentLoss = totalExpenses + totalRefunds + (netSalesGainLoss < 0 ? Math.abs(netSalesGainLoss) : 0);
+  const netProfit = currentProfit - currentLoss;
 
   // Group sales by date for a simple chart
   const salesByDate = data.sales.reduce((acc: any, s: any) => {
