@@ -1136,16 +1136,13 @@ const Dashboard = ({ data }: any) => {
   const totalReturnsNet = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   const netRevenue = totalSalesGross + totalReturnsNet;
 
-  // 3. Net values logic (Addressing: losses should be deducted from profit)
-  const netSalesGainLoss = (totalSalesProfit - totalSalesLoss) + totalExtraIncome;
+  // 3. Net values logic (Net Profit: Sales Profit - Loss - Expenses - Refunds)
+  const finalNetResult = (totalSalesProfit - totalSalesLoss) + totalExtraIncome - totalExpenses - totalRefunds;
   
-  // Display Profit is the net positive result from sales and extra income
-  const displayProfit = Math.max(0, netSalesGainLoss);
+  const displayProfit = Math.max(0, finalNetResult);
+  const displayLoss = finalNetResult < 0 ? Math.abs(finalNetResult) : 0;
   
-  // Display Loss is Expenses + Refunds + any remaining net loss from negative sales
-  const displayLoss = totalExpenses + totalRefunds + (netSalesGainLoss < 0 ? Math.abs(netSalesGainLoss) : 0);
-  
-  const netProfitTotal = displayProfit - displayLoss;
+  const netProfitTotal = finalNetResult;
 
   // Calculate Daily Stats for Chart
   const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -1180,15 +1177,15 @@ const Dashboard = ({ data }: any) => {
     const dExtraInc = dReturnsList.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
 
     // Apply the same 'Net Profit' logic per day
-    const netDaySales = (dProfit - dLoss) + dExtraInc;
-    const dayProfitDisplay = Math.max(0, netDaySales);
-    const dayLossDisplay = dExpenses + dRefunds + (netDaySales < 0 ? Math.abs(netDaySales) : 0);
+    const netDay = (dProfit - dLoss) + dExtraInc - dExpenses - dRefunds;
+    const dayProfitDisplay = Math.max(0, netDay);
+    const dayLossDisplay = netDay < 0 ? Math.abs(netDay) : 0;
 
     return {
       date: date.split('-').slice(1).join('/'),
       profit: parseFloat(dayProfitDisplay.toFixed(2)),
       loss: parseFloat(dayLossDisplay.toFixed(2)),
-      net: parseFloat((dayProfitDisplay - dayLossDisplay).toFixed(2)),
+      net: parseFloat(netDay.toFixed(2)),
     };
   });
 
@@ -3401,12 +3398,12 @@ const Reports = ({ data }: any) => {
   const totalReturnsNet = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   const totalRevenue = totalSalesGross + totalReturnsNet;
 
-  // Addressing: losses should be deducted from profit
-  const netSalesGainLoss = (totalSalesProfit - totalSalesLoss) + totalExtraIncome;
+  // Consistent calculation reflecting Net Profit (Profit - Loss - Expenses - Refunds)
+  const finalNet = (totalSalesProfit - totalSalesLoss) + totalExtraIncome - totalExpenses - totalRefunds;
   
-  const currentProfit = Math.max(0, netSalesGainLoss);
-  const currentLoss = totalExpenses + totalRefunds + (netSalesGainLoss < 0 ? Math.abs(netSalesGainLoss) : 0);
-  const netProfit = currentProfit - currentLoss;
+  const currentProfit = Math.max(0, finalNet);
+  const currentLoss = finalNet < 0 ? Math.abs(finalNet) : 0;
+  const netProfit = finalNet;
 
   // Group sales by date for a simple chart
   const salesByDate = data.sales.reduce((acc: any, s: any) => {
