@@ -1386,7 +1386,10 @@ const Dashboard = ({ data }: any) => {
                       <Package size={20} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{item.name}</p>
+                      <p className="text-sm font-semibold text-slate-900 truncate">
+                        {item.brand && <span className="text-[10px] text-slate-400 font-medium mr-1">{item.brand}</span>}
+                        {item.name}
+                      </p>
                       <p className="text-xs text-orange-700 font-medium">Only {item.quantity} units left</p>
                     </div>
                   </div>
@@ -1759,7 +1762,10 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
             sale.items.map((item: any, idx: number) => (
               <tr key={idx} style={{ borderBottom: idx !== sale.items.length - 1 ? '1px solid #f8fafc' : 'none' }}>
                 <td style={{ padding: '1rem 0' }}>
-                  <div className="font-bold" style={{ color: '#0f172a' }}>{item.productName}</div>
+                  <div className="font-bold" style={{ color: '#0f172a' }}>
+                    {item.brand && <span className="text-[10px] text-slate-400 font-medium block leading-none mb-0.5">{item.brand}</span>}
+                    {item.productName}
+                  </div>
                   <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {item.productCategory}</div>
                   {item.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {item.serialNumber}</div>}
                 </td>
@@ -1771,7 +1777,10 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
           ) : (
             <tr>
               <td style={{ padding: '1rem 0' }}>
-                <div className="font-bold" style={{ color: '#0f172a' }}>{sale.productName}</div>
+                <div className="font-bold" style={{ color: '#0f172a' }}>
+                  {sale.brand && <span className="text-[10px] text-slate-400 font-medium block leading-none mb-0.5">{sale.brand}</span>}
+                  {sale.productName}
+                </div>
                 <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {sale.productCategory}</div>
                 {sale.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {sale.serialNumber}</div>}
               </td>
@@ -2120,7 +2129,8 @@ const Sales = ({ data }: any) => {
       quantity: '1', 
       total: '0',
       buyPrice: 0,
-      productName: ''
+      productName: '',
+      brand: ''
     }],
     date: getTodayStr() 
   });
@@ -2137,6 +2147,7 @@ const Sales = ({ data }: any) => {
         productId: product.id,
         productCategory: product.category,
         productName: product.name,
+        brand: product.brand || '',
         serialNumber: '',
         quantity: '1',
         buyPrice: product.price,
@@ -2168,7 +2179,8 @@ const Sales = ({ data }: any) => {
         quantity: '1', 
         total: '0',
         buyPrice: 0,
-        productName: ''
+        productName: '',
+        brand: ''
       }]
     });
   };
@@ -2189,6 +2201,7 @@ const Sales = ({ data }: any) => {
       const product = data.inventory.find((p: any) => p.id === value);
       if (product) {
         item.productName = product.name;
+        item.brand = product.brand || '';
         item.productCategory = product.category;
         item.buyPrice = product.price;
         item.total = (product.price * (parseInt(item.quantity) || 0)).toString();
@@ -2295,7 +2308,8 @@ const Sales = ({ data }: any) => {
         quantity: '1', 
         total: '0',
         buyPrice: 0,
-        productName: ''
+        productName: '',
+        brand: ''
       }],
       date: getTodayStr() 
     });
@@ -2325,11 +2339,14 @@ const Sales = ({ data }: any) => {
                     <div className="flex flex-col gap-1">
                       <span className="font-bold text-emerald-600">{item.items.length} Products</span>
                       <span className="text-[10px] text-slate-400 truncate max-w-[150px]">
-                        {item.items.map((i: any) => i.productName).join(', ')}
+                        {item.items.map((i: any) => (i.brand ? `${i.brand} ${i.productName}` : i.productName)).join(', ')}
                       </span>
                     </div>
                   ) : (
-                    <div className="font-medium">{item.productName}</div>
+                    <div className="font-medium">
+                      {item.brand && <span className="text-[10px] text-slate-400 font-medium block">{item.brand}</span>}
+                      {item.productName}
+                    </div>
                   )}
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{(item.date || '').split('T')[0]}</td>
