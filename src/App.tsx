@@ -3214,22 +3214,42 @@ const Returns = ({ data }: any) => {
                   {returnType === 'Replace' && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
                           {t('adjustmentAmount')}
                         </label>
+                        
+                        <div className="flex p-1 bg-slate-100 rounded-xl mb-3">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const mag = Math.abs(parseFloat(replaceAmount) || 0);
+                              setReplaceAmount(mag.toString());
+                            }}
+                            className={cn(
+                              "flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all flex items-center justify-center gap-1",
+                              parseFloat(replaceAmount) >= 0 ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500"
+                            )}
+                          >
+                            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                            {t('extra')} (+)
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const mag = Math.abs(parseFloat(replaceAmount) || 0);
+                              setReplaceAmount((mag * -1).toString());
+                            }}
+                            className={cn(
+                              "flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all flex items-center justify-center gap-1",
+                              parseFloat(replaceAmount) < 0 ? "bg-white text-red-600 shadow-sm" : "text-slate-500"
+                            )}
+                          >
+                            <div className="w-2 h-2 rounded-full bg-red-500" />
+                            {t('refund')} (-)
+                          </button>
+                        </div>
+
                         <div className="relative">
-                          <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                            <button 
-                              type="button"
-                              onClick={() => setReplaceAmount(prev => (parseFloat(prev) * -1).toString())}
-                              className={cn(
-                                "p-1 rounded text-[10px] font-bold uppercase",
-                                parseFloat(replaceAmount) < 0 ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-600"
-                              )}
-                            >
-                              {parseFloat(replaceAmount) < 0 ? `${t('refund')} (-)` : `${t('extra')} (+)`}
-                            </button>
-                          </div>
                           <input 
                             type="number" step="0.01"
                             value={Math.abs(parseFloat(replaceAmount))}
@@ -3238,18 +3258,29 @@ const Returns = ({ data }: any) => {
                               const currentSign = parseFloat(replaceAmount) < 0 ? -1 : 1;
                               setReplaceAmount((mag * currentSign).toString());
                             }}
-                            className="w-full pl-20 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-lg text-slate-800"
+                            className={cn(
+                              "w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 font-bold text-lg",
+                              parseFloat(replaceAmount) < 0 
+                                ? "bg-red-50/30 border-red-200 focus:ring-red-500/20 text-red-700" 
+                                : "bg-emerald-50/30 border-emerald-200 focus:ring-emerald-500/20 text-emerald-700"
+                            )}
                             placeholder="0.00"
                           />
+                          <div className={cn(
+                            "absolute right-3 top-1/2 -translate-y-1/2 font-black text-xs uppercase",
+                            parseFloat(replaceAmount) < 0 ? "text-red-500" : "text-emerald-500"
+                          )}>
+                            {parseFloat(replaceAmount) < 0 ? t('refund') : t('extra')}
+                          </div>
                         </div>
-                        <p className="text-[10px] text-slate-500 mt-1">
+                        <p className="text-[10px] text-slate-500 mt-2">
                           {lang === 'bn' 
                             ? (parseFloat(replaceAmount) < 0 
-                              ? "গ্রাহককে টাকা ফেরত দিলে (Refund) লাল মোড ব্যবহার করুন।" 
-                              : "গ্রাহক বাড়তি টাকা দিলে (Extra Charge) সবুজ মোড ব্যবহার করুন।")
+                              ? "গ্রাহককে টাকা ফেরত দিলে (Refund) অপশনটি ব্যবহার করুন।" 
+                              : "গ্রাহক বাড়তি টাকা দিলে (Extra) অপশনটি ব্যবহার করুন।")
                             : (parseFloat(replaceAmount) < 0
-                              ? "Use Red Mode if refunding money to customer."
-                              : "Use Green Mode if customer pays extra.")
+                              ? "Select Refund if you are returning money to the customer."
+                              : "Select Extra if the customer is paying an additional amount.")
                           }
                         </p>
                       </div>
