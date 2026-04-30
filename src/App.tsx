@@ -147,6 +147,7 @@ const translations: any = {
     login: "Log in",
     processing: "Processing...",
     softwareLoading: "Software is loading...",
+    brandName: "Brand Name",
   },
   bn: {
     dashboard: "ড্যাশবোর্ড",
@@ -211,6 +212,7 @@ const translations: any = {
     login: "লগইন",
     processing: "প্রসেসিং...",
     softwareLoading: "সফটওয়্যার লোড হচ্ছে...",
+    brandName: "ব্র্যান্ড নেম",
   },
   es: {
     dashboard: "Tablero",
@@ -274,6 +276,7 @@ const translations: any = {
     login: "Iniciar sesión",
     processing: "Procesando...",
     softwareLoading: "El software se está cargando...",
+    brandName: "Nombre de la marca",
   }
 };
 
@@ -1446,10 +1449,11 @@ const Inventory = ({ data }: any) => {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [selectedQRItem, setSelectedQRItem] = useState<any>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [newItem, setNewItem] = useState({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '' });
+  const [newItem, setNewItem] = useState({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '', brand: '' });
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
   const { formatCurrency, toBengaliNumber } = useCurrency();
+  const { t } = useTranslation();
 
   const handleAdd = (e: FormEvent) => {
     e.preventDefault();
@@ -1468,7 +1472,7 @@ const Inventory = ({ data }: any) => {
         minStock: parseInt(newItem.minStock)
       });
     }
-    setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '' });
+    setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '', brand: '' });
     setEditingItem(null);
     setIsModalOpen(false);
   };
@@ -1481,7 +1485,8 @@ const Inventory = ({ data }: any) => {
       quantity: item.quantity.toString(),
       price: item.price.toString(),
       minStock: item.minStock.toString(),
-      modelNumber: item.modelNumber || ''
+      modelNumber: item.modelNumber || '',
+      brand: item.brand || ''
     });
     setIsModalOpen(true);
   };
@@ -1509,7 +1514,7 @@ const Inventory = ({ data }: any) => {
         title="Inventory Management" 
         description="Track and manage your stock levels." 
         action="Add Item" 
-        onAction={() => { setEditingItem(null); setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '' }); setIsModalOpen(true); }}
+        onAction={() => { setEditingItem(null); setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '', brand: '' }); setIsModalOpen(true); }}
       />
       <Card>
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
@@ -1541,8 +1546,11 @@ const Inventory = ({ data }: any) => {
               <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="font-medium text-slate-900">{item.name}</div>
-                  {item.modelNumber && <div className="text-[10px] text-emerald-600 font-bold uppercase">Model: {item.modelNumber}</div>}
-                  <div className="text-xs text-slate-500">SKU-{item.id.slice(-4)}</div>
+                  <div className="flex flex-col gap-0.5">
+                    {item.brand && <div className="text-[10px] text-slate-500 font-medium">Brand: {item.brand}</div>}
+                    {item.modelNumber && <div className="text-[10px] text-emerald-600 font-bold uppercase">Model: {item.modelNumber}</div>}
+                    <div className="text-xs text-slate-500">SKU-{item.id.slice(-4)}</div>
+                  </div>
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{item.category}</td>
                 <td className="px-6 py-4">
@@ -1602,6 +1610,15 @@ const Inventory = ({ data }: any) => {
               type="text" required 
               value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})}
               className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t('brandName')}</label>
+            <input 
+              type="text" 
+              value={newItem.brand} onChange={e => setNewItem({...newItem, brand: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              placeholder="Enter brand name"
             />
           </div>
           <div>
