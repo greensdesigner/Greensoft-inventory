@@ -2197,7 +2197,18 @@ const Sales = ({ data }: any) => {
     const newItems = [...newSale.items];
     const item = { ...newItems[index], [field]: value };
 
-    if (field === 'productId') {
+    if (field === 'productCategory') {
+      item.brand = '';
+      item.productId = '';
+      item.productName = '';
+      item.total = '0';
+      item.buyPrice = 0;
+    } else if (field === 'brand') {
+      item.productId = '';
+      item.productName = '';
+      item.total = '0';
+      item.buyPrice = 0;
+    } else if (field === 'productId') {
       const product = data.inventory.find((p: any) => p.id === value);
       if (product) {
         item.productName = product.name;
@@ -2472,13 +2483,20 @@ const Sales = ({ data }: any) => {
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('brandName')}</label>
-                      <input 
-                        type="text"
+                      <select 
                         value={item.brand}
                         onChange={(e) => updateItem(index, 'brand', e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                        placeholder="Brand"
-                      />
+                      >
+                        <option value="">Select Brand</option>
+                        {Array.from(new Set(data.inventory
+                          .filter((p: any) => !item.productCategory || p.category === item.productCategory)
+                          .map((p: any) => p.brand)
+                          .filter(Boolean)
+                        )).map((brand: any) => (
+                          <option key={brand} value={brand}>{brand}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Product</label>
@@ -2490,7 +2508,7 @@ const Sales = ({ data }: any) => {
                       >
                         <option value="">Select Product</option>
                         {data.inventory
-                          .filter((p: any) => !item.productCategory || p.category === item.productCategory)
+                          .filter((p: any) => (!item.productCategory || p.category === item.productCategory) && (!item.brand || p.brand === item.brand))
                           .map((p: any) => (
                             <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
                               {p.name} ({formatCurrency(p.price)}) - Stock: {lang === 'bn' ? toBengaliNumber(p.quantity) : p.quantity}
