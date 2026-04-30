@@ -1176,10 +1176,10 @@ const Dashboard = ({ data }: any) => {
     const dRefunds = Math.abs(dReturnsList.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
     const dExtraInc = dReturnsList.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
 
-    // Apply the same 'Net Profit' logic per day
-    const netDay = (dProfit - dLoss) + dExtraInc - dExpenses - dRefunds;
-    const dayProfitDisplay = Math.max(0, netDay);
-    const dayLossDisplay = netDay < 0 ? Math.abs(netDay) : 0;
+    // Gross Daily Profit vs Gross Daily Loss
+    const dayProfitDisplay = dProfit + dExtraInc;
+    const dayLossDisplay = dLoss + dExpenses + dRefunds;
+    const netDay = dayProfitDisplay - dayLossDisplay;
 
     return {
       date: date.split('-').slice(1).join('/'),
