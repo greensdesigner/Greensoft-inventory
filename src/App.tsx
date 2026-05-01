@@ -59,7 +59,7 @@ import html2canvas from 'html2canvas';
 import html2pdf from 'html2pdf.js';
 import { useReactToPrint } from 'react-to-print';
 import { 
-  HashRouter as Router, 
+  BrowserRouter as Router, 
   Routes, 
   Route, 
   Link, 
@@ -4417,7 +4417,7 @@ const AuthPage = ({ type, login, signup }: any) => {
           </button>
         </form>
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 text-center space-y-4">
           <p className="text-sm text-slate-500">
             {type === 'login' ? t('noAccount') : t('haveAccount')}{' '}
             <Link
@@ -4427,6 +4427,15 @@ const AuthPage = ({ type, login, signup }: any) => {
               {type === 'login' ? t('signup') : t('login')}
             </Link>
           </p>
+
+          {type === 'login' && (
+            <Link 
+              to="/admin-portal" 
+              className="block pt-4 text-[10px] text-slate-400 hover:text-slate-600 font-medium tracking-widest uppercase transition-colors border-t border-slate-100"
+            >
+              Admin Access
+            </Link>
+          )}
         </div>
       </motion.div>
     </div>
