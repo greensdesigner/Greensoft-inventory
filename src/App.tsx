@@ -84,6 +84,13 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 
+// --- BRAND CONFIGURATION ---
+const BRAND_CONFIG = {
+  name: "Greensoft",
+  logo: null as string | null, // Set this to a URL string if you have a logo image
+  color: "emerald-600"
+};
+
 // --- TRANSLATIONS ---
 const translations: any = {
   en: {
@@ -877,12 +884,14 @@ const Layout = ({ children, user, logout, subscription }: any) => {
             <div className="flex items-center gap-3">
               {user?.logo ? (
                 <img src={user.logo} alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
+              ) : BRAND_CONFIG.logo ? (
+                <img src={BRAND_CONFIG.logo} alt="Logo" className="w-8 h-8 rounded-lg object-contain" />
               ) : (
-                <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold">
-                  G
+                <div className={`w-8 h-8 bg-${BRAND_CONFIG.color} rounded-lg flex items-center justify-center text-white font-bold`}>
+                  {BRAND_CONFIG.name.charAt(0)}
                 </div>
               )}
-              {!collapsed && <span className="text-xl font-bold text-slate-900">{user?.businessName || 'Greensoft'}</span>}
+              {!collapsed && <span className="text-xl font-bold text-slate-900">{user?.businessName || BRAND_CONFIG.name}</span>}
             </div>
           </div>
 
@@ -4278,10 +4287,20 @@ const AuthPage = ({ type, login, signup }: any) => {
         className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/20 p-8 relative z-10"
       >
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4">
-            G
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900">
+          {BRAND_CONFIG.logo ? (
+            <div className="w-20 h-20 mb-4 flex items-center justify-center">
+              <img 
+                src={BRAND_CONFIG.logo} 
+                alt={BRAND_CONFIG.name} 
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+          ) : (
+            <div className={`w-12 h-12 bg-${BRAND_CONFIG.color} rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4 shadow-lg shadow-emerald-500/20`}>
+              {BRAND_CONFIG.name.charAt(0)}
+            </div>
+          )}
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
             {type === 'login' ? t('welcomeBack') : t('createAccount')}
           </h2>
           <p className="text-slate-500 text-center mt-2">
