@@ -1,15 +1,42 @@
 import React, { useState, useEffect, FormEvent, useRef, ChangeEvent, ReactNode, Component } from 'react';
 
 // --- SAFETY WRAPPER ---
-const ErrorBoundary = ({ children, fallback }: { children: ReactNode, fallback: ReactNode }) => {
-  // Functional wrapper to maintain structure while solving class typing issues
-  try {
-    return <>{children}</>;
-  } catch (e) {
-    console.error("Critical Render Error:", e);
-    return <>{fallback}</>;
+class ErrorBoundary extends React.Component<{ children: React.ReactNode, fallback?: React.ReactNode }, { hasError: boolean, error: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
   }
-};
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("Critical Render Error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div className="p-8 text-center bg-red-50 min-h-screen flex flex-col items-center justify-center">
+          <AlertCircle size={48} className="text-red-500 mb-4" />
+          <h1 className="text-2xl font-bold text-red-900 mb-2">Something went wrong</h1>
+          <p className="text-red-600 mb-6">The application encountered a critical error. Please try refreshing.</p>
+          <pre className="text-xs bg-white p-4 rounded-xl border border-red-100 max-w-lg overflow-auto text-left mb-6">
+            {this.state.error?.message || String(this.state.error)}
+          </pre>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-6 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all"
+          >
+            Refresh App
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { 
   LayoutDashboard, 
   Package, 
@@ -1147,6 +1174,7 @@ const Layout = ({ children, user, logout, subscription }: any) => {
 // --- PAGES ---
 
 const Dashboard = ({ data }: any) => {
+  const { hasPermission } = useAuth();
   const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days'>('30days');
   const { t, lang } = useTranslation();
   const { formatCurrency, toBengaliNumber } = useCurrency();
@@ -1174,9 +1202,9 @@ const Dashboard = ({ data }: any) => {
     return date >= rangeDate;
   };
 
-  const filteredSales = data.sales.filter((s: any) => isWithinRange(s.date));
-  const filteredExpenses = data.expenses.filter((e: any) => isWithinRange(e.date));
-  const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r.date));
+  const filteredSales = (data.sales || []).filter((s: any) => isWithinRange(s?.date));
+  const filteredExpenses = (data.expenses || []).filter((e: any) => isWithinRange(e?.date));
+  const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r?.date));
 
   // 1. Calculate Sales Profit/Loss for the filtered range
   let totalSalesProfit = 0;
@@ -1184,17 +1212,18 @@ const Dashboard = ({ data }: any) => {
   let totalSalesGross = 0;
 
   filteredSales.forEach((s: any) => {
-    totalSalesGross += (s.total || 0);
-    if (s.items) {
-      s.items.forEach((item: any) => {
-        const cost = (item.buyPrice || 0) * item.quantity;
-        const profit = item.total - cost;
+    totalSalesGross += (Number(s.total) || 0);
+    const items = Array.isArray(s.items) ? s.items : [];
+    if (items.length > 0) {
+      items.forEach((item: any) => {
+        const cost = (Number(item.buyPrice) || 0) * (Number(item.quantity) || 1);
+        const profit = (Number(item.total) || 0) - cost;
         if (profit > 0) totalSalesProfit += profit;
         else if (profit < 0) totalSalesLoss += Math.abs(profit);
       });
     } else {
-      const cost = (s.buyPrice || 0) * (s.quantity || 1);
-      const profit = (s.total || 0) - cost;
+      const cost = (Number(s.buyPrice) || 0) * (Number(s.quantity) || 1);
+      const profit = (Number(s.total) || 0) - cost;
       if (profit > 0) totalSalesProfit += profit;
       else if (profit < 0) totalSalesLoss += Math.abs(profit);
     }
@@ -1227,23 +1256,24 @@ const Dashboard = ({ data }: any) => {
     let dProfit = 0;
     let dLoss = 0;
 
-    data.sales.filter((s: any) => s.date === date).forEach((s: any) => {
-      if (s.items) {
-        s.items.forEach((item: any) => {
-          const cost = (item.buyPrice || 0) * item.quantity;
-          const profit = item.total - cost;
+    (data.sales || []).filter((s: any) => s.date === date).forEach((s: any) => {
+      const items = Array.isArray(s.items) ? s.items : [];
+      if (items.length > 0) {
+        items.forEach((item: any) => {
+          const cost = (Number(item.buyPrice) || 0) * (Number(item.quantity) || 1);
+          const profit = (Number(item.total) || 0) - cost;
           if (profit > 0) dProfit += profit;
           else if (profit < 0) dLoss += Math.abs(profit);
         });
       } else {
-        const cost = (s.buyPrice || 0) * (s.quantity || 1);
-        const profit = (s.total || 0) - cost;
+        const cost = (Number(s.buyPrice) || 0) * (Number(s.quantity) || 1);
+        const profit = (Number(s.total) || 0) - cost;
         if (profit > 0) dProfit += profit;
         else if (profit < 0) dLoss += Math.abs(profit);
       }
     });
 
-    const dExpenses = data.expenses.filter((e: any) => e.date === date).reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
+    const dExpenses = (data.expenses || []).filter((e: any) => e.date === date).reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
     const dReturnsList = (data.returns || []).filter((r: any) => r.date === date);
     const dRefunds = Math.abs(dReturnsList.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
     const dExtraInc = dReturnsList.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
