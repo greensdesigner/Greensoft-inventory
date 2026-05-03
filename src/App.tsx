@@ -87,7 +87,7 @@ import { cn } from './lib/utils';
 // --- BRAND CONFIGURATION ---
 const BRAND_CONFIG = {
   name: "Greensoft",
-  logo: "https://srv2103-files.hstgr.io/3ad60623bf7a38b5/files/public_html/.builds/logo.png",
+  logo: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ9smqCpJW5Ix_xU5CAi1C5N01TqRAh76jKsg&s",
   color: "emerald-600"
 };
 
