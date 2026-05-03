@@ -343,7 +343,7 @@ app.post('/api/subscription/create-checkout-session', async (req, res) => {
                             name: 'GreenSoft Subscription Extension (30 Days)',
                             description: 'Extend your business management software subscription for 30 days.',
                         },
-                        unit_amount: 1000, // $10.00
+                        unit_amount: 10000, // $100.00
                     },
                     quantity: 1,
                 },

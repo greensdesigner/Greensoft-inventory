@@ -4073,7 +4073,7 @@ const Subscription = ({ subscription }: any) => {
               <p className="font-bold mb-1 underline">Instructions:</p>
               <ol className="list-decimal list-inside space-y-1 text-emerald-50">
                 <li>Send Money to any of the numbers above.</li>
-                <li>Monthly fee: {formatCurrency(1500, 0)}.</li>
+                <li>Monthly fee: {formatCurrency(100, 0)}.</li>
                 <li>After payment, send a screenshot to our WhatsApp.</li>
                 <li>We will provide you the 8-digit activation code.</li>
               </ol>
