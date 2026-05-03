@@ -2626,22 +2626,32 @@ const Sales = ({ data }: any) => {
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Product</label>
-                      <select 
+                      <input 
+                        list={`product-list-${index}`}
+                        type="text"
                         required
-                        value={item.productId}
-                        onChange={(e) => updateItem(index, 'productId', e.target.value)}
+                        placeholder="Search product..."
+                        value={item.productName || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateItem(index, 'productName', val);
+                          const product = data.inventory.find((p: any) => p.name === val);
+                          if (product) {
+                            updateItem(index, 'productId', product.id);
+                          }
+                        }}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                      >
-                        <option value="">Select Product</option>
+                      />
+                      <datalist id={`product-list-${index}`}>
                         {data.inventory
                           .filter((p: any) => (!item.productCategory || p.category === item.productCategory) && (!item.brand || p.brand === item.brand))
                           .map((p: any) => (
-                            <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
-                              {p.name} ({formatCurrency(p.price)}) - Stock: {lang === 'bn' ? toBengaliNumber(p.quantity) : p.quantity}
+                            <option key={p.id} value={p.name}>
+                              {p.name} ({formatCurrency(p.price)}) - Stock: {p.quantity}
                             </option>
                           ))
                         }
-                      </select>
+                      </datalist>
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Quantity</label>
@@ -2665,11 +2675,17 @@ const Sales = ({ data }: any) => {
                       <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Serial Number (Optional)</label>
                       <input 
                         type="text"
+                        list="serial-list"
                         value={item.serialNumber}
                         onChange={(e) => updateItem(index, 'serialNumber', e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
                         placeholder="SN-XXXXX"
                       />
+                      <datalist id="serial-list">
+                        {Array.from(new Set(data.sales.flatMap((s: any) => (s.items || []).map((i: any) => i.serialNumber)).filter(Boolean))).map((sn: any) => (
+                          <option key={sn} value={sn} />
+                        ))}
+                      </datalist>
                     </div>
                   </div>
                 </div>
@@ -3278,6 +3294,8 @@ const Returns = ({ data }: any) => {
   const [returnType, setReturnType] = useState<'Return' | 'Replace'>('Return');
   const [reason, setReason] = useState('');
   const [replaceAmount, setReplaceAmount] = useState('0');
+  const [replacementProduct, setReplacementProduct] = useState('');
+  const [replacementSerial, setReplacementSerial] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const { formatCurrency, toBengaliNumber } = useCurrency();
 
@@ -3313,6 +3331,8 @@ const Returns = ({ data }: any) => {
         totalAmount: amount,
         reason,
         type: returnType,
+        replacementProduct: returnType === 'Replace' ? replacementProduct : '',
+        replacementSerial: returnType === 'Replace' ? replacementSerial : '',
         date: getTodayStr()
       };
 
@@ -3323,6 +3343,8 @@ const Returns = ({ data }: any) => {
       setInvoiceNo('');
       setReason('');
       setReplaceAmount('0');
+      setReplacementProduct('');
+      setReplacementSerial('');
       if (data.fetchData) data.fetchData();
     } catch (e) {
       alert('Error processing return.');
@@ -3489,9 +3511,36 @@ const Returns = ({ data }: any) => {
                         <label className="block text-sm font-medium text-slate-700 mb-1">{t('replacementProduct')}</label>
                         <input 
                           type="text"
+                          list="replace-product-list"
+                          value={replacementProduct}
+                          onChange={(e) => setReplacementProduct(e.target.value)}
                           className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
                           placeholder={t('replacementProduct')}
                         />
+                        <datalist id="replace-product-list">
+                          {data.inventory.map((p: any) => (
+                            <option key={p.id} value={p.name}>
+                              {p.name} - Stock: {p.quantity}
+                            </option>
+                          ))}
+                        </datalist>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Replacement Serial Number (Optional)</label>
+                        <input 
+                          type="text"
+                          list="replace-serial-list"
+                          value={replacementSerial}
+                          onChange={(e) => setReplacementSerial(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          placeholder="SN-XXXXX"
+                        />
+                        <datalist id="replace-serial-list">
+                          {Array.from(new Set(data.sales.flatMap((s: any) => (s.items || []).map((i: any) => i.serialNumber)).filter(Boolean))).map((sn: any) => (
+                            <option key={sn} value={sn} />
+                          ))}
+                        </datalist>
                       </div>
                     </motion.div>
                   )}
