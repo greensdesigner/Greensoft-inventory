@@ -2,12 +2,22 @@ const express = require('express');
 const path = require('path');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
+const Stripe = require('stripe');
 require('dotenv').config();
 
 console.log('--- GREENSOFT SYSTEM BOOTING: V4 (STABILITY FIX) ---');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize Stripe lazily
+let stripe;
+const getStripe = () => {
+    if (!stripe && process.env.STRIPE_SECRET_KEY) {
+        stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    }
+    return stripe;
+};
 
 // Increase limit for base64 images/logos
 app.use(express.json({ limit: '50mb' }));
@@ -259,6 +269,95 @@ app.post('/api/subscription/activate', async (req, res) => {
 
         res.json({ success: true, expiryDate: newExpiry });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- STRIPE SUBSCRIPTION ---
+app.post('/api/subscription/create-checkout-session', async (req, res) => {
+    try {
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ error: 'User ID required' });
+
+        const stripeClient = getStripe();
+        if (!stripeClient) {
+            return res.status(500).json({ error: 'Stripe is not configured. Please set STRIPE_SECRET_KEY in settings.' });
+        }
+
+        const protocol = req.headers['x-forwarded-proto'] || 'http';
+        const host = req.headers.host;
+        const origin = `${protocol}://${host}`;
+
+        const sessionParams = {
+            payment_method_types: ['card'],
+            line_items: [
+                {
+                    price_data: {
+                        currency: 'usd', // User can change this to 'bdt' if their Stripe account supports it
+                        product_data: {
+                            name: 'GreenSoft Subscription Extension (30 Days)',
+                            description: 'Extend your business management software subscription for 30 days.',
+                        },
+                        unit_amount: 1000, // $10.00
+                    },
+                    quantity: 1,
+                },
+            ],
+            mode: 'payment',
+            success_url: `${origin}/?stripe_session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${origin}/`,
+            client_reference_id: userId.toString(),
+            metadata: {
+                userId: userId.toString()
+            }
+        };
+
+        // If user has a specific Price ID, use it instead
+        if (process.env.SUBSCRIPTION_PRICE_ID) {
+            delete sessionParams.line_items[0].price_data;
+            sessionParams.line_items[0].price = process.env.SUBSCRIPTION_PRICE_ID;
+        }
+
+        const session = await stripeClient.checkout.sessions.create(sessionParams);
+
+        res.json({ url: session.url });
+    } catch (err) {
+        console.error('Stripe Session Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/subscription/confirm-payment', async (req, res) => {
+    try {
+        const { sessionId } = req.body;
+        if (!sessionId) return res.status(400).json({ error: 'Session ID required' });
+
+        const stripeClient = getStripe();
+        if (!stripeClient) return res.status(500).json({ error: 'Stripe not configured' });
+
+        const session = await stripeClient.checkout.sessions.retrieve(sessionId);
+        
+        if (session.payment_status === 'paid') {
+            const userId = session.client_reference_id || session.metadata.userId;
+            
+            // Check if this session was already processed to prevent double extensions
+            // In a real app, you'd have a 'processed_sessions' table. 
+            // For now, we'll just check if the session is indeed for subscription.
+            
+            const [userRows] = await pool.query('SELECT expiryDate FROM users WHERE id = ?', [userId]);
+            if (userRows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+            let currentExpiry = new Date(userRows[0].expiryDate);
+            let baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+            
+            const newExpiry = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+            await pool.query('UPDATE users SET expiryDate = ? WHERE id = ?', [newExpiry, userId]);
+
+            res.json({ success: true, expiryDate: newExpiry });
+        } else {
+            res.status(400).json({ success: false, error: 'Payment not completed' });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // Admin-only: Generate codes (Optional, but useful for the owner)

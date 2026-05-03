@@ -1,4 +1,5 @@
 import React, { useState, useEffect, FormEvent, useRef, ChangeEvent, ReactNode, Component } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
 
 // --- SAFETY WRAPPER ---
 class ErrorBoundary extends (React.Component as any) {
@@ -430,9 +431,65 @@ const useSubscription = (user: any) => {
   };
 
   useEffect(() => {
-    if (user?.id) checkStatus();
-    else setSubscription(prev => ({ ...prev, loading: false }));
+    if (user?.id) {
+      checkStatus();
+      
+      // Handle Stripe Redirect Success
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('stripe_session_id');
+      if (sessionId) {
+        confirmStripePayment(sessionId);
+      }
+    } else {
+      setSubscription(prev => ({ ...prev, loading: false }));
+    }
   }, [user?.id]);
+
+  const confirmStripePayment = async (sessionId: string) => {
+    setSubscription(prev => ({ ...prev, loading: true }));
+    try {
+      const res = await fetch('/api/subscription/confirm-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSubscription({ active: true, expiryDate: data.expiryDate, loading: false });
+        alert('Payment successful! Your subscription has been extended by 30 days.');
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else {
+        alert('Payment confirmation failed. Please contact support.');
+        setSubscription(prev => ({ ...prev, loading: false }));
+      }
+    } catch (e) {
+      console.error('Confirm Payment Error:', e);
+      setSubscription(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const createStripeSession = async () => {
+    const checkId = user?.ownerId || user?.id;
+    if (!checkId) return alert('Please login first');
+    
+    try {
+      const res = await fetch('/api/subscription/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: checkId })
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || 'Could not create checkout session');
+      }
+    } catch (e) {
+      console.error('Stripe error:', e);
+      alert('Error connecting to payment gateway.');
+    }
+  };
 
   const activate = async (code: string) => {
     const checkId = user?.ownerId || user?.id;
@@ -463,7 +520,7 @@ const useSubscription = (user: any) => {
     }
   };
 
-  return { ...subscription, checkStatus, activate };
+  return { ...subscription, checkStatus, activate, createStripeSession };
 };
 
 // --- REAL AUTH HOOK ---
@@ -3980,6 +4037,17 @@ const Subscription = ({ subscription }: any) => {
             </p>
 
             <div className="space-y-4">
+              <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
+                <h4 className="font-bold mb-2">Online Payment (Stripe)</h4>
+                <p className="text-xs text-emerald-100 mb-4 tracking-normal">Pay instantly with Card/Wallet and activate automatically.</p>
+                <button 
+                  onClick={() => subscription.createStripeSession()}
+                  className="w-full py-3 bg-white text-emerald-600 rounded-xl font-bold hover:bg-emerald-50 transition-all flex items-center justify-center gap-2"
+                >
+                  <CreditCard size={18} /> Pay Online Now
+                </button>
+              </div>
+
               <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold">bKash (Personal)</span>
