@@ -157,6 +157,18 @@ const translations: any = {
     processing: "Processing...",
     softwareLoading: "Software is loading...",
     brandName: "Brand Name",
+    team: "Team",
+    role: "Role",
+    permissions: "Permissions",
+    addEmployee: "Add Employee",
+    editEmployee: "Edit Employee",
+    employeeName: "Employee Name",
+    view: "View",
+    edit: "Edit",
+    delete: "Delete",
+    savePermissions: "Save Permissions",
+    accessDenied: "Access Denied",
+    managerOnly: "This section is restricted",
   },
   bn: {
     dashboard: "ড্যাশবোর্ড",
@@ -222,6 +234,18 @@ const translations: any = {
     processing: "প্রসেসিং...",
     softwareLoading: "সফটওয়্যার লোড হচ্ছে...",
     brandName: "ব্র্যান্ড নেম",
+    team: "টিম",
+    role: "রোল",
+    permissions: "পারমিশন",
+    addEmployee: "কর্মচারী যোগ করুন",
+    editEmployee: "কর্মচারী এডিট",
+    employeeName: "কর্মচারীর নাম",
+    view: "ভিউ",
+    edit: "এডিট",
+    delete: "ডিলিট",
+    savePermissions: "পারমিশন সেভ করুন",
+    accessDenied: "এক্সেস ডিনাইড",
+    managerOnly: "এই সেকশনটি মালিক দ্বারা সংরক্ষিত",
   },
   es: {
     dashboard: "Tablero",
@@ -410,8 +434,31 @@ const useSubscription = (user: any) => {
 
 // --- REAL AUTH HOOK ---
 const useAuth = () => {
-  const [user, setUser] = useState<{ id: number; email: string; businessName: string; logo?: string; name?: string; phoneNumber?: string; address?: string; expiryDate?: string } | null>(null);
+  const [user, setUser] = useState<{ 
+    id: number; 
+    email: string; 
+    businessName: string; 
+    logo?: string; 
+    name?: string; 
+    phoneNumber?: string; 
+    address?: string; 
+    expiryDate?: string;
+    role?: 'OWNER' | 'MANAGER';
+    ownerId?: number;
+    permissions?: any;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const hasPermission = (module: string, action: 'view' | 'edit' | 'delete' = 'view') => {
+    if (!user) return false;
+    if (user.role === 'OWNER') return true;
+    if (!user.permissions) return false;
+    
+    const modPerms = user.permissions[module];
+    if (!modPerms) return false;
+    
+    return modPerms[action] === true;
+  };
 
   useEffect(() => {
     const savedUser = localStorage.getItem('greensoft_user');
@@ -491,7 +538,7 @@ const useAuth = () => {
     setUser(null);
   };
 
-  return { user, loading, login, signup, updateProfile, logout };
+  return { user, loading, login, signup, updateProfile, logout, hasPermission };
 };
 
 // --- DATA HOOK ---
@@ -568,7 +615,7 @@ const useData = (user: any) => {
 
       for (const entity of entities) {
         try {
-          const res = await fetch(`/api/${entity}?userId=${user.id}`);
+          const res = await fetch(`/api/${entity}?userId=${user.id}&role=${user.role || 'OWNER'}&ownerId=${user.ownerId || ''}`);
           if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data)) {
@@ -831,24 +878,35 @@ const Layout = ({ children, user, logout, subscription }: any) => {
   }, []);
 
   const isSubscribed = subscription?.active;
+  const { hasPermission } = useAuth();
 
   const navItems = [
-    { icon: LayoutDashboard, label: t('dashboard'), to: '/' },
-    { icon: Package, label: t('inventory'), to: '/inventory' },
-    { icon: ShoppingCart, label: t('sales'), to: '/sales' },
-    { icon: Truck, label: t('suppliers'), to: '/suppliers' },
-    { icon: Users, label: t('customers'), to: '/customers' },
-    { icon: Receipt, label: t('expenses'), to: '/expenses' },
-    { icon: RotateCcw, label: t('returns'), to: '/returns' },
-    { icon: BarChart3, label: t('reports'), to: '/reports' },
-    { icon: ShieldCheck, label: t('subscription'), to: '/subscription' },
-    { icon: SettingsIcon, label: t('settings'), to: '/settings' },
+    { icon: LayoutDashboard, label: t('dashboard'), to: '/', module: 'dashboard' },
+    { icon: Package, label: t('inventory'), to: '/inventory', module: 'inventory' },
+    { icon: ShoppingCart, label: t('sales'), to: '/sales', module: 'sales' },
+    { icon: Truck, label: t('suppliers'), to: '/suppliers', module: 'suppliers' },
+    { icon: Users, label: t('customers'), to: '/customers', module: 'customers' },
+    { icon: Receipt, label: t('expenses'), to: '/expenses', module: 'expenses' },
+    { icon: RotateCcw, label: t('returns'), to: '/returns', module: 'returns' },
+    { icon: BarChart3, label: t('reports'), to: '/reports', module: 'reports' },
+    { icon: ShieldCheck, label: t('subscription'), to: '/subscription', module: 'subscription' },
+    { icon: SettingsIcon, label: t('settings'), to: '/settings', module: 'settings' },
   ];
 
   // If not subscribed, only allow access to Subscription page
-  const filteredNavItems = isSubscribed 
-    ? navItems 
-    : navItems.filter(item => item.to === '/subscription');
+  const filteredNavItems = navItems.filter(item => {
+    // 1. Subscription check
+    if (!isSubscribed && item.to !== '/subscription') return false;
+    
+    // 2. Manager permission check
+    if (user?.role === 'MANAGER') {
+      if (item.module === 'subscription') return false; // Managers can't see subscription
+      if (item.module === 'dashboard' || item.module === 'settings') return true; // Allowed by default
+      return hasPermission(item.module, 'view');
+    }
+    
+    return true;
+  });
 
   const subscriptionDays = subscription?.expiryDate 
     ? Math.ceil((new Date(subscription.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
@@ -1204,14 +1262,14 @@ const Dashboard = ({ data }: any) => {
   });
 
   const stats = [
-    { label: t('netRevenue'), value: formatCurrency(netRevenue, 0), icon: DollarSign, color: 'bg-indigo-500' },
-    { label: t('currentProfit'), value: formatCurrency(displayProfit), icon: TrendingUp, color: 'bg-emerald-500' },
-    { label: t('currentLoss'), value: formatCurrency(displayLoss), icon: ArrowDownRight, color: 'bg-red-500' },
-    { label: t('totalExpenses'), value: formatCurrency(totalExpenses, 0), icon: Receipt, color: 'bg-orange-500' },
-    { label: t('totalRefunds'), value: formatCurrency(totalRefunds, 0), icon: RotateCcw, color: 'bg-slate-500' },
-    { label: t('totalReplacements'), value: formatCurrency(totalExtraIncome, 0), icon: RefreshCw, color: 'bg-indigo-400' },
-    { label: t('totalSales'), value: lang === 'bn' ? toBengaliNumber(filteredSales.length) : filteredSales.length.toString(), icon: ShoppingCart, color: 'bg-blue-500' },
-  ];
+    { key: 'sales', label: t('netRevenue'), value: formatCurrency(netRevenue, 0), icon: DollarSign, color: 'bg-indigo-500' },
+    { key: 'sales', label: t('currentProfit'), value: formatCurrency(displayProfit), icon: TrendingUp, color: 'bg-emerald-500' },
+    { key: 'sales', label: t('currentLoss'), value: formatCurrency(displayLoss), icon: ArrowDownRight, color: 'bg-red-500' },
+    { key: 'expenses', label: t('totalExpenses'), value: formatCurrency(totalExpenses, 0), icon: Receipt, color: 'bg-orange-500' },
+    { key: 'returns', label: t('totalRefunds'), value: formatCurrency(totalRefunds, 0), icon: RotateCcw, color: 'bg-slate-500' },
+    { key: 'returns', label: t('totalReplacements'), value: formatCurrency(totalExtraIncome, 0), icon: RefreshCw, color: 'bg-indigo-400' },
+    { key: 'sales', label: t('totalSales'), value: lang === 'bn' ? toBengaliNumber(filteredSales.length) : filteredSales.length.toString(), icon: ShoppingCart, color: 'bg-blue-500' },
+  ].filter(stat => hasPermission(stat.key as any, 'view'));
 
   const lowStockItems = data.inventory.filter((item: any) => item.quantity <= (item.minStock || 5));
 
@@ -1277,119 +1335,124 @@ const Dashboard = ({ data }: any) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-bold text-slate-900">Profit vs Loss Trend</h3>
-              <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                  <span className="text-slate-500">Profit</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                  <span className="text-slate-500">Loss</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
-                  <span className="text-slate-500">Net Profit</span>
+          {hasPermission('sales', 'view') && (
+            <Card>
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="font-bold text-slate-900">Profit vs Loss Trend</h3>
+                <div className="flex items-center gap-4 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                    <span className="text-slate-500">Profit</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                    <span className="text-slate-500">Loss</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
+                    <span className="text-slate-500">Net Profit</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="p-6 h-[350px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={dailyStats}>
-                  <defs>
-                    <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorLoss" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis 
-                    dataKey="date" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 12 }}
-                    dy={10}
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 12 }}
-                    tickFormatter={(value) => lang === 'bn' ? `৳${toBengaliNumber(value)}` : `$${value}`}
-                  />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                  />
-                  <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="3 3" />
-                  <Area 
-                    type="monotone" 
-                    dataKey="profit" 
-                    stroke="#10b981" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorProfit)" 
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="loss" 
-                    stroke="#ef4444" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorLoss)" 
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="net" 
-                    stroke="#6366f1" 
-                    strokeWidth={4} 
-                    dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
-                    activeDot={{ r: 6, strokeWidth: 0 }}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
+              <div className="p-6 h-[350px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={dailyStats}>
+                    <defs>
+                      <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorLoss" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="date" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 12 }}
+                      dy={10}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 12 }}
+                      tickFormatter={(value) => lang === 'bn' ? `৳${toBengaliNumber(value)}` : `$${value}`}
+                    />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                    />
+                    <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="3 3" />
+                    <Area 
+                      type="monotone" 
+                      dataKey="profit" 
+                      stroke="#10b981" 
+                      strokeWidth={2}
+                      fillOpacity={1} 
+                      fill="url(#colorProfit)" 
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="loss" 
+                      stroke="#ef4444" 
+                      strokeWidth={2}
+                      fillOpacity={1} 
+                      fill="url(#colorLoss)" 
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="net" 
+                      stroke="#6366f1" 
+                      strokeWidth={4} 
+                      dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          )}
 
-          <Card>
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-bold text-slate-900">Recent Sales</h3>
-              <Link to="/sales" className="text-sm text-emerald-600 font-medium hover:underline">View all</Link>
-            </div>
-            {data.sales.length > 0 ? (
-              <Table headers={['Customer', 'Date', 'Sales Price', 'Status']}>
-                {data.sales.slice(-5).reverse().map((item: any) => (
-                  <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-slate-900">{item.customerName}</div>
-                      <div className="text-xs text-slate-500">INV-{item.id.slice(-4)}</div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-900">{formatCurrency(item.total)}</td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full">Completed</span>
-                    </td>
-                  </tr>
-                ))}
-              </Table>
-            ) : (
-              <EmptyState 
-                icon={ShoppingCart} 
-                title="No sales yet" 
-                description="Your recent transactions will appear here once you start selling."
-              />
-            )}
-          </Card>
+          {hasPermission('sales', 'view') && (
+            <Card>
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="font-bold text-slate-900">Recent Sales</h3>
+                <Link to="/sales" className="text-sm text-emerald-600 font-medium hover:underline">View all</Link>
+              </div>
+              {data.sales.length > 0 ? (
+                <Table headers={['Customer', 'Date', 'Sales Price', 'Status']}>
+                  {data.sales.slice(-5).reverse().map((item: any) => (
+                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-slate-900">{item.customerName}</div>
+                        <div className="text-xs text-slate-500">INV-{item.id.slice(-4)}</div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
+                      <td className="px-6 py-4 font-semibold text-slate-900">{formatCurrency(item.total)}</td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full">Completed</span>
+                      </td>
+                    </tr>
+                  ))}
+                </Table>
+              ) : (
+                <EmptyState 
+                  icon={ShoppingCart} 
+                  title="No sales yet" 
+                  description="Your recent transactions will appear here once you start selling."
+                />
+              )}
+            </Card>
+          )}
         </div>
 
         <div className="space-y-6">
-          <Card className="p-6">
-            <h3 className="font-bold text-slate-900 mb-6">Low Stock Alerts</h3>
-            {lowStockItems.length > 0 ? (
+          {hasPermission('inventory', 'view') && (
+            <Card className="p-6">
+              <h3 className="font-bold text-slate-900 mb-6">Low Stock Alerts</h3>
+              {lowStockItems.length > 0 ? (
               <div className="space-y-4">
                 {lowStockItems.slice(0, 3).map((item: any) => (
                   <div key={item.id} className="flex items-center gap-4 p-3 rounded-xl bg-orange-50 border border-orange-100">
@@ -1415,10 +1478,11 @@ const Dashboard = ({ data }: any) => {
               View Inventory
             </Link>
           </Card>
-        </div>
+        )}
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 const QRScanner = ({ onScan, onClose }: { onScan: (data: string) => void, onClose: () => void }) => {
@@ -1459,6 +1523,7 @@ const QRScanner = ({ onScan, onClose }: { onScan: (data: string) => void, onClos
 };
 
 const Inventory = ({ data }: any) => {
+  const { hasPermission } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [selectedQRItem, setSelectedQRItem] = useState<any>(null);
@@ -1527,7 +1592,7 @@ const Inventory = ({ data }: any) => {
       <PageHeader 
         title="Inventory Management" 
         description="Track and manage your stock levels." 
-        action="Add Item" 
+        action={hasPermission('inventory', 'edit') ? "Add Item" : null} 
         onAction={() => { setEditingItem(null); setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '', brand: '' }); setIsModalOpen(true); }}
       />
       <Card>
@@ -1588,18 +1653,22 @@ const Inventory = ({ data }: any) => {
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => openEdit(item)}
-                      className="text-emerald-600 hover:text-emerald-700 font-medium text-sm"
-                    >
-                      Edit
-                    </button>
-                    <button 
-                      onClick={() => data.deleteItem('inventory', item.id, data.setInventory)}
-                      className="text-red-600 hover:text-red-700 font-medium text-sm"
-                    >
-                      Delete
-                    </button>
+                    {hasPermission('inventory', 'edit') && (
+                      <button 
+                        onClick={() => openEdit(item)}
+                        className="text-emerald-600 hover:text-emerald-700 font-medium text-sm"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {hasPermission('inventory', 'delete') && (
+                      <button 
+                        onClick={() => data.deleteItem('inventory', item.id, data.setInventory)}
+                        className="text-red-600 hover:text-red-700 font-medium text-sm"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -2122,6 +2191,7 @@ const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () 
 };
 
 const Sales = ({ data }: any) => {
+  const { hasPermission } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -2343,7 +2413,7 @@ const Sales = ({ data }: any) => {
       <PageHeader 
         title="Sales History" 
         description="View and manage your business transactions." 
-        action="New Sale" 
+        action={hasPermission('sales', 'edit') ? "New Sale" : null} 
         onAction={() => setIsModalOpen(true)}
       />
       <Card>
@@ -2384,12 +2454,14 @@ const Sales = ({ data }: any) => {
                     >
                       <FileText size={14} /> Invoice
                     </button>
-                    <button 
-                      onClick={() => data.deleteItem('sales', item.id, data.setSales)}
-                      className="text-red-600 hover:text-red-700 font-medium text-sm"
-                    >
-                      Delete
-                    </button>
+                    {hasPermission('sales', 'delete') && (
+                      <button 
+                        onClick={() => data.deleteItem('sales', item.id, data.setSales)}
+                        className="text-red-600 hover:text-red-700 font-medium text-sm"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -2601,6 +2673,7 @@ const Sales = ({ data }: any) => {
 };
 
 const Suppliers = ({ data }: any) => {
+  const { hasPermission } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
@@ -2624,7 +2697,7 @@ const Suppliers = ({ data }: any) => {
       <PageHeader 
         title="Suppliers" 
         description="Manage your supply chain partners." 
-        action="Add Supplier" 
+        action={hasPermission('suppliers', 'edit') ? "Add Supplier" : null} 
         onAction={() => setIsModalOpen(true)}
       />
       {data.suppliers.length > 0 ? (
@@ -2635,12 +2708,14 @@ const Suppliers = ({ data }: any) => {
                 <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
                   <Truck size={24} />
                 </div>
-                <button 
-                  onClick={() => data.deleteItem('suppliers', item.id, data.setSuppliers)}
-                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <X size={16} />
-                </button>
+                {hasPermission('suppliers', 'delete') && (
+                  <button 
+                    onClick={() => data.deleteItem('suppliers', item.id, data.setSuppliers)}
+                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
               </div>
               <h4 className="font-bold text-lg text-slate-900">{item.name}</h4>
               <p className="text-sm text-slate-500 mb-4">{item.category}</p>
@@ -2655,12 +2730,14 @@ const Suppliers = ({ data }: any) => {
                   </div>
                 )}
               </div>
-              <button 
-                onClick={() => handleView(item)}
-                className="w-full mt-6 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors"
-              >
-                View Details
-              </button>
+              <div className="flex items-center gap-2 mt-6">
+                <button 
+                  onClick={() => handleView(item)}
+                  className="flex-1 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors"
+                >
+                  View Details
+                </button>
+              </div>
             </Card>
           ))}
         </div>
@@ -2670,7 +2747,7 @@ const Suppliers = ({ data }: any) => {
             icon={Truck} 
             title="No suppliers yet" 
             description="Keep track of your vendors and supply chain partners here."
-            action="Add Supplier"
+            action={hasPermission('suppliers', 'edit') ? "Add Supplier" : null}
             onAction={() => setIsModalOpen(true)}
           />
         </Card>
@@ -2770,6 +2847,7 @@ const Suppliers = ({ data }: any) => {
 };
 
 const Customers = ({ data }: any) => {
+  const { hasPermission } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -2801,7 +2879,7 @@ const Customers = ({ data }: any) => {
       <PageHeader 
         title="Customers" 
         description="Build and maintain customer relationships." 
-        action="Add Customer" 
+        action={hasPermission('customers', 'edit') ? "Add Customer" : null} 
         onAction={() => setIsModalOpen(true)}
       />
       <Card>
@@ -2830,12 +2908,14 @@ const Customers = ({ data }: any) => {
                     >
                       View
                     </button>
-                    <button 
-                      onClick={() => data.deleteItem('customers', item.id, data.setCustomers)}
-                      className="text-red-600 hover:text-red-700 font-medium text-sm"
-                    >
-                      Delete
-                    </button>
+                    {hasPermission('customers', 'delete') && (
+                      <button 
+                        onClick={() => data.deleteItem('customers', item.id, data.setCustomers)}
+                        className="text-red-600 hover:text-red-700 font-medium text-sm"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -2955,6 +3035,7 @@ const Customers = ({ data }: any) => {
 };
 
 const Expenses = ({ data }: any) => {
+  const { hasPermission } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { formatCurrency } = useCurrency();
   const [newExpense, setNewExpense] = useState({ 
@@ -2988,7 +3069,7 @@ const Expenses = ({ data }: any) => {
       <PageHeader 
         title="Expenses" 
         description="Track your business spending and overhead." 
-        action="Add Expense" 
+        action={hasPermission('expenses', 'edit') ? "Add Expense" : null} 
         onAction={() => setIsModalOpen(true)}
       />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -3013,12 +3094,14 @@ const Expenses = ({ data }: any) => {
                     </td>
                     <td className="px-6 py-4 font-semibold text-red-600">-{formatCurrency(item.amount)}</td>
                     <td className="px-6 py-4">
-                      <button 
-                        onClick={() => data.deleteItem('expenses', item.id, data.setExpenses)}
-                        className="text-red-600 hover:text-red-700 font-medium text-sm"
-                      >
-                        Delete
-                      </button>
+                      {hasPermission('expenses', 'delete') && (
+                        <button 
+                          onClick={() => data.deleteItem('expenses', item.id, data.setExpenses)}
+                          className="text-red-600 hover:text-red-700 font-medium text-sm"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -3145,6 +3228,7 @@ const Expenses = ({ data }: any) => {
 
 const Returns = ({ data }: any) => {
   const { t, lang } = useTranslation();
+  const { hasPermission } = useAuth();
   const [invoiceNo, setInvoiceNo] = useState('');
   const [foundSale, setFoundSale] = useState<any>(null);
   const [searchError, setSearchError] = useState('');
@@ -3382,7 +3466,7 @@ const Returns = ({ data }: any) => {
 
                   <button 
                     onClick={handleProcess}
-                    disabled={isProcessing || !reason}
+                    disabled={isProcessing || !reason || !hasPermission('returns', 'edit')}
                     className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-600/10 disabled:opacity-50"
                   >
                     {isProcessing ? "Processing..." : `${t('process')} ${returnType}`}
@@ -3418,12 +3502,14 @@ const Returns = ({ data }: any) => {
                       )}>
                         {ret.totalAmount < 0 ? '-' : '+'}{formatCurrency(Math.abs(ret.totalAmount))}
                       </p>
-                      <button 
-                        onClick={() => data.deleteItem('returns', ret.id, data.setReturns)}
-                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-100 rounded-xl transition-all"
-                      >
-                        <X size={16} />
-                      </button>
+                      {hasPermission('returns', 'delete') && (
+                        <button 
+                          onClick={() => data.deleteItem('returns', ret.id, data.setReturns)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-100 rounded-xl transition-all"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -3856,7 +3942,264 @@ const Subscription = ({ subscription }: any) => {
   );
 };
 
+const TeamManagement = ({ user }: any) => {
+  const [managers, setManagers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingManager, setEditingManager] = useState<any>(null);
+  const { t } = useTranslation();
+
+  const fetchManagers = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/managers?ownerId=${user.id}`);
+      const data = await res.json();
+      setManagers(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error('Failed to fetch managers:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchManagers();
+  }, []);
+
+  const handleDelete = async (id: number) => {
+    if (confirm('Are you sure you want to remove this employee?')) {
+      await fetch(`/api/managers/${id}`, { method: 'DELETE' });
+      fetchManagers();
+    }
+  };
+
+  const defaultPermissions = {
+    inventory: { view: true, edit: false, delete: false },
+    sales: { view: true, edit: false, delete: false },
+    expenses: { view: true, edit: false, delete: false },
+    returns: { view: true, edit: false, delete: false },
+    suppliers: { view: true, edit: false, delete: false },
+    customers: { view: true, edit: false, delete: false },
+    reports: { view: true },
+  };
+
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    permissions: defaultPermissions
+  });
+
+  const handleOpenModal = (manager: any = null) => {
+    if (manager) {
+      setEditingManager(manager);
+      setFormData({
+        name: manager.name,
+        email: manager.email,
+        password: '',
+        permissions: manager.permissions || defaultPermissions
+      });
+    } else {
+      setEditingManager(null);
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        permissions: defaultPermissions
+      });
+    }
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const method = editingManager ? 'PATCH' : 'POST';
+      const url = editingManager ? `/api/managers/${editingManager.id}` : '/api/managers';
+      
+      const payload = editingManager 
+        ? { name: formData.name, permissions: formData.permissions, password: formData.password }
+        : { ...formData, ownerId: user.id };
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        setShowModal(false);
+        fetchManagers();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to save manager');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const togglePermission = (module: string, action: string) => {
+    setFormData(prev => ({
+      ...prev,
+      permissions: {
+        ...prev.permissions,
+        [module]: {
+          ...prev.permissions[module],
+          [action]: !prev.permissions[module][action]
+        }
+      }
+    }));
+  };
+
+  const modules = [
+    { id: 'inventory', label: t('inventory') },
+    { id: 'sales', label: t('sales') },
+    { id: 'expenses', label: t('expenses') },
+    { id: 'returns', label: t('returns') },
+    { id: 'suppliers', label: t('suppliers') },
+    { id: 'customers', label: t('customers') },
+    { id: 'reports', label: t('reports') },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-slate-900">{t('team')}</h3>
+        <button 
+          onClick={() => handleOpenModal()} 
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors"
+        >
+          <Plus size={16} /> {t('addEmployee')}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {managers.map(manager => (
+          <Card key={manager.id} className="p-6 relative group border-slate-200">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center font-bold text-xl uppercase">
+                {manager.name.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-slate-900 truncate">{manager.name}</h4>
+                <p className="text-xs text-slate-500 truncate">{manager.email}</p>
+              </div>
+            </div>
+            
+            <div className="mt-6 flex items-center gap-2">
+              <button 
+                onClick={() => handleOpenModal(manager)}
+                className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-100 transition-colors"
+              >
+                {t('edit')}
+              </button>
+              <button 
+                onClick={() => handleDelete(manager.id)}
+                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </Card>
+        ))}
+        {managers.length === 0 && (
+          <div className="col-span-full py-12 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+            <Users className="mx-auto text-slate-300 mb-4" size={48} />
+            <p className="text-slate-500 font-medium">No team members added yet.</p>
+          </div>
+        )}
+      </div>
+
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editingManager ? t('editEmployee') : t('addEmployee')}>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('employeeName')}</label>
+              <input 
+                type="text" required 
+                value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('emailLabel')}</label>
+              <input 
+                type="email" required 
+                value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}
+                disabled={!!editingManager}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none disabled:opacity-50" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                {editingManager ? "New Password (Leave blank to keep current)" : t('passwordLabel')}
+              </label>
+              <input 
+                type="password" required={!editingManager}
+                value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="font-bold text-sm text-slate-900 border-b border-slate-100 pb-2">{t('permissions')}</h4>
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              {modules.map(mod => (
+                <div key={mod.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-bold text-slate-700 uppercase tracking-tight">{mod.label}</span>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={formData.permissions[mod.id as keyof typeof formData.permissions]?.view} 
+                          onChange={() => togglePermission(mod.id, 'view')}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">{t('view')}</span>
+                      </label>
+                      {mod.id !== 'reports' && (
+                        <>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={formData.permissions[mod.id as keyof typeof formData.permissions]?.edit} 
+                              onChange={() => togglePermission(mod.id, 'edit')}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">{t('edit')}</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={formData.permissions[mod.id as keyof typeof formData.permissions]?.delete} 
+                              onChange={() => togglePermission(mod.id, 'delete')}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">{t('delete')}</span>
+                          </label>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button type="submit" className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">
+            {editingManager ? t('savePermissions') : t('addEmployee')}
+          </button>
+        </form>
+      </Modal>
+    </div>
+  );
+};
+
 const Settings = ({ user, data, updateProfile }: any) => {
+  const [activeTab, setActiveTab] = useState<'profile' | 'team'>('profile');
   const [businessName, setBusinessName] = useState(user?.businessName || '');
   const [email, setEmail] = useState(user?.email || '');
   const [name, setName] = useState(user?.name || '');
@@ -3948,125 +4291,158 @@ const Settings = ({ user, data, updateProfile }: any) => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Settings" description="Manage your business profile and application preferences." />
+      <PageHeader title={t('settings')} description="Manage your business profile and team." />
       
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <ShieldCheck size={20} className="text-emerald-600" />
-              System Debugger
-            </h3>
-            <p className="text-sm text-slate-500 mt-1">If your data isn't saving or you see a white screen, click the button below to check.</p>
-          </div>
+      {user?.role === 'OWNER' && (
+        <div className="flex border-b border-slate-200">
           <button 
-            onClick={checkDatabaseConnection}
-            disabled={isRefreshingDB}
-            className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+            onClick={() => setActiveTab('profile')} 
+            className={cn(
+              "px-8 py-4 text-sm font-bold transition-all relative",
+              activeTab === 'profile' ? "text-emerald-600" : "text-slate-500 hover:text-slate-700"
+            )}
           >
-            {isRefreshingDB ? 'Checking...' : 'Check Connection'}
+            Profile
+            {activeTab === 'profile' && <motion.div layoutId="settingTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />}
+          </button>
+          <button 
+            onClick={() => setActiveTab('team')} 
+            className={cn(
+              "px-8 py-4 text-sm font-bold transition-all relative",
+              activeTab === 'team' ? "text-emerald-600" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            {t('team')} Management
+            {activeTab === 'team' && <motion.div layoutId="settingTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />}
           </button>
         </div>
-        {dbStatus && (
-          <div className={cn(
-            "mt-4 p-4 rounded-xl font-bold text-sm",
-            dbStatus.includes('OK') ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-red-50 text-red-700 border border-red-100"
-          )}>
-            {dbStatus}
-          </div>
-        )}
-      </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="p-6">
-            <h3 className="font-bold text-slate-900 mb-6">Business Profile</h3>
-            {updateError && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm font-bold flex items-center gap-2">
-                <AlertCircle size={18} /> {updateError}
+      {activeTab === 'profile' ? (
+        <>
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <ShieldCheck size={20} className="text-emerald-600" />
+                  System Debugger
+                </h3>
+                <p className="text-sm text-slate-500 mt-1">If your data isn't saving or you see a white screen, click the button below to check.</p>
+              </div>
+              <button 
+                onClick={checkDatabaseConnection}
+                disabled={isRefreshingDB}
+                className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+              >
+                {isRefreshingDB ? 'Checking...' : 'Check Connection'}
+              </button>
+            </div>
+            {dbStatus && (
+              <div className={cn(
+                "mt-4 p-4 rounded-xl font-bold text-sm",
+                dbStatus.includes('OK') ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-red-50 text-red-700 border border-red-100"
+              )}>
+                {dbStatus}
               </div>
             )}
-            <form onSubmit={handleUpdate} className="space-y-4">
-              <div className="flex flex-col md:flex-row gap-6 mb-6">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-24 h-24 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative group">
-                    {logo ? (
-                      <img src={logo} alt="Business Logo" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-slate-400 flex flex-col items-center">
-                        <Plus size={24} />
-                        <span className="text-[10px] font-bold uppercase mt-1">Logo</span>
-                      </div>
-                    )}
-                    <label className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-xs font-bold">
-                      Change
-                      <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
-                    </label>
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Business Logo</p>
-                </div>
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Business Name</label>
-                    <input 
-                      type="text" required 
-                      value={businessName} onChange={e => setBusinessName(e.target.value)}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                    <input 
-                      type="email" required 
-                      value={email} onChange={e => setEmail(e.target.value)}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-                    <input 
-                      type="text" required 
-                      value={name} onChange={e => setName(e.target.value)}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('phoneLabel')}</label>
-                    <input 
-                      type="tel" required 
-                      value={phone} onChange={e => setPhone(e.target.value)}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('addressLabel')}</label>
-                    <textarea 
-                      required 
-                      value={address} onChange={e => setAddress(e.target.value)}
-                      rows={2}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none resize-none" 
-                    />
-                  </div>
-                </div>
-              </div>
-              <button type="submit" disabled={isUpdating} className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-all disabled:opacity-50">
-                {isUpdating ? 'Updating...' : 'Update Profile'}
-              </button>
-            </form>
-          </Card>
+          </div>
 
-          <Card className="p-6 border-red-100">
-            <h3 className="font-bold text-red-600 mb-2">Danger Zone</h3>
-            <p className="text-sm text-slate-500 mb-6">Permanently delete all your business data. This action is irreversible.</p>
-            <button 
-              onClick={clearAllData}
-              className="px-6 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl font-medium hover:bg-red-600 hover:text-white transition-all"
-            >
-              Clear All Data
-            </button>
-          </Card>
-        </div>
-      </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <Card className="p-6">
+                <h3 className="font-bold text-slate-900 mb-6 font-primary text-lg">Business Profile</h3>
+                {updateError && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm font-bold flex items-center gap-2">
+                    <AlertCircle size={18} /> {updateError}
+                  </div>
+                )}
+                <form onSubmit={handleUpdate} className="space-y-4">
+                  <div className="flex flex-col md:flex-row gap-6 mb-6">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-24 h-24 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative group">
+                        {logo ? (
+                          <img src={logo} alt="Business Logo" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="text-slate-400 flex flex-col items-center">
+                            <Plus size={24} />
+                            <span className="text-[10px] font-bold uppercase mt-1">Logo</span>
+                          </div>
+                        )}
+                        <label className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-xs font-bold">
+                          Change
+                          <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                        </label>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Business Logo</p>
+                    </div>
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Business Name</label>
+                        <input 
+                          type="text" required 
+                          value={businessName} onChange={e => setBusinessName(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                        <input 
+                          type="email" required 
+                          value={email} onChange={e => setEmail(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+                        <input 
+                          type="text" required 
+                          value={name} onChange={e => setName(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">{t('phoneLabel')}</label>
+                        <input 
+                          type="tel" required 
+                          value={phone} onChange={e => setPhone(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">{t('addressLabel')}</label>
+                        <textarea 
+                          required 
+                          value={address} onChange={e => setAddress(e.target.value)}
+                          rows={2}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none resize-none" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <button type="submit" disabled={isUpdating} className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-all disabled:opacity-50">
+                    {isUpdating ? 'Updating...' : 'Update Profile'}
+                  </button>
+                </form>
+              </Card>
+
+              {user?.role === 'OWNER' && (
+                <Card className="p-6 border-red-100">
+                  <h3 className="font-bold text-red-600 mb-2 font-primary text-lg">Danger Zone</h3>
+                  <p className="text-sm text-slate-500 mb-6">Permanently delete all your business data. This action is irreversible.</p>
+                  <button 
+                    onClick={clearAllData}
+                    className="px-6 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl font-medium hover:bg-red-600 hover:text-white transition-all"
+                  >
+                    Clear All Data
+                  </button>
+                </Card>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        <TeamManagement user={user} />
+      )}
     </div>
   );
 };

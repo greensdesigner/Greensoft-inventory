@@ -56,6 +56,7 @@ async function ensureAllTables() {
         
         // --- NEW: SUBSCRIPTION SYSTEM TABLES ---
         await conn.query(`CREATE TABLE IF NOT EXISTS \`activation_codes\` (id INT AUTO_INCREMENT PRIMARY KEY, \`code\` VARCHAR(255) UNIQUE, \`isUsed\` TINYINT(1) DEFAULT 0, \`usedAt\` VARCHAR(50), \`usedByUserId\` INT)`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`managers\` (id INT AUTO_INCREMENT PRIMARY KEY, \`ownerId\` INT, \`name\` VARCHAR(255), \`email\` VARCHAR(255) UNIQUE, \`password\` VARCHAR(255), \`permissions\` JSON, \`createdAt\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
 
         // Sync columns for existing installations
         await checkAndAddColumn(conn, 'users', 'expiryDate', 'VARCHAR(50)');
@@ -135,11 +136,57 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-        if (rows.length === 0) return res.status(401).json({ error: 'User not found' });
-        const match = await bcrypt.compare(password, rows[0].password);
-        if (!match) return res.status(401).json({ error: 'Wrong password' });
-        res.json({ success: true, user: { id: rows[0].id, email: rows[0].email, businessName: rows[0].businessName, name: rows[0].fullName, expiryDate: rows[0].expiryDate, phoneNumber: rows[0].phoneNumber, address: rows[0].address, logo: rows[0].logo } });
+        
+        // 1. Check Owners
+        const [ownerRows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+        if (ownerRows.length > 0) {
+            const match = await bcrypt.compare(password, ownerRows[0].password);
+            if (!match) return res.status(401).json({ error: 'Wrong password' });
+            return res.json({ 
+                success: true, 
+                user: { 
+                    id: ownerRows[0].id, 
+                    email: ownerRows[0].email, 
+                    businessName: ownerRows[0].businessName, 
+                    name: ownerRows[0].fullName, 
+                    expiryDate: ownerRows[0].expiryDate, 
+                    phoneNumber: ownerRows[0].phoneNumber, 
+                    address: ownerRows[0].address, 
+                    logo: ownerRows[0].logo,
+                    role: 'OWNER' 
+                } 
+            });
+        }
+
+        // 2. Check Managers
+        const [managerRows] = await pool.query('SELECT m.*, u.businessName, u.logo, u.expiryDate FROM managers m JOIN users u ON m.ownerId = u.id WHERE m.email = ?', [email]);
+        if (managerRows.length > 0) {
+            const match = await bcrypt.compare(password, managerRows[0].password);
+            if (!match) return res.status(401).json({ error: 'Wrong password' });
+            
+            // Format permissions if it's a string
+            let permissions = managerRows[0].permissions;
+            if (typeof permissions === 'string') {
+                try { permissions = JSON.parse(permissions); } catch (e) { permissions = {}; }
+            }
+
+            return res.json({
+                success: true,
+                user: {
+                    id: managerRows[0].id,
+                    ownerId: managerRows[0].ownerId,
+                    email: managerRows[0].email,
+                    businessName: managerRows[0].businessName,
+                    name: managerRows[0].name,
+                    expiryDate: managerRows[0].expiryDate,
+                    logo: managerRows[0].logo,
+                    role: 'MANAGER',
+                    permissions: permissions
+                }
+            });
+        }
+
+        return res.status(401).json({ error: 'User not found' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -233,14 +280,76 @@ app.post('/api/admin/generate-codes', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// --- MANAGER MANAGEMENT API ---
+app.get('/api/managers', async (req, res) => {
+    try {
+        const ownerId = req.query.ownerId;
+        if (!ownerId) return res.status(400).json({ error: 'Owner ID required' });
+        const [rows] = await pool.query('SELECT id, name, email, permissions FROM managers WHERE ownerId = ?', [ownerId]);
+        res.json(rows.map(m => ({
+            ...m,
+            permissions: typeof m.permissions === 'string' ? JSON.parse(m.permissions) : m.permissions
+        })));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/managers', async (req, res) => {
+    try {
+        const { ownerId, name, email, password, permissions } = req.body;
+        if (!ownerId || !email || !password) return res.status(400).json({ error: 'Required fields missing' });
+
+        const [existing] = await pool.query('SELECT id FROM managers WHERE email = ? UNION SELECT id FROM users WHERE email = ?', [email, email]);
+        if (existing.length > 0) return res.status(400).json({ error: 'Email already exists' });
+
+        const hashed = await bcrypt.hash(password, 10);
+        const [result] = await pool.query('INSERT INTO managers (ownerId, name, email, password, permissions) VALUES (?, ?, ?, ?, ?)', [ownerId, name, email, hashed, JSON.stringify(permissions)]);
+        
+        res.json({ success: true, id: result.insertId });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/api/managers/:id', async (req, res) => {
+    try {
+        const { permissions, name, password } = req.body;
+        const managerId = req.params.id;
+        
+        let query = 'UPDATE managers SET name = ?, permissions = ?';
+        let params = [name, JSON.stringify(permissions)];
+        
+        if (password) {
+            const hashed = await bcrypt.hash(password, 10);
+            query += ', password = ?';
+            params.push(hashed);
+        }
+        
+        query += ' WHERE id = ?';
+        params.push(managerId);
+        
+        await pool.query(query, params);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/managers/:id', async (req, res) => {
+    try {
+        await pool.query('DELETE FROM managers WHERE id = ?', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Entity API
 const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses', 'returns'];
 entities.forEach(entity => {
     app.get(`/api/${entity}`, async (req, res) => {
         try {
             const userId = req.query.userId;
-            if (!userId) return res.status(400).json({ error: 'User ID required' });
-            const [rows] = await pool.query(`SELECT * FROM \`${entity}\` WHERE userId = ?`, [userId]);
+            const role = req.query.role;
+            const ownerId = req.query.ownerId; // If manager, we need the owner's data
+            
+            const effectiveUserId = role === 'MANAGER' ? ownerId : userId;
+            
+            if (!effectiveUserId) return res.status(400).json({ error: 'User ID required' });
+            const [rows] = await pool.query(`SELECT * FROM \`${entity}\` WHERE userId = ?`, [effectiveUserId]);
             res.json(rows);
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
@@ -248,6 +357,13 @@ entities.forEach(entity => {
     app.post(`/api/${entity}`, async (req, res) => {
         try {
             const data = req.body;
+            const role = req.query.role;
+            const ownerId = req.query.ownerId;
+            
+            if (role === 'MANAGER' && ownerId) {
+                data.userId = ownerId;
+            }
+
             if (!data.userId) return res.status(400).json({ error: 'User ID required' });
             
             const columns = Object.keys(data);
@@ -264,8 +380,13 @@ entities.forEach(entity => {
     app.delete(`/api/${entity}/:id`, async (req, res) => {
         try {
             const userId = req.query.userId;
-            if (!userId) return res.status(400).json({ error: 'User ID required' });
-            await pool.query(`DELETE FROM \`${entity}\` WHERE id = ? AND userId = ?`, [req.params.id, userId]);
+            const role = req.query.role;
+            const ownerId = req.query.ownerId;
+            
+            const effectiveUserId = role === 'MANAGER' ? ownerId : userId;
+
+            if (!effectiveUserId) return res.status(400).json({ error: 'User ID required' });
+            await pool.query(`DELETE FROM \`${entity}\` WHERE id = ? AND userId = ?`, [req.params.id, effectiveUserId]);
             res.json({ success: true });
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
