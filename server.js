@@ -14,7 +14,10 @@ const PORT = process.env.PORT || 3000;
 let stripe;
 const getStripe = () => {
     if (!stripe && process.env.STRIPE_SECRET_KEY) {
+        console.log('Stripe initialization: Secret key found.');
         stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    } else if (!stripe) {
+        console.log('Stripe initialization: Secret key missing from process.env');
     }
     return stripe;
 };
