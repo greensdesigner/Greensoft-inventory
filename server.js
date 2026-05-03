@@ -19,31 +19,36 @@ const getStripe = () => {
     let key = process.env.STRIPE_SECRET_KEY || 
               process.env.STRIPE_SECRET_KE || 
               process.env.VITE_STRIPE_SECRET_KEY ||
-              process.env.STRIPE_KEY;
+              process.env.STRIPE_KEY ||
+              process.env.stripe_secret_key;
     
     // Robust fallback: If still not found, search through all environment variables
     // for anything that looks like a Stripe secret key (starts with sk_test_ or sk_live_)
     if (!key) {
+        console.log('Stripe: Searching all env vars for secret key pattern...');
         for (const [envName, envValue] of Object.entries(process.env)) {
-            if (envValue && typeof envValue === 'string' && 
-               (envValue.startsWith('sk_test_') || envValue.startsWith('sk_live_'))) {
-                console.log(`Auto-detected Stripe secret key in environment variable: ${envName}`);
-                key = envValue;
-                break;
+            if (envValue && typeof envValue === 'string' && envValue.length > 20) {
+                const val = envValue.trim();
+                if (val.startsWith('sk_test_') || val.startsWith('sk_live_')) {
+                    console.log(`Stripe: Auto-detected secret key in variable: ${envName}`);
+                    key = val;
+                    break;
+                }
             }
         }
     }
     
     if (key) {
         try {
-            console.log('Stripe initialization: Secret key successfully loaded.');
+            console.log('Stripe: Secret key found and initialized.');
             stripe = new Stripe(key.trim());
         } catch (e) {
             console.error('Stripe initialization error:', e);
         }
     } else {
         const foundKeys = Object.keys(process.env).filter(k => k.toLowerCase().includes('stripe'));
-        console.log('Stripe initialization: No secret key found. Available "Stripe" related keys:', foundKeys);
+        console.log('Stripe: No secret key found. Checked keys:', foundKeys);
+        console.log('Stripe: Total env vars available:', Object.keys(process.env).length);
     }
     return stripe;
 };
@@ -308,10 +313,9 @@ app.post('/api/subscription/create-checkout-session', async (req, res) => {
 
         const stripeClient = getStripe();
         if (!stripeClient) {
-            const foundKeys = Object.keys(process.env).filter(k => k.includes('STRIPE'));
-            return res.status(500).json({ 
-                error: `Stripe not configured. Looking for 'STRIPE_SECRET_KEY'. Found keys: ${foundKeys.join(', ') || 'None'}. Please ensure the name is correct in Settings > Secrets.` 
-            });
+            const foundKeys = Object.keys(process.env).filter(k => k.toLowerCase().includes('stripe'));
+            const msg = `Stripe not configured. Looking for 'STRIPE_SECRET_KEY'. Found keys: ${foundKeys.join(', ') || 'None'}. Environment size: ${Object.keys(process.env).length}. Please ensure you have added the Secret in the AI Studio sidebar under "Secrets" and restarted the server.`;
+            return res.status(500).json({ error: msg });
         }
 
         const protocol = req.headers['x-forwarded-proto'] || 'http';
