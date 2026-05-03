@@ -13,23 +13,37 @@ const PORT = process.env.PORT || 3000;
 // Initialize Stripe lazily
 let stripe;
 const getStripe = () => {
-    // Try multiple possible environment variable names to be safe
-    const key = process.env.STRIPE_SECRET_KEY || 
-                process.env.STRIPE_SECRET_KE || 
-                process.env.VITE_STRIPE_SECRET_KEY ||
-                process.env.STRIPE_KEY;
+    if (stripe) return stripe;
+
+    // Try multiple possible environment variable names
+    let key = process.env.STRIPE_SECRET_KEY || 
+              process.env.STRIPE_SECRET_KE || 
+              process.env.VITE_STRIPE_SECRET_KEY ||
+              process.env.STRIPE_KEY;
     
-    if (!stripe && key) {
+    // Robust fallback: If still not found, search through all environment variables
+    // for anything that looks like a Stripe secret key (starts with sk_test_ or sk_live_)
+    if (!key) {
+        for (const [envName, envValue] of Object.entries(process.env)) {
+            if (envValue && typeof envValue === 'string' && 
+               (envValue.startsWith('sk_test_') || envValue.startsWith('sk_live_'))) {
+                console.log(`Auto-detected Stripe secret key in environment variable: ${envName}`);
+                key = envValue;
+                break;
+            }
+        }
+    }
+    
+    if (key) {
         try {
-            console.log('Stripe initialization: Found key (length:', key.length, ')');
-            // Remove any whitespace that might have been pasted accidentally
+            console.log('Stripe initialization: Secret key successfully loaded.');
             stripe = new Stripe(key.trim());
         } catch (e) {
             console.error('Stripe initialization error:', e);
         }
-    } else if (!stripe) {
-        const found = Object.keys(process.env).filter(k => k.toLowerCase().includes('stripe'));
-        console.log('Stripe initialization: No secret key found. Available keys:', found);
+    } else {
+        const foundKeys = Object.keys(process.env).filter(k => k.toLowerCase().includes('stripe'));
+        console.log('Stripe initialization: No secret key found. Available "Stripe" related keys:', foundKeys);
     }
     return stripe;
 };
