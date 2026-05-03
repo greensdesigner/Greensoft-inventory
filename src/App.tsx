@@ -1,8 +1,11 @@
 import React, { useState, useEffect, FormEvent, useRef, ChangeEvent, ReactNode, Component } from 'react';
 
 // --- SAFETY WRAPPER ---
-class ErrorBoundary extends Component<{ children: ReactNode, fallback?: ReactNode }, { hasError: boolean, error: any }> {
-  state = { hasError: false, error: null };
+class ErrorBoundary extends (React.Component as any) {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
 
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
@@ -518,6 +521,12 @@ const useAuth = () => {
 
   const signup = async (userData: any) => {
     try {
+      // Email validation regex
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!userData.email || !emailRegex.test(userData.email)) {
+        return { success: false, error: 'অনুগ্রহ করে একটি সঠিক ইমেইল এড্রেস দিন (যেমন: example@mail.com)' };
+      }
+
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4646,6 +4655,13 @@ const AuthPage = ({ type, login, signup }: any) => {
     setIsSubmitting(true);
 
     if (type === 'signup') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!email || !emailRegex.test(email)) {
+        setError('অনুগ্রহ করে একটি সঠিক ইমেইল এড্রেস দিন (যেমন: customer@mail.com)');
+        setIsSubmitting(false);
+        return;
+      }
+
       if (password !== confirmPassword) {
         setError('Passwords do not match!');
         setIsSubmitting(false);
