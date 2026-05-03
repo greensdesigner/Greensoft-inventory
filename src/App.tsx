@@ -1,11 +1,8 @@
 import React, { useState, useEffect, FormEvent, useRef, ChangeEvent, ReactNode, Component } from 'react';
 
 // --- SAFETY WRAPPER ---
-class ErrorBoundary extends React.Component<{ children: React.ReactNode, fallback?: React.ReactNode }, { hasError: boolean, error: any }> {
-  constructor(props: any) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+class ErrorBoundary extends Component<{ children: ReactNode, fallback?: ReactNode }, { hasError: boolean, error: any }> {
+  state = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
@@ -16,14 +13,19 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode, fallbac
   }
 
   render() {
-    if (this.state.hasError) {
-      return this.props.fallback || (
+    const { hasError, error } = this.state;
+    const { children, fallback } = this.props;
+
+    if (hasError) {
+      return fallback || (
         <div className="p-8 text-center bg-red-50 min-h-screen flex flex-col items-center justify-center">
-          <AlertCircle size={48} className="text-red-500 mb-4" />
+          <div className="text-red-500 mb-4 flex justify-center">
+             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
           <h1 className="text-2xl font-bold text-red-900 mb-2">Something went wrong</h1>
           <p className="text-red-600 mb-6">The application encountered a critical error. Please try refreshing.</p>
           <pre className="text-xs bg-white p-4 rounded-xl border border-red-100 max-w-lg overflow-auto text-left mb-6">
-            {this.state.error?.message || String(this.state.error)}
+            {error?.message || String(error)}
           </pre>
           <button 
             onClick={() => window.location.reload()} 
@@ -34,7 +36,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode, fallbac
         </div>
       );
     }
-    return this.props.children;
+    return children;
   }
 }
 import { 
@@ -408,12 +410,13 @@ const useSubscription = (user: any) => {
   });
 
   const checkStatus = async () => {
-    if (!user?.id) {
+    const checkId = user?.ownerId || user?.id;
+    if (!checkId) {
       setSubscription(prev => ({ ...prev, loading: false }));
       return { active: false };
     }
     try {
-      const res = await fetch(`/api/subscription/status?userId=${user.id}`);
+      const res = await fetch(`/api/subscription/status?userId=${checkId}`);
       const data = await res.json();
       setSubscription({ active: !!data.active, expiryDate: data.expiryDate, loading: false });
       return data;
@@ -429,12 +432,13 @@ const useSubscription = (user: any) => {
   }, [user?.id]);
 
   const activate = async (code: string) => {
-    if (!user?.id) return { success: false, error: 'User not authenticated' };
+    const checkId = user?.ownerId || user?.id;
+    if (!checkId) return { success: false, error: 'User not authenticated' };
     try {
       const res = await fetch('/api/subscription/activate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, userId: user.id })
+        body: JSON.stringify({ code, userId: checkId })
       });
       const data = await res.json();
       if (data.success) {
