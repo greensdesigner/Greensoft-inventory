@@ -13,11 +13,14 @@ const PORT = process.env.PORT || 3000;
 // Initialize Stripe lazily
 let stripe;
 const getStripe = () => {
-    if (!stripe && process.env.STRIPE_SECRET_KEY) {
+    // Check for both the correct name and the truncated name from the user's screenshot
+    const key = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KE;
+    
+    if (!stripe && key) {
         console.log('Stripe initialization: Secret key found.');
-        stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+        stripe = new Stripe(key);
     } else if (!stripe) {
-        console.log('Stripe initialization: Secret key missing from process.env');
+        console.log('Stripe initialization: Secret key missing. Checked: STRIPE_SECRET_KEY, STRIPE_SECRET_KE');
     }
     return stripe;
 };
@@ -282,7 +285,10 @@ app.post('/api/subscription/create-checkout-session', async (req, res) => {
 
         const stripeClient = getStripe();
         if (!stripeClient) {
-            return res.status(500).json({ error: 'Stripe is not configured. Please set STRIPE_SECRET_KEY in settings.' });
+            const foundKeys = Object.keys(process.env).filter(k => k.includes('STRIPE'));
+            return res.status(500).json({ 
+                error: `Stripe not configured. Looking for 'STRIPE_SECRET_KEY'. Found keys: ${foundKeys.join(', ') || 'None'}. Please ensure the name is correct in Settings > Secrets.` 
+            });
         }
 
         const protocol = req.headers['x-forwarded-proto'] || 'http';
