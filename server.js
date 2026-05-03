@@ -5,7 +5,9 @@ const bcrypt = require('bcryptjs');
 const Stripe = require('stripe');
 require('dotenv').config();
 
-console.log('--- GREENSOFT SYSTEM BOOTING: V4 (STABILITY FIX) ---');
+console.log('--- GREENSOFT SYSTEM BOOTING: V5 (ENV DEBUG) ---');
+console.log('Available Environment Keys:', Object.keys(process.env).sort());
+console.log('Stripe related keys:', Object.keys(process.env).filter(k => k.toLowerCase().includes('stripe')));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,6 +23,15 @@ const getStripe = () => {
               process.env.VITE_STRIPE_SECRET_KEY ||
               process.env.STRIPE_KEY ||
               process.env.stripe_secret_key;
+    
+    // Check for any key that starts with STRIPE_SECRET (handling truncation)
+    if (!key) {
+        const potentialKeyName = Object.keys(process.env).find(k => k.startsWith('STRIPE_SECRET') || k.includes('STRIPE_S'));
+        if (potentialKeyName) {
+            console.log(`Stripe: Using potential key name: ${potentialKeyName}`);
+            key = process.env[potentialKeyName];
+        }
+    }
     
     // Robust fallback: If still not found, search through all environment variables
     // for anything that looks like a Stripe secret key (starts with sk_test_ or sk_live_)
@@ -313,8 +324,8 @@ app.post('/api/subscription/create-checkout-session', async (req, res) => {
 
         const stripeClient = getStripe();
         if (!stripeClient) {
-            const foundKeys = Object.keys(process.env).filter(k => k.toLowerCase().includes('stripe'));
-            const msg = `Stripe not configured. Looking for 'STRIPE_SECRET_KEY'. Found keys: ${foundKeys.join(', ') || 'None'}. Environment size: ${Object.keys(process.env).length}. Please ensure you have added the Secret in the AI Studio sidebar under "Secrets" and restarted the server.`;
+            const allEnvKeys = Object.keys(process.env).sort();
+            const msg = `Stripe not configured. All environment keys: ${allEnvKeys.join(', ')}. Environment size: ${allEnvKeys.length}. Please ensure 'STRIPE_SECRET_KEY' is set and the server is restarted.`;
             return res.status(500).json({ error: msg });
         }
 
