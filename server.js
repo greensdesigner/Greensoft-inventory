@@ -13,14 +13,23 @@ const PORT = process.env.PORT || 3000;
 // Initialize Stripe lazily
 let stripe;
 const getStripe = () => {
-    // Check for both the correct name and the truncated name from the user's screenshot
-    const key = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KE;
+    // Try multiple possible environment variable names to be safe
+    const key = process.env.STRIPE_SECRET_KEY || 
+                process.env.STRIPE_SECRET_KE || 
+                process.env.VITE_STRIPE_SECRET_KEY ||
+                process.env.STRIPE_KEY;
     
     if (!stripe && key) {
-        console.log('Stripe initialization: Secret key found.');
-        stripe = new Stripe(key);
+        try {
+            console.log('Stripe initialization: Found key (length:', key.length, ')');
+            // Remove any whitespace that might have been pasted accidentally
+            stripe = new Stripe(key.trim());
+        } catch (e) {
+            console.error('Stripe initialization error:', e);
+        }
     } else if (!stripe) {
-        console.log('Stripe initialization: Secret key missing. Checked: STRIPE_SECRET_KEY, STRIPE_SECRET_KE');
+        const found = Object.keys(process.env).filter(k => k.toLowerCase().includes('stripe'));
+        console.log('Stripe initialization: No secret key found. Available keys:', found);
     }
     return stripe;
 };
@@ -319,10 +328,19 @@ app.post('/api/subscription/create-checkout-session', async (req, res) => {
             }
         };
 
-        // If user has a specific Price ID, use it instead
-        if (process.env.SUBSCRIPTION_PRICE_ID) {
-            delete sessionParams.line_items[0].price_data;
-            sessionParams.line_items[0].price = process.env.SUBSCRIPTION_PRICE_ID;
+        // Flexible Price Handling
+        const priceConfig = process.env.SUBSCRIPTION_PRICE_ID || process.env.SUBSCRIPTION_PRI;
+        
+        if (priceConfig) {
+            if (priceConfig.startsWith('price_')) {
+                // It's a Stripe Price ID
+                delete sessionParams.line_items[0].price_data;
+                sessionParams.line_items[0].price = priceConfig;
+            } else if (!isNaN(parseFloat(priceConfig))) {
+                // It's a numeric amount (e.g. 10 or 100)
+                // Note: Stripe amounts are in cents. So 100 means $1.00
+                sessionParams.line_items[0].price_data.unit_amount = Math.round(parseFloat(priceConfig) * 100);
+            }
         }
 
         const session = await stripeClient.checkout.sessions.create(sessionParams);
