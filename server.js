@@ -513,29 +513,38 @@ entities.forEach(entity => {
     app.post(`/api/${entity}`, async (req, res) => {
         try {
             const data = req.body;
-            const role = req.query.role;
-            const ownerId = req.query.ownerId;
+            // Support both query params and body for role metadata
+            const role = req.query.role || data.role;
+            const ownerId = req.query.ownerId || data.ownerId;
             
             if (role === 'MANAGER' && ownerId) {
                 data.userId = ownerId;
             }
 
-            if (!data.userId) return res.status(400).json({ error: 'User ID required' });
+            if (!data.userId) {
+                console.warn(`[WARNING] Save to ${entity} blocked: user ID required. Data:`, JSON.stringify(data));
+                return res.status(400).json({ error: 'User ID required' });
+            }
             
             // Fetch actual database columns for the current entity to prevent unknown column errors
             const [columnsInfo] = await pool.query(`SHOW COLUMNS FROM \`${entity}\``);
-            const validCols = new Set(columnsInfo.map(col => col.Field));
+            const dbCols = columnsInfo.map(col => col.Field);
+            const dbColsLower = dbCols.map(c => c.toLowerCase());
             
-            // Filter keys to only keep column names that exist in the database table
+            // Filter keys to only keep column names that exist in the database table (case-insensitive)
             const filteredData = {};
             for (const key of Object.keys(data)) {
-                if (validCols.has(key)) {
-                    filteredData[key] = data[key];
+                const lowerKey = key.toLowerCase();
+                const idx = dbColsLower.indexOf(lowerKey);
+                if (idx !== -1) {
+                    const actualDbColName = dbCols[idx];
+                    filteredData[actualDbColName] = data[key];
                 }
             }
             
             const columns = Object.keys(filteredData);
             if (columns.length === 0) {
+                console.error(`[ERROR] Save to ${entity} failed: no valid columns found in database schemas. Data received:`, JSON.stringify(data));
                 return res.status(400).json({ error: 'No valid database fields provided' });
             }
             
@@ -543,10 +552,14 @@ entities.forEach(entity => {
             const backtickedCols = columns.map(c => `\`${c}\``).join(', ');
             const placeholders = columns.map(() => '?').join(', ');
             const updateClause = columns.map(c => `\`${c}\` = VALUES(\`${c}\`)`).join(', ');
+            
             const query = `INSERT INTO \`${entity}\` (${backtickedCols}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updateClause}`;
             await pool.query(query, values);
             res.json({ success: true });
-        } catch (err) { res.status(500).json({ error: err.message }); }
+        } catch (err) {
+            console.error(`[DB ERROR] Failed saving entity to "${entity}":`, err.message, err.stack);
+            res.status(500).json({ error: err.message });
+        }
     });
 
     app.delete(`/api/${entity}/:id`, async (req, res) => {

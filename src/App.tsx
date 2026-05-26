@@ -762,7 +762,7 @@ const useData = (user: any) => {
     const sanitizedItem = sanitizeItem(key, newItem);
     
     try {
-      const res = await fetch(`/api/${key}`, {
+      const res = await fetch(`/api/${key}?userId=${user.id}&role=${user.role || 'OWNER'}&ownerId=${user.ownerId || ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sanitizedItem)
@@ -791,7 +791,7 @@ const useData = (user: any) => {
       
       const fullUpdatedItem = sanitizeItem(key, { ...item, ...updatedFields, userId: user.id });
       
-      fetch(`/api/${key}`, {
+      fetch(`/api/${key}?userId=${user.id}&role=${user.role || 'OWNER'}&ownerId=${user.ownerId || ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fullUpdatedItem)
@@ -806,7 +806,7 @@ const useData = (user: any) => {
   const deleteItem = async (key: string, id: string, setter: any) => {
     if (!user?.id) return;
     try {
-      await fetch(`/api/${key}/${id}?userId=${user.id}`, { method: 'DELETE' });
+      await fetch(`/api/${key}/${id}?userId=${user.id}&role=${user.role || 'OWNER'}&ownerId=${user.ownerId || ''}`, { method: 'DELETE' });
     } catch (error) {
       console.error(`Error deleting ${key}:`, error);
     }
