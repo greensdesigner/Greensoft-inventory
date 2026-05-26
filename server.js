@@ -129,6 +129,7 @@ async function ensureAllTables() {
         await checkAndAddColumn(conn, 'activation_codes', 'usedByUserId', 'INT');
         await checkAndAddColumn(conn, 'inventory', 'price', 'DECIMAL(10,2) DEFAULT 0');
         await checkAndAddColumn(conn, 'inventory', 'sku', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'inventory', 'brand', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'inventory', 'modelNumber', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'inventory', 'minStock', 'INT DEFAULT 5');
         
@@ -521,8 +522,24 @@ entities.forEach(entity => {
 
             if (!data.userId) return res.status(400).json({ error: 'User ID required' });
             
-            const columns = Object.keys(data);
-            const values = Object.values(data).map(v => typeof v === 'object' ? JSON.stringify(v) : v);
+            // Fetch actual database columns for the current entity to prevent unknown column errors
+            const [columnsInfo] = await pool.query(`SHOW COLUMNS FROM \`${entity}\``);
+            const validCols = new Set(columnsInfo.map(col => col.Field));
+            
+            // Filter keys to only keep column names that exist in the database table
+            const filteredData = {};
+            for (const key of Object.keys(data)) {
+                if (validCols.has(key)) {
+                    filteredData[key] = data[key];
+                }
+            }
+            
+            const columns = Object.keys(filteredData);
+            if (columns.length === 0) {
+                return res.status(400).json({ error: 'No valid database fields provided' });
+            }
+            
+            const values = Object.values(filteredData).map(v => typeof v === 'object' ? JSON.stringify(v) : v);
             const backtickedCols = columns.map(c => `\`${c}\``).join(', ');
             const placeholders = columns.map(() => '?').join(', ');
             const updateClause = columns.map(c => `\`${c}\` = VALUES(\`${c}\`)`).join(', ');
