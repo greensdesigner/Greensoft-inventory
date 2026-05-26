@@ -373,6 +373,29 @@ const LanguageProvider = ({ children }: { children: ReactNode }) => {
 const useTranslation = () => React.useContext(LanguageContext);
 
 // --- HELPERS ---
+const banglaToEnglishDigits = (str: any): string => {
+  if (str === null || str === undefined) return '';
+  const banglaToEnglishMap: Record<string, string> = {
+    '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+    '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9'
+  };
+  return str.toString().replace(/[০-৯]/g, (digit: string) => banglaToEnglishMap[digit] || digit);
+};
+
+const parseBanglaInt = (val: any, fallback = 0): number => {
+  if (val === undefined || val === null) return fallback;
+  const cleaned = banglaToEnglishDigits(val).replace(/[^\d-]/g, '');
+  const parsed = parseInt(cleaned, 10);
+  return isNaN(parsed) ? fallback : parsed;
+};
+
+const parseBanglaFloat = (val: any, fallback = 0): number => {
+  if (val === undefined || val === null) return fallback;
+  const cleaned = banglaToEnglishDigits(val).replace(/[^\d.-]/g, '');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? fallback : parsed;
+};
+
 const f2 = (num: any) => (Number(num) || 0).toFixed(2);
 
 const useCurrency = () => {
@@ -649,12 +672,7 @@ const useData = (user: any) => {
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Sanitization helper
-  const n = (v: any) => {
-    if (typeof v === 'string') {
-      return parseFloat(v.replace(/[^\d.-]/g, '')) || 0;
-    }
-    return Number(v) || 0;
-  };
+  const n = (v: any) => parseBanglaFloat(v);
 
   const sanitizeItem = (key: string, item: any) => {
     if (key === 'inventory') {
@@ -1639,16 +1657,16 @@ const Inventory = ({ data }: any) => {
     if (editingItem) {
       data.editItem('inventory', editingItem.id, {
         ...newItem,
-        quantity: parseInt(newItem.quantity),
-        price: parseFloat(newItem.price),
-        minStock: parseInt(newItem.minStock)
+        quantity: parseBanglaInt(newItem.quantity),
+        price: parseBanglaFloat(newItem.price),
+        minStock: parseBanglaInt(newItem.minStock)
       }, data.setInventory);
     } else {
       data.addInventory({
         ...newItem,
-        quantity: parseInt(newItem.quantity),
-        price: parseFloat(newItem.price),
-        minStock: parseInt(newItem.minStock)
+        quantity: parseBanglaInt(newItem.quantity),
+        price: parseBanglaFloat(newItem.price),
+        minStock: parseBanglaInt(newItem.minStock)
       });
     }
     setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '', brand: '' });
@@ -2441,8 +2459,8 @@ const Sales = ({ data }: any) => {
       customerAddress: newSale.customerAddress,
       items: newSale.items.map(item => ({
         ...item,
-        quantity: parseInt(item.quantity),
-        total: parseFloat(item.total)
+        quantity: parseBanglaInt(item.quantity),
+        total: parseBanglaFloat(item.total)
       })),
       total: totalAmount,
       date: newSale.date
@@ -2453,7 +2471,7 @@ const Sales = ({ data }: any) => {
       const product = data.inventory.find((p: any) => p.id === item.productId);
       if (product) {
         data.editItem('inventory', item.productId, {
-          quantity: (Number(product.quantity) || 0) - (parseInt(item.quantity) || 0)
+          quantity: (Number(product.quantity) || 0) - (parseBanglaInt(item.quantity) || 0)
         }, data.setInventory);
       }
     });
