@@ -69,6 +69,30 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 let pool = null;
+let useLocalFallback = false;
+
+function readLocalTable(table) {
+    const fs = require('fs');
+    const path = require('path');
+    const dir = path.join(process.cwd(), 'local_db');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const filepath = path.join(dir, `${table}.json`);
+    if (!fs.existsSync(filepath)) return [];
+    try {
+        return JSON.parse(fs.readFileSync(filepath, 'utf8'));
+    } catch (e) {
+        return [];
+    }
+}
+
+function writeLocalTable(table, data) {
+    const fs = require('fs');
+    const path = require('path');
+    const dir = path.join(process.cwd(), 'local_db');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const filepath = path.join(dir, `${table}.json`);
+    fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
+}
 
 const dbConfig = {
     host: process.env.DB_HOST || '127.0.0.1',
@@ -95,11 +119,12 @@ async function checkAndAddColumn(conn, table, column, definition) {
 }
 
 async function ensureAllTables() {
+    const fs = require('fs');
     try {
         if (!pool) pool = mysql.createPool(dbConfig);
         const conn = await pool.getConnection();
         
-        console.log('Synchronizing database schema...');
+        fs.writeFileSync('./db_status.txt', 'Database connection established. Synchronizing database schema...\n');
 
         await conn.query(`CREATE TABLE IF NOT EXISTS \`users\` (id INT AUTO_INCREMENT PRIMARY KEY, businessName VARCHAR(255), fullName VARCHAR(255), phoneNumber VARCHAR(20), email VARCHAR(255) UNIQUE, password VARCHAR(255), logo LONGTEXT, createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, expiryDate VARCHAR(50))`);
         await conn.query(`CREATE TABLE IF NOT EXISTS \`inventory\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`name\` VARCHAR(255), \`category\` VARCHAR(255), \`quantity\` INT DEFAULT 0, \`price\` DECIMAL(10,2) DEFAULT 0)`);
@@ -161,20 +186,65 @@ async function ensureAllTables() {
         await checkAndAddColumn(conn, 'expenses', 'employeeName', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'expenses', 'employeePhone', 'VARCHAR(20)');
 
+        try {
+            const [rows] = await conn.query("SHOW COLUMNS FROM `inventory`");
+            fs.writeFileSync('./db_columns.json', JSON.stringify(rows, null, 2));
+            fs.appendFileSync('./db_status.txt', '>>> Columns written to db_columns.json successfully <<<\n');
+        } catch (dbErr) {
+            fs.appendFileSync('./db_status.txt', `Failed to write db columns: ${dbErr.message}\n`);
+        }
+
         conn.release();
-        console.log('>>> DB SYNC OK <<<');
+        fs.appendFileSync('./db_status.txt', '>>> DB SYNC OK <<<\n');
     } catch (err) {
+        useLocalFallback = true;
+        fs.writeFileSync('./db_error.txt', `DB Sync Error: ${err.message}\nStack: ${err.stack}\n`);
         console.error('DB Sync Error:', err.message);
     }
 }
 
 // --- API ---
-app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
+app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date(), useLocalFallback }));
+
+app.get('/api/debug-db', async (req, res) => {
+    try {
+        if (!pool) {
+            return res.status(500).json({ error: 'Database pool not initialized' });
+        }
+        const [rows] = await pool.query(`SHOW COLUMNS FROM \`inventory\``);
+        res.json({ success: true, columns: rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message, stack: err.stack });
+    }
+});
 
 // Auth
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { businessName, fullName, phoneNumber, email, password } = req.body;
+        
+        if (useLocalFallback) {
+            const users = readLocalTable('users');
+            const existing = users.find(u => u.email === email);
+            if (existing) return res.status(400).json({ error: 'Email already exists' });
+
+            const hashed = await bcrypt.hash(password, 10);
+            const trialExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            
+            const newUser = {
+                id: Date.now(),
+                businessName,
+                fullName,
+                phoneNumber,
+                email,
+                password: hashed,
+                expiryDate: trialExpiry
+            };
+            users.push(newUser);
+            writeLocalTable('users', users);
+            return res.status(201).json({ success: true, user: { id: newUser.id, email, businessName, name: fullName, expiryDate: trialExpiry } });
+        }
+
         const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
         if (existing.length > 0) return res.status(400).json({ error: 'Email already exists' });
         
@@ -193,6 +263,56 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         
+        if (useLocalFallback) {
+            const users = readLocalTable('users');
+            const managers = readLocalTable('managers');
+            
+            // 1. Check Owners
+            const owner = users.find(u => u.email === email);
+            if (owner) {
+                const match = await bcrypt.compare(password, owner.password);
+                if (!match) return res.status(401).json({ error: 'Wrong password' });
+                return res.json({ 
+                    success: true, 
+                    user: { 
+                        id: owner.id, 
+                        email: owner.email, 
+                        businessName: owner.businessName, 
+                        name: owner.fullName, 
+                        expiryDate: owner.expiryDate, 
+                        phoneNumber: owner.phoneNumber, 
+                        address: owner.address, 
+                        logo: owner.logo,
+                        role: 'OWNER' 
+                    } 
+                });
+            }
+
+            // 2. Check Managers
+            const manager = managers.find(m => m.email === email);
+            if (manager) {
+                const match = await bcrypt.compare(password, manager.password);
+                if (!match) return res.status(401).json({ error: 'Wrong password' });
+                
+                const ownerAcc = users.find(u => u.id === manager.ownerId) || {};
+                return res.json({
+                    success: true,
+                    user: {
+                        id: manager.id,
+                        ownerId: manager.ownerId,
+                        email: manager.email,
+                        businessName: ownerAcc.businessName || 'Business',
+                        name: manager.name,
+                        expiryDate: ownerAcc.expiryDate,
+                        logo: ownerAcc.logo,
+                        role: 'MANAGER',
+                        permissions: manager.permissions || {}
+                    }
+                });
+            }
+            return res.status(401).json({ error: 'User not found' });
+        }
+
         // 1. Check Owners
         const [ownerRows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
         if (ownerRows.length > 0) {
@@ -255,6 +375,36 @@ app.patch('/api/auth/profile', async (req, res) => {
             return res.status(400).json({ error: 'User ID required' });
         }
 
+        if (useLocalFallback) {
+            const users = readLocalTable('users');
+            const idx = users.findIndex(u => u.id == userId);
+            if (idx === -1) return res.status(404).json({ error: 'User not found' });
+            
+            users[idx] = {
+                ...users[idx],
+                businessName,
+                fullName,
+                phoneNumber,
+                address,
+                email,
+                logo
+            };
+            writeLocalTable('users', users);
+            return res.json({
+                success: true,
+                user: {
+                    id: users[idx].id,
+                    email: users[idx].email,
+                    businessName: users[idx].businessName,
+                    name: users[idx].fullName,
+                    expiryDate: users[idx].expiryDate,
+                    phoneNumber: users[idx].phoneNumber,
+                    address: users[idx].address,
+                    logo: users[idx].logo
+                }
+            });
+        }
+
         const [result] = await pool.query('UPDATE users SET businessName = ?, fullName = ?, phoneNumber = ?, address = ?, email = ?, logo = ? WHERE id = ?', [businessName, fullName, phoneNumber, address, email, logo, userId]);
         console.log('Update result:', result);
 
@@ -282,6 +432,15 @@ app.get('/api/subscription/status', async (req, res) => {
         const userId = req.query.userId;
         if (!userId) return res.status(400).json({ error: 'User ID required' });
         
+        if (useLocalFallback) {
+            const users = readLocalTable('users');
+            const owner = users.find(u => u.id == userId);
+            if (!owner) return res.status(404).json({ error: 'User not found' });
+            const expiryDate = owner.expiryDate;
+            const isActive = new Date(expiryDate) > new Date();
+            return res.json({ active: isActive, expiryDate });
+        }
+
         const [rows] = await pool.query('SELECT expiryDate FROM users WHERE id = ?', [userId]);
         if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
         
@@ -296,6 +455,20 @@ app.post('/api/subscription/activate', async (req, res) => {
         const { code, userId } = req.body;
         if (!code) return res.status(400).json({ error: 'Code is required' });
         if (!userId) return res.status(400).json({ error: 'User ID is required' });
+
+        if (useLocalFallback) {
+            const users = readLocalTable('users');
+            const idx = users.findIndex(u => u.id == userId);
+            if (idx === -1) return res.status(404).json({ error: 'User not found' });
+
+            let currentExpiry = new Date(users[idx].expiryDate);
+            let baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+            const newExpiry = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+            
+            users[idx].expiryDate = newExpiry;
+            writeLocalTable('users', users);
+            return res.json({ success: true, expiryDate: newExpiry });
+        }
 
         const [codes] = await pool.query('SELECT * FROM activation_codes WHERE code = ? AND isUsed = 0', [code]);
         if (codes.length === 0) {
@@ -441,6 +614,13 @@ app.get('/api/managers', async (req, res) => {
     try {
         const ownerId = req.query.ownerId;
         if (!ownerId) return res.status(400).json({ error: 'Owner ID required' });
+
+        if (useLocalFallback) {
+            const managers = readLocalTable('managers');
+            const filtered = managers.filter(m => m.ownerId == ownerId);
+            return res.json(filtered.map(m => ({ id: m.id, name: m.name, email: m.email, permissions: m.permissions || {} })));
+        }
+
         const [rows] = await pool.query('SELECT id, name, email, permissions FROM managers WHERE ownerId = ?', [ownerId]);
         res.json(rows.map(m => ({
             ...m,
@@ -453,6 +633,26 @@ app.post('/api/managers', async (req, res) => {
     try {
         const { ownerId, name, email, password, permissions } = req.body;
         if (!ownerId || !email || !password) return res.status(400).json({ error: 'Required fields missing' });
+
+        if (useLocalFallback) {
+            const managers = readLocalTable('managers');
+            const users = readLocalTable('users');
+            const existing = managers.find(m => m.email === email) || users.find(u => u.email === email);
+            if (existing) return res.status(400).json({ error: 'Email already exists' });
+
+            const hashed = await bcrypt.hash(password, 10);
+            const newManager = {
+                id: Date.now(),
+                ownerId,
+                name,
+                email,
+                password: hashed,
+                permissions: permissions || {}
+            };
+            managers.push(newManager);
+            writeLocalTable('managers', managers);
+            return res.json({ success: true, id: newManager.id });
+        }
 
         const [existing] = await pool.query('SELECT id FROM managers WHERE email = ? UNION SELECT id FROM users WHERE email = ?', [email, email]);
         if (existing.length > 0) return res.status(400).json({ error: 'Email already exists' });
@@ -469,6 +669,21 @@ app.patch('/api/managers/:id', async (req, res) => {
         const { permissions, name, password } = req.body;
         const managerId = req.params.id;
         
+        if (useLocalFallback) {
+            const managers = readLocalTable('managers');
+            const idx = managers.findIndex(m => m.id == managerId);
+            if (idx === -1) return res.status(404).json({ error: 'Manager not found' });
+
+            managers[idx].name = name;
+            managers[idx].permissions = permissions || {};
+            if (password) {
+                const hashed = await bcrypt.hash(password, 10);
+                managers[idx].password = hashed;
+            }
+            writeLocalTable('managers', managers);
+            return res.json({ success: true });
+        }
+
         let query = 'UPDATE managers SET name = ?, permissions = ?';
         let params = [name, JSON.stringify(permissions)];
         
@@ -488,6 +703,13 @@ app.patch('/api/managers/:id', async (req, res) => {
 
 app.delete('/api/managers/:id', async (req, res) => {
     try {
+        if (useLocalFallback) {
+            let managers = readLocalTable('managers');
+            managers = managers.filter(m => m.id != req.params.id);
+            writeLocalTable('managers', managers);
+            return res.json({ success: true });
+        }
+
         await pool.query('DELETE FROM managers WHERE id = ?', [req.params.id]);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -503,8 +725,14 @@ entities.forEach(entity => {
             const ownerId = req.query.ownerId; // If manager, we need the owner's data
             
             const effectiveUserId = role === 'MANAGER' ? ownerId : userId;
-            
             if (!effectiveUserId) return res.status(400).json({ error: 'User ID required' });
+
+            if (useLocalFallback) {
+                const items = readLocalTable(entity);
+                const filtered = items.filter(item => item.userId == effectiveUserId);
+                return res.json(filtered);
+            }
+            
             const [rows] = await pool.query(`SELECT * FROM \`${entity}\` WHERE userId = ?`, [effectiveUserId]);
             res.json(rows);
         } catch (err) { res.status(500).json({ error: err.message }); }
@@ -524,6 +752,18 @@ entities.forEach(entity => {
             if (!data.userId) {
                 console.warn(`[WARNING] Save to ${entity} blocked: user ID required. Data:`, JSON.stringify(data));
                 return res.status(400).json({ error: 'User ID required' });
+            }
+
+            if (useLocalFallback) {
+                const items = readLocalTable(entity);
+                const idx = items.findIndex(item => item.id == data.id);
+                if (idx !== -1) {
+                    items[idx] = { ...items[idx], ...data };
+                } else {
+                    items.push(data);
+                }
+                writeLocalTable(entity, items);
+                return res.json({ success: true });
             }
             
             // Fetch actual database columns for the current entity to prevent unknown column errors
@@ -569,8 +809,15 @@ entities.forEach(entity => {
             const ownerId = req.query.ownerId;
             
             const effectiveUserId = role === 'MANAGER' ? ownerId : userId;
-
             if (!effectiveUserId) return res.status(400).json({ error: 'User ID required' });
+
+            if (useLocalFallback) {
+                let items = readLocalTable(entity);
+                items = items.filter(item => !(item.id == req.params.id && item.userId == effectiveUserId));
+                writeLocalTable(entity, items);
+                return res.json({ success: true });
+            }
+
             await pool.query(`DELETE FROM \`${entity}\` WHERE id = ? AND userId = ?`, [req.params.id, effectiveUserId]);
             res.json({ success: true });
         } catch (err) { res.status(500).json({ error: err.message }); }

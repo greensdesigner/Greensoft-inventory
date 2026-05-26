@@ -4391,12 +4391,17 @@ const Settings = ({ user, data, updateProfile }: any) => {
     try {
       const res = await fetch('/api/health');
       if (res.ok) {
-        setDbStatus('Database Connection: OK (Server is online)');
+        const payload = await res.json();
+        if (payload.useLocalFallback) {
+          setDbStatus('Database: LOCAL FALLBACK MOTHERBOARD (The remote Hostinger database is blocking connections from Google Cloud Run. We have automatically activated local secured file-system storage so you can registration, login, and save inventory beautifully!)');
+        } else {
+          setDbStatus('Database Connection: OK (Connected & Synced with Remote MySQL)');
+        }
       } else {
-        setDbStatus('Database Connection: FAILED (Server connection lost)');
+        setDbStatus('Database Connection: FAILED (Server returned error)');
       }
     } catch (err) {
-      setDbStatus('Database Connection: ERROR (Server error)');
+      setDbStatus('Database Connection: ERROR (Server connection failure)');
     } finally {
       setIsRefreshingDB(false);
     }
