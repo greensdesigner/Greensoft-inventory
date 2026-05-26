@@ -1659,11 +1659,11 @@ const Inventory = ({ data }: any) => {
   const openEdit = (item: any) => {
     setEditingItem(item);
     setNewItem({
-      name: item.name,
-      category: item.category,
-      quantity: item.quantity.toString(),
-      price: item.price.toString(),
-      minStock: item.minStock.toString(),
+      name: item.name || '',
+      category: item.category || '',
+      quantity: (item.quantity !== undefined && item.quantity !== null) ? item.quantity.toString() : '0',
+      price: (item.price !== undefined && item.price !== null) ? item.price.toString() : '0',
+      minStock: (item.minStock !== undefined && item.minStock !== null) ? item.minStock.toString() : '5',
       modelNumber: item.modelNumber || '',
       brand: item.brand || ''
     });

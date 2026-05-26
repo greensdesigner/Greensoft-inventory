@@ -68,6 +68,23 @@ const getStripe = () => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+        const fs = require('fs');
+        const originalSend = res.send;
+        res.send = function (body) {
+            try {
+                const logMsg = `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} | Body: ${JSON.stringify(req.body)} | Status: ${res.statusCode} | Response: ${body}\n`;
+                fs.appendFileSync('./api_requests.log', logMsg);
+            } catch (err) {
+                // ignore
+            }
+            return originalSend.apply(this, arguments);
+        };
+    }
+    next();
+});
+
 let pool = null;
 let useLocalFallback = false;
 
@@ -735,12 +752,28 @@ entities.forEach(entity => {
             
             const [rows] = await pool.query(`SELECT * FROM \`${entity}\` WHERE userId = ?`, [effectiveUserId]);
             res.json(rows);
-        } catch (err) { res.status(500).json({ error: err.message }); }
+        } catch (err) {
+            console.error(`[DB GET SHOW ERROR] Fallback triggered on GET ${entity}: ${err.message}`);
+            useLocalFallback = true;
+            try {
+                const userId = req.query.userId;
+                const role = req.query.role;
+                const ownerId = req.query.ownerId;
+                const effectiveUserId = role === 'MANAGER' ? ownerId : userId;
+                if (!effectiveUserId) return res.status(400).json({ error: 'User ID required' });
+                
+                const items = readLocalTable(entity);
+                const filtered = items.filter(item => item.userId == effectiveUserId);
+                return res.json(filtered);
+            } catch (fallbackErr) {
+                res.status(500).json({ error: err.message });
+            }
+        }
     });
 
     app.post(`/api/${entity}`, async (req, res) => {
+        const data = req.body;
         try {
-            const data = req.body;
             // Support both query params and body for role metadata
             const role = req.query.role || data.role;
             const ownerId = req.query.ownerId || data.ownerId;
@@ -791,14 +824,32 @@ entities.forEach(entity => {
             const values = Object.values(filteredData).map(v => typeof v === 'object' ? JSON.stringify(v) : v);
             const backtickedCols = columns.map(c => `\`${c}\``).join(', ');
             const placeholders = columns.map(() => '?').join(', ');
-            const updateClause = columns.map(c => `\`${c}\` = VALUES(\`${c}\`)`).join(', ');
+            
+            // Filter id and userId from update clause to prevent primary/unique key modification errors
+            const updateCols = columns.filter(c => c.toLowerCase() !== 'id' && c.toLowerCase() !== 'userid');
+            const updateClause = updateCols.length > 0
+                ? updateCols.map(c => `\`${c}\` = VALUES(\`${c}\`)`).join(', ')
+                : `\`id\` = \`id\``;
             
             const query = `INSERT INTO \`${entity}\` (${backtickedCols}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updateClause}`;
             await pool.query(query, values);
             res.json({ success: true });
         } catch (err) {
-            console.error(`[DB ERROR] Failed saving entity to "${entity}":`, err.message, err.stack);
-            res.status(500).json({ error: err.message });
+            console.error(`[DB POST ERROR] Fallback triggered on POST "${entity}":`, err.message);
+            useLocalFallback = true;
+            try {
+                const items = readLocalTable(entity);
+                const idx = items.findIndex(item => item.id == data.id);
+                if (idx !== -1) {
+                    items[idx] = { ...items[idx], ...data };
+                } else {
+                    items.push(data);
+                }
+                writeLocalTable(entity, items);
+                return res.json({ success: true, localFallbackActive: true });
+            } catch (fallbackErr) {
+                res.status(500).json({ error: err.message });
+            }
         }
     });
 
@@ -820,7 +871,24 @@ entities.forEach(entity => {
 
             await pool.query(`DELETE FROM \`${entity}\` WHERE id = ? AND userId = ?`, [req.params.id, effectiveUserId]);
             res.json({ success: true });
-        } catch (err) { res.status(500).json({ error: err.message }); }
+        } catch (err) {
+            console.error(`[DB DELETE ERROR] Fallback triggered on DELETE "${entity}":`, err.message);
+            useLocalFallback = true;
+            try {
+                const userId = req.query.userId;
+                const role = req.query.role;
+                const ownerId = req.query.ownerId;
+                const effectiveUserId = role === 'MANAGER' ? ownerId : userId;
+                if (!effectiveUserId) return res.status(400).json({ error: 'User ID required' });
+                
+                let items = readLocalTable(entity);
+                items = items.filter(item => !(item.id == req.params.id && item.userId == effectiveUserId));
+                writeLocalTable(entity, items);
+                return res.json({ success: true });
+            } catch (fallbackErr) {
+                res.status(500).json({ error: err.message });
+            }
+        }
     });
 });
 
