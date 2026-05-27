@@ -1619,36 +1619,150 @@ const Dashboard = ({ data }: any) => {
 );
 };
 
-const QRScanner = ({ onScan, onClose }: { onScan: (data: string) => void, onClose: () => void }) => {
+const playBeep = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // High pleasant beep
+    gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+    
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.12);
+  } catch (e) {
+    console.log("Audio beep failed: ", e);
+  }
+};
+
+const playErrorBeep = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    oscillator.type = 'sawtooth';
+    oscillator.frequency.setValueAtTime(120, audioCtx.currentTime); // Low buzz
+    gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.22);
+    
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.22);
+  } catch (e) {
+    console.log("Audio beep failed: ", e);
+  }
+};
+
+const QRScanner = ({ onScan, onClose, inventory }: { onScan: (data: string) => string, onClose: () => void, inventory: any[] }) => {
+  const [scanMessage, setScanMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const lastScanRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
+
   useEffect(() => {
     const scanner = new Html5QrcodeScanner(
       "qr-reader",
       { fps: 10, qrbox: { width: 250, height: 250 } },
       /* verbose= */ false
     );
-    scanner.render(onScan, (error) => {
+    
+    const onScanSuccess = (decodedText: string) => {
+      const now = Date.now();
+      // Cool-down to prevent double scan within 1.5 seconds
+      if (lastScanRef.current.code === decodedText && now - lastScanRef.current.time < 1500) {
+        return;
+      }
+      
+      lastScanRef.current = { code: decodedText, time: now };
+      
+      const product = inventory.find((p: any) => p.id === decodedText);
+      if (!product) {
+        setErrorMessage("Product not found in Inventory!");
+        setScanMessage('');
+        playErrorBeep();
+        return;
+      }
+      
+      if (product.quantity <= 0) {
+        setErrorMessage(`${product.name} is out of stock!`);
+        setScanMessage('');
+        playErrorBeep();
+        return;
+      }
+
+      const status = onScan(decodedText);
+      if (status === 'out_of_stock_exceeded') {
+        setErrorMessage(`Cannot exceed available stock of ${product.quantity} units for ${product.name}`);
+        setScanMessage('');
+        playErrorBeep();
+        return;
+      } else if (status === 'not_found' || status === 'out_of_stock') {
+        setErrorMessage(`${product.name} is out of stock or not found`);
+        setScanMessage('');
+        playErrorBeep();
+        return;
+      }
+      
+      // Success feedback
+      playBeep();
+      setErrorMessage('');
+      const actionText = status === 'updated' ? 'Quantity +1' : 'Added to list';
+      setScanMessage(`Scanned: ${product.name} (${actionText})`);
+      
+      // Clear message after 2.5 seconds
+      setTimeout(() => {
+        setScanMessage(prev => prev.includes(product.name) ? '' : prev);
+      }, 2500);
+    };
+
+    scanner.render(onScanSuccess, (error) => {
       // console.warn(error);
     });
 
     return () => {
       scanner.clear().catch(error => console.error("Failed to clear scanner", error));
     };
-  }, [onScan]);
+  }, [onScan, inventory]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden relative">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden relative shadow-2xl border border-slate-100">
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 rounded-full z-10"
+          type="button"
+          className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 rounded-full z-10 transition-colors"
         >
           <X size={20} />
         </button>
         <div className="p-6">
-          <h3 className="text-xl font-bold text-slate-900 mb-4 text-center">Scan Product QR Code</h3>
-          <div id="qr-reader" className="w-full"></div>
-          <p className="mt-4 text-sm text-slate-500 text-center">
-            Point your camera at a product QR code to scan.
+          <h3 className="text-xl font-bold text-slate-900 mb-1 text-center">Scan Product QR Code</h3>
+          <p className="text-xs text-slate-500 text-center mb-4">Continuous scanning is active. Items add automatically.</p>
+          
+          <div id="qr-reader" className="w-full rounded-2xl overflow-hidden border border-slate-200 shadow-inner"></div>
+          
+          {/* Status Feedback Popups */}
+          {scanMessage && (
+            <div className="mt-4 p-3 bg-emerald-50 text-emerald-800 rounded-2xl border border-emerald-100 flex items-center gap-2 text-xs font-semibold animate-pulse">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></div>
+              <span>{scanMessage}</span>
+            </div>
+          )}
+          {errorMessage && (
+            <div className="mt-4 p-3 bg-red-50 text-red-800 rounded-2xl border border-red-100 flex items-center gap-2 text-xs font-semibold">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+              <span>{errorMessage}</span>
+            </div>
+          )}
+          
+          <p className="mt-4 text-xs text-slate-400 text-center font-medium">
+            Point camera at a product QR code to scan. Use [X] at the top to exit.
           </p>
         </div>
       </div>
@@ -2350,14 +2464,31 @@ const Sales = ({ data }: any) => {
     date: getTodayStr() 
   });
 
-  const handleScan = (decodedText: string) => {
+  const handleScan = (decodedText: string): string => {
     const product = data.inventory.find((p: any) => p.id === decodedText);
-    if (product) {
-      if (product.quantity <= 0) {
-        alert("Product out of stock!");
-        return;
+    if (!product) {
+      return 'not_found';
+    }
+    if (product.quantity <= 0) {
+      return 'out_of_stock';
+    }
+    
+    const existingIndex = newSale.items.findIndex((item: any) => item.productId === product.id);
+    if (existingIndex !== -1) {
+      const currentQty = parseInt(newSale.items[existingIndex].quantity) || 0;
+      const newQty = currentQty + 1;
+      if (newQty > product.quantity) {
+        return 'out_of_stock_exceeded';
       }
-      
+      const updatedItems = [...newSale.items];
+      updatedItems[existingIndex] = {
+        ...updatedItems[existingIndex],
+        quantity: newQty.toString(),
+        total: (product.price * newQty).toString()
+      };
+      setNewSale({ ...newSale, items: updatedItems });
+      return 'updated';
+    } else {
       const newItemEntry = {
         productId: product.id,
         productCategory: product.category,
@@ -2377,8 +2508,7 @@ const Sales = ({ data }: any) => {
       } else {
         setNewSale({ ...newSale, items: [...newSale.items, newItemEntry] });
       }
-      
-      setIsScannerOpen(false);
+      return 'added';
     }
   };
 
@@ -2469,7 +2599,7 @@ const Sales = ({ data }: any) => {
 
     // 1. Add Sale
     data.addSale({
-      customerName: newSale.customerName,
+      customerName: newSale.customerName.trim() || (lang === 'bn' ? 'তৎক্ষণাৎ ক্রেতা' : 'Walk-in Customer'),
       customerPhone: newSale.customerPhone,
       customerEmail: newSale.customerEmail,
       customerAddress: newSale.customerAddress,
@@ -2619,12 +2749,14 @@ const Sales = ({ data }: any) => {
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Customer Information</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Customer Name</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  {lang === 'bn' ? 'ক্রেতার নাম (ঐচ্ছিক)' : 'Customer Name (Optional)'}
+                </label>
                 <input 
-                  type="text" required 
+                  type="text" 
                   value={newSale.customerName} onChange={e => setNewSale({...newSale, customerName: e.target.value})}
                   className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-                  placeholder="Enter name"
+                  placeholder={lang === 'bn' ? 'তৎক্ষণাৎ ক্রেতা' : 'Walk-in Customer'}
                 />
               </div>
               <div>
@@ -2810,7 +2942,7 @@ const Sales = ({ data }: any) => {
       </Modal>
 
       {isScannerOpen && (
-        <QRScanner onScan={handleScan} onClose={() => setIsScannerOpen(false)} />
+        <QRScanner onScan={handleScan} onClose={() => setIsScannerOpen(false)} inventory={data.inventory} />
       )}
 
       <InvoiceModal 
