@@ -828,7 +828,7 @@ entities.forEach(entity => {
             // Filter id and userId from update clause to prevent primary/unique key modification errors
             const updateCols = columns.filter(c => c.toLowerCase() !== 'id' && c.toLowerCase() !== 'userid');
             const updateClause = updateCols.length > 0
-                ? updateCols.map(c => `\`${c}\` = VALUES(\`${c}\`)`).join(', ')
+                ? updateCols.map(c => `\`${c}\` = VALUES(${c})`).join(', ')
                 : `\`id\` = \`id\``;
             
             const query = `INSERT INTO \`${entity}\` (${backtickedCols}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updateClause}`;
