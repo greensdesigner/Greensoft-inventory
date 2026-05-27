@@ -1374,7 +1374,7 @@ const Dashboard = ({ data }: any) => {
     return {
       date: date.split('-').slice(1).join('/'),
       profit: parseFloat(dayProfitDisplay.toFixed(2)),
-      loss: parseFloat(dayLossDisplay.toFixed(2)),
+      loss: -parseFloat(dayLossDisplay.toFixed(2)),
       net: parseFloat(netDay.toFixed(2)),
     };
   });
@@ -1497,10 +1497,26 @@ const Dashboard = ({ data }: any) => {
                       axisLine={false} 
                       tickLine={false} 
                       tick={{ fill: '#94a3b8', fontSize: 12 }}
-                      tickFormatter={(value) => lang === 'bn' ? `৳${toBengaliNumber(value)}` : `$${value}`}
+                      tickFormatter={(value) => {
+                        const absValue = Math.abs(value);
+                        const formatted = lang === 'bn' ? `৳${toBengaliNumber(absValue)}` : `৳${absValue.toLocaleString()}`;
+                        return value < 0 ? `-${formatted}` : formatted;
+                      }}
                     />
                     <Tooltip 
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                      formatter={(value: any, name: any) => {
+                        const absValue = Math.abs(Number(value));
+                        let displayName = name;
+                        if (name === 'profit') displayName = t('currentProfit') || 'Profit';
+                        else if (name === 'loss') displayName = t('currentLoss') || 'Loss';
+                        else if (name === 'net') displayName = 'Net Profit';
+                        
+                        if (name === 'net') {
+                          return [value < 0 ? `-${formatCurrency(absValue)}` : formatCurrency(absValue), displayName];
+                        }
+                        return [formatCurrency(absValue), displayName];
+                      }}
                     />
                     <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="3 3" />
                     <Area 
