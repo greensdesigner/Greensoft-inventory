@@ -140,6 +140,14 @@ const translations: any = {
     netRevenue: "Net Revenue",
     currentProfit: "Current Profit",
     currentLoss: "Current Loss",
+    profitVsLossTrend: "Profit vs Loss Trend",
+    netProfit: "Net Profit",
+    profit: "Profit",
+    loss: "Loss",
+    revenue7Days: "Revenue (Last 7 Days)",
+    noSalesData: "No sales data for reporting.",
+    inventoryStatus: "Inventory Status",
+    stockHealth: "Stock Health",
     totalExpenses: "Total Expenses",
     totalRefunds: "Total Refunds",
     totalReplacements: "Total Replacements",
@@ -217,6 +225,14 @@ const translations: any = {
     netRevenue: "নিট রাজস্ব",
     currentProfit: "বর্তমান লাভ",
     currentLoss: "বর্তমান ক্ষতি",
+    profitVsLossTrend: "লাভ বনাম ক্ষতি ট্রেন্ড",
+    netProfit: "নিট লাভ",
+    profit: "লাভ",
+    loss: "ক্ষতি",
+    revenue7Days: "রাজস্ব (শেষ ৭ দিন)",
+    noSalesData: "রিপোর্টের জন্য কোন বিক্রয়ের তথ্য নেই।",
+    inventoryStatus: "ইনভেন্টরি অবস্থা",
+    stockHealth: "স্টক হেলথ",
     totalExpenses: "মোট খরচ",
     totalRefunds: "মোট ফেরত",
     totalReplacements: "মোট পরিবর্তন",
@@ -294,6 +310,14 @@ const translations: any = {
     netRevenue: "Ingresos Netos",
     currentProfit: "Ganancia Actual",
     currentLoss: "Pérdida Actual",
+    profitVsLossTrend: "Tendencia de Pérdidas y Ganancias",
+    netProfit: "Ganancia Neta",
+    profit: "Ganancia",
+    loss: "Pérdida",
+    revenue7Days: "Ingresos (Últimos 7 Días)",
+    noSalesData: "No hay datos de ventas para informes.",
+    inventoryStatus: "Estado del Inventario",
+    stockHealth: "Salud del Stock",
     totalExpenses: "Gastos Totales",
     totalRefunds: "Reembolsos Totales",
     totalReplacements: "Reemplazos Totales",
@@ -1456,19 +1480,19 @@ const Dashboard = ({ data }: any) => {
           {hasPermission('sales', 'view') && (
             <Card>
               <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="font-bold text-slate-900">Profit vs Loss Trend</h3>
+                <h3 className="font-bold text-slate-900">{t('profitVsLossTrend')}</h3>
                 <div className="flex items-center gap-4 text-xs">
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                    <span className="text-slate-500">Profit</span>
+                    <span className="text-slate-500">{t('profit')}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                    <span className="text-slate-500">Loss</span>
+                    <span className="text-slate-500">{t('loss')}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
-                    <span className="text-slate-500">Net Profit</span>
+                    <span className="text-slate-500">{t('netProfit')}</span>
                   </div>
                 </div>
               </div>
@@ -1508,9 +1532,9 @@ const Dashboard = ({ data }: any) => {
                       formatter={(value: any, name: any) => {
                         const absValue = Math.abs(Number(value));
                         let displayName = name;
-                        if (name === 'profit') displayName = t('currentProfit') || 'Profit';
-                        else if (name === 'loss') displayName = t('currentLoss') || 'Loss';
-                        else if (name === 'net') displayName = 'Net Profit';
+                        if (name === 'profit') displayName = t('profit') || 'Profit';
+                        else if (name === 'loss') displayName = t('loss') || 'Loss';
+                        else if (name === 'net') displayName = t('netProfit') || 'Net Profit';
                         
                         if (name === 'net') {
                           return [value < 0 ? `-${formatCurrency(absValue)}` : formatCurrency(absValue), displayName];
@@ -4006,7 +4030,7 @@ const Reports = ({ data }: any) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold text-slate-900">Revenue (Last 7 Days)</h3>
+            <h3 className="font-bold text-slate-900">{t('revenue7Days')}</h3>
           </div>
           {chartData.length > 0 ? (
             <div className="h-64 flex items-end gap-4 px-4">
@@ -4026,17 +4050,17 @@ const Reports = ({ data }: any) => {
             </div>
           ) : (
             <div className="h-64 flex items-center justify-center text-slate-400">
-              <p>No sales data for reporting.</p>
+              <p>{t('noSalesData')}</p>
             </div>
           )}
         </Card>
         <Card className="p-6">
-          <h3 className="font-bold text-slate-900 mb-6">Inventory Status</h3>
+          <h3 className="font-bold text-slate-900 mb-6">{t('inventoryStatus')}</h3>
           {data.inventory.length > 0 ? (
             <div className="space-y-6">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Stock Health</span>
+                  <span className="text-slate-600">{t('stockHealth')}</span>
                   <span className="font-bold">{data.inventory.length > 0 ? ((data.inventory.filter((i: any) => i.quantity > i.minStock).length / data.inventory.length) * 100).toFixed(0) : '0'}%</span>
                 </div>
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
