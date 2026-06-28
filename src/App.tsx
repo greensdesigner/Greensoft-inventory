@@ -111,6 +111,7 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  Bar,
   ReferenceLine,
   ComposedChart
 } from 'recharts';
@@ -1542,28 +1543,26 @@ const Dashboard = ({ data }: any) => {
                         return [formatCurrency(absValue), displayName];
                       }}
                     />
-                    <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="3 3" />
-                    <Area 
-                      type="monotone" 
+                    <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1.5} />
+                    <Bar 
                       dataKey="profit" 
-                      stroke="#10b981" 
-                      strokeWidth={2}
-                      fillOpacity={1} 
-                      fill="url(#colorProfit)" 
+                      fill="#10b981" 
+                      stackId="a"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={24}
                     />
-                    <Area 
-                      type="monotone" 
+                    <Bar 
                       dataKey="loss" 
-                      stroke="#ef4444" 
-                      strokeWidth={2}
-                      fillOpacity={1} 
-                      fill="url(#colorLoss)" 
+                      fill="#ef4444" 
+                      stackId="a"
+                      radius={[0, 0, 4, 4]}
+                      maxBarSize={24}
                     />
                     <Line 
                       type="monotone" 
                       dataKey="net" 
                       stroke="#6366f1" 
-                      strokeWidth={4} 
+                      strokeWidth={3.5} 
                       dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
                       activeDot={{ r: 6, strokeWidth: 0 }}
                     />
