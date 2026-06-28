@@ -83,7 +83,8 @@ import {
   RotateCcw,
   RefreshCw,
   Eye,
-  EyeOff
+  EyeOff,
+  Mail
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
@@ -618,6 +619,9 @@ const useAuth = () => {
         setUser(data.user);
         return { success: true };
       }
+      if (data.error === 'email_not_verified') {
+        return { success: false, error: 'email_not_verified', email: data.email, message: data.message };
+      }
       return { success: false, error: data.error || 'Login failed' };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -639,11 +643,50 @@ const useAuth = () => {
       });
       const data = await res.json();
       if (data.success) {
+        if (data.needsVerification) {
+          return { success: true, needsVerification: true, email: data.email, message: data.message };
+        }
         localStorage.setItem('greensoft_user', JSON.stringify(data.user));
         setUser(data.user);
         return { success: true };
       }
       return { success: false, error: data.error || 'Registration failed' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const verifyEmail = async (email: string, code: string) => {
+    try {
+      const res = await fetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code })
+      });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.setItem('greensoft_user', JSON.stringify(data.user));
+        setUser(data.user);
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || 'ভেরিফিকেশন কোডটি সঠিক নয়!' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const resendCode = async (email: string) => {
+    try {
+      const res = await fetch('/api/auth/resend-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (data.success) {
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || 'Failed to resend code' };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -683,7 +726,7 @@ const useAuth = () => {
     setUser(null);
   };
 
-  return { user, loading, login, signup, updateProfile, logout, hasPermission };
+  return { user, loading, login, signup, verifyEmail, resendCode, updateProfile, logout, hasPermission };
 };
 
 // --- DATA HOOK ---
@@ -4945,7 +4988,7 @@ const AdminPortal = () => {
   );
 };
 
-const AuthPage = ({ type, login, signup }: any) => {
+const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
   const [email, setEmail] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [name, setName] = useState('');
@@ -4957,6 +5000,14 @@ const AuthPage = ({ type, login, signup }: any) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Verification states
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyingEmail, setVerifyingEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationSuccessMessage, setVerificationSuccessMessage] = useState('');
+  const [resendStatus, setResendStatus] = useState('');
+
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -4988,7 +5039,13 @@ const AuthPage = ({ type, login, signup }: any) => {
       });
 
       if (result.success) {
-        navigate('/');
+        if (result.needsVerification) {
+          setVerifyingEmail(result.email);
+          setIsVerifying(true);
+          setVerificationSuccessMessage('নিবন্ধন সফল হয়েছে! আপনার ইমেইলে একটি ভেরিফিকেশন কোড পাঠানো হয়েছে।');
+        } else {
+          navigate('/');
+        }
       } else {
         setError(result.error);
       }
@@ -4997,11 +5054,44 @@ const AuthPage = ({ type, login, signup }: any) => {
       if (result.success) {
         navigate('/');
       } else {
-        setError(result.error);
+        if (result.error === 'email_not_verified') {
+          setVerifyingEmail(result.email);
+          setIsVerifying(true);
+          setVerificationSuccessMessage('আপনার ইমেইলটি এখনও ভেরিফাই করা হয়নি। অনুগ্রহ করে ভেরিফিকেশন সম্পন্ন করুন।');
+        } else {
+          setError(result.error);
+        }
       }
     }
     
     setIsSubmitting(false);
+  };
+
+  const handleVerify = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+    setResendStatus('');
+
+    const result = await verifyEmail(verifyingEmail, verificationCode);
+    if (result.success) {
+      navigate('/');
+    } else {
+      setError(result.error || 'ভেরিফিকেশন ব্যর্থ হয়েছে। কোডটি আবার চেক করুন।');
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleResend = async () => {
+    setError('');
+    setResendStatus('কোড পাঠানো হচ্ছে...');
+    const result = await resendCode(verifyingEmail);
+    if (result.success) {
+      setResendStatus('একটি নতুন ভেরিফিকেশন কোড আপনার ইমেইলে পাঠানো হয়েছে।');
+    } else {
+      setError(result.error || 'কোড পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।');
+      setResendStatus('');
+    }
   };
 
   return (
@@ -5013,7 +5103,7 @@ const AuthPage = ({ type, login, signup }: any) => {
           backgroundImage: 'url("https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2426")',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-        }}
+         }}
       >
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]"></div>
       </div>
@@ -5023,167 +5113,260 @@ const AuthPage = ({ type, login, signup }: any) => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/20 p-8 relative z-10"
       >
-        <div className="flex flex-col items-center mb-8">
-          {BRAND_CONFIG.logo ? (
-            <div className="w-20 h-20 mb-4 flex items-center justify-center">
-              <img 
-                src={BRAND_CONFIG.logo} 
-                alt={BRAND_CONFIG.name} 
-                className="max-w-full max-h-full object-contain"
-              />
+        {isVerifying ? (
+          <>
+            <div className="flex flex-col items-center mb-8">
+              <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4 shadow-lg shadow-emerald-500/20">
+                <Mail className="w-6 h-6" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                ইমেইল ভেরিফিকেশন
+              </h2>
+              <p className="text-slate-500 text-center mt-2 text-sm leading-relaxed">
+                আমরা আপনার ইমেইল এড্রেস <strong>{verifyingEmail}</strong> এ একটি ৬-ডিজিটের ভেরিফিকেশন কোড পাঠিয়েছি। অ্যাকাউন্টটি সক্রিয় করতে কোডটি নিচে দিন।
+              </p>
             </div>
-          ) : (
-            <div className={`w-12 h-12 bg-${BRAND_CONFIG.color} rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4 shadow-lg shadow-emerald-500/20`}>
-              {BRAND_CONFIG.name.charAt(0)}
-            </div>
-          )}
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-            {type === 'login' ? t('welcomeBack') : t('createAccount')}
-          </h2>
-          <p className="text-slate-500 text-center mt-2">
-            {type === 'login' 
-              ? t('loginDesc') 
-              : t('signupDesc')}
-          </p>
-        </div>
 
-        {error && (
-          <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center font-medium">
-            {error}
-          </div>
-        )}
+            {verificationSuccessMessage && !error && !resendStatus && (
+              <div className="mb-6 p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm rounded-xl text-center font-medium">
+                {verificationSuccessMessage}
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {type === 'signup' && (
-            <>
+            {resendStatus && (
+              <div className="mb-6 p-3 bg-blue-50 border border-blue-100 text-blue-700 text-sm rounded-xl text-center font-medium">
+                {resendStatus}
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center font-medium animate-pulse">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleVerify} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">{t('businessNameLabel')}</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2 text-center">৬-ডিজিটের কোডটি লিখুন</label>
                 <input
                   type="text"
                   required
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  placeholder="Green Garden Supplies"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  maxLength={6}
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="123456"
+                  className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-center text-3xl font-bold tracking-[0.4em] font-mono transition-all"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">{t('fullNameLabel')}</label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="John Doe"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">{t('phoneLabel')}</label>
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="017XXXXXXXX"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                />
-              </div>
-            </>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">{t('emailLabel')}</label>
-            <div className="relative">
-              <input
-                type={showEmail ? "text" : "email"}
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@business.com"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
-              />
+
               <button
-                type="button"
-                onClick={() => setShowEmail(!showEmail)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
-                title={showEmail ? "Hide email" : "Show email"}
+                type="submit"
+                disabled={isSubmitting || verificationCode.length !== 6}
+                className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {showEmail ? <EyeOff size={20} /> : <Eye size={20} />}
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    {t('processing')}
+                  </span>
+                ) : (
+                  'অ্যাকাউন্ট ভেরিফাই করুন'
+                )}
               </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">{t('passwordLabel')}</label>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
-                title={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </div>
-          </div>
-          {type === 'signup' && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">{t('confirmPasswordLabel')}</label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
-                />
+            </form>
+
+            <div className="mt-8 text-center space-y-3">
+              <p className="text-sm text-slate-500">
+                কোডটি পাননি?{' '}
                 <button
                   type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
-                  title={showConfirmPassword ? "Hide password" : "Show password"}
+                  onClick={handleResend}
+                  className="text-emerald-600 font-bold hover:underline bg-transparent border-none p-0 cursor-pointer"
                 >
-                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  পুনরায় কোড পাঠান
                 </button>
-              </div>
+              </p>
+              <p className="text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsVerifying(false);
+                    setError('');
+                    setResendStatus('');
+                    setVerificationCode('');
+                  }}
+                  className="text-slate-400 hover:text-slate-600 hover:underline"
+                >
+                  লগইন পেজে ফিরে যান
+                </button>
+              </p>
             </div>
-          )}
-          
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                {t('processing')}
-              </span>
-            ) : (
-              type === 'login' ? t('signIn') : t('createAccountBtn')
-            )}
-          </button>
-        </form>
+          </>
+        ) : (
+          <>
+            <div className="flex flex-col items-center mb-8">
+              {BRAND_CONFIG.logo ? (
+                <div className="w-20 h-20 mb-4 flex items-center justify-center">
+                  <img 
+                    src={BRAND_CONFIG.logo} 
+                    alt={BRAND_CONFIG.name} 
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className={`w-12 h-12 bg-${BRAND_CONFIG.color} rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4 shadow-lg shadow-emerald-500/20`}>
+                  {BRAND_CONFIG.name.charAt(0)}
+                </div>
+              )}
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                {type === 'login' ? t('welcomeBack') : t('createAccount')}
+              </h2>
+              <p className="text-slate-500 text-center mt-2">
+                {type === 'login' 
+                  ? t('loginDesc') 
+                  : t('signupDesc')}
+              </p>
+            </div>
 
-        <div className="mt-8 text-center">
-          <p className="text-sm text-slate-500">
-            {type === 'login' ? t('noAccount') : t('haveAccount')}{' '}
-            <Link
-              to={type === 'login' ? '/signup' : '/login'}
-              className="text-emerald-600 font-bold hover:underline"
-            >
-              {type === 'login' ? t('signup') : t('login')}
-            </Link>
-          </p>
-        </div>
+            {error && (
+              <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center font-medium">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {type === 'signup' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('businessNameLabel')}</label>
+                    <input
+                      type="text"
+                      required
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      placeholder="Green Garden Supplies"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('fullNameLabel')}</label>
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="John Doe"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('phoneLabel')}</label>
+                    <input
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="017XXXXXXXX"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+                </>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('emailLabel')}</label>
+                <div className="relative">
+                  <input
+                    type={showEmail ? "text" : "email"}
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@business.com"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEmail(!showEmail)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+                    title={showEmail ? "Hide email" : "Show email"}
+                  >
+                    {showEmail ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('passwordLabel')}</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+                    title={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+              {type === 'signup' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('confirmPasswordLabel')}</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+                      title={showConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    {t('processing')}
+                  </span>
+                ) : (
+                  type === 'login' ? t('signIn') : t('createAccountBtn')
+                )}
+              </button>
+            </form>
+
+            <div className="mt-8 text-center">
+              <p className="text-sm text-slate-500">
+                {type === 'login' ? t('noAccount') : t('haveAccount')}{' '}
+                <Link
+                  to={type === 'login' ? '/signup' : '/login'}
+                  className="text-emerald-600 font-bold hover:underline"
+                >
+                  {type === 'login' ? t('signup') : t('login')}
+                </Link>
+              </p>
+            </div>
+          </>
+        )}
       </motion.div>
     </div>
   );
@@ -5193,7 +5376,7 @@ const AuthPage = ({ type, login, signup }: any) => {
 
 // --- MAIN APP CONTENT ---
 const MainApp = () => {
-  const { user, loading, login, signup, updateProfile, logout } = useAuth();
+  const { user, loading, login, signup, verifyEmail, resendCode, updateProfile, logout } = useAuth();
   const data = useData(user);
   const subscription = useSubscription(user);
   const { t } = useTranslation();
@@ -5214,8 +5397,8 @@ const MainApp = () => {
     <Router>
       <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center"><div className="bg-white p-10 rounded-3xl border border-red-100 shadow-xl max-w-md"><h2 className="text-xl font-bold text-red-600">A critical error has occurred.</h2><p className="text-slate-500 mt-4">There may be an error with the database or browser data. Use the buttons below to return or reset.</p><div className="flex flex-col gap-3 mt-8"><button onClick={() => window.location.href='/'} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors">Go to Home</button><button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors">Reset Data (Logout)</button></div></div></div>}>
         <Routes>
-          <Route path="/login" element={!user ? <AuthPage type="login" login={login} signup={signup} /> : <Navigate to="/" />} />
-          <Route path="/signup" element={!user ? <AuthPage type="signup" login={login} signup={signup} /> : <Navigate to="/" />} />
+          <Route path="/login" element={!user ? <AuthPage type="login" login={login} signup={signup} verifyEmail={verifyEmail} resendCode={resendCode} /> : <Navigate to="/" />} />
+          <Route path="/signup" element={!user ? <AuthPage type="signup" login={login} signup={signup} verifyEmail={verifyEmail} resendCode={resendCode} /> : <Navigate to="/" />} />
           <Route path="/admin-portal" element={<AdminPortal />} />
           <Route
             path="/*"

@@ -158,6 +158,8 @@ async function ensureAllTables() {
         // Sync columns for existing installations
         await checkAndAddColumn(conn, 'users', 'expiryDate', 'VARCHAR(50)');
         await checkAndAddColumn(conn, 'users', 'address', 'TEXT');
+        await checkAndAddColumn(conn, 'users', 'isVerified', 'TINYINT(1) DEFAULT 0');
+        await checkAndAddColumn(conn, 'users', 'verificationCode', 'VARCHAR(6)');
         
         // Ensure logo can hold large base64 strings
         try {
@@ -221,6 +223,68 @@ async function ensureAllTables() {
 }
 
 // --- API ---
+const nodemailer = require('nodemailer');
+let transporter = null;
+function getTransporter() {
+    if (transporter) return transporter;
+    
+    const host = process.env.SMTP_HOST;
+    const port = parseInt(process.env.SMTP_PORT || '587');
+    const user = process.env.SMTP_USER;
+    const pass = process.env.SMTP_PASS;
+    
+    if (host && user && pass) {
+        transporter = nodemailer.createTransport({
+            host,
+            port,
+            secure: port === 465,
+            auth: { user, pass }
+        });
+        console.log('SMTP transporter initialized with host:', host);
+    } else {
+        console.log('SMTP is not configured. Email will be simulated/logged.');
+    }
+    return transporter;
+}
+
+async function sendVerificationEmail(email, code, businessName) {
+    const transp = getTransporter();
+    const mailOptions = {
+        from: process.env.SMTP_FROM || '"GreenSoft Support" <no-reply@greensoft.com>',
+        to: email,
+        subject: 'GreenSoft Account Email Verification Code',
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+                <h2 style="color: #10b981; text-align: center; margin-bottom: 24px;">GreenSoft Account Verification</h2>
+                <p style="font-size: 16px; color: #1e293b;">Hello,</p>
+                <p style="font-size: 16px; color: #1e293b; line-height: 1.5;">Thank you for registering your business <strong>${businessName}</strong> with GreenSoft. To complete your registration and activate your account, please use the following 6-digit verification code:</p>
+                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; color: #10b981; font-size: 32px; font-weight: bold; text-align: center; padding: 16px; margin: 24px 0; letter-spacing: 6px; border-radius: 12px; font-family: monospace;">
+                    ${code}
+                </div>
+                <p style="font-size: 14px; color: #64748b; line-height: 1.5;">This code will be required to verify your email address. If you did not request this verification, you can safely ignore this email.</p>
+                <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;" />
+                <p style="font-size: 12px; color: #94a3b8; text-align: center;">GreenSoft Ltd. &copy; 2026. All rights reserved.</p>
+            </div>
+        `
+    };
+
+    if (transp) {
+        try {
+            await transp.sendMail(mailOptions);
+            console.log(`Verification email successfully sent to ${email}`);
+            return true;
+        } catch (error) {
+            console.error(`Failed to send verification email to ${email}:`, error);
+            return false;
+        }
+    } else {
+        console.log(`[SMTP SIMULATION] No SMTP configured. Verification email would contain code: ${code}`);
+        const fs = require('fs');
+        fs.appendFileSync('./db_status.txt', `\n[VERIFICATION_CODE] Email: ${email} | Code: ${code} | Time: ${new Date().toISOString()}\n`);
+        return true;
+    }
+}
+
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date(), useLocalFallback }));
 
 app.get('/api/debug-db', async (req, res) => {
@@ -242,11 +306,35 @@ app.post('/api/auth/register', async (req, res) => {
         
         if (useLocalFallback) {
             const users = readLocalTable('users');
-            const existing = users.find(u => u.email === email);
-            if (existing) return res.status(400).json({ error: 'Email already exists' });
+            const existingIndex = users.findIndex(u => u.email === email);
+            if (existingIndex !== -1) {
+                const existingUser = users[existingIndex];
+                if (existingUser.isVerified === 1) {
+                    return res.status(400).json({ error: 'Email already exists' });
+                } else {
+                    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+                    const hashed = await bcrypt.hash(password, 10);
+                    const trialExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+                    
+                    existingUser.businessName = businessName;
+                    existingUser.fullName = fullName;
+                    existingUser.phoneNumber = phoneNumber;
+                    existingUser.password = hashed;
+                    existingUser.expiryDate = trialExpiry;
+                    existingUser.verificationCode = verificationCode;
+                    existingUser.isVerified = 0;
+                    
+                    users[existingIndex] = existingUser;
+                    writeLocalTable('users', users);
+                    
+                    await sendVerificationEmail(email, verificationCode, businessName);
+                    return res.status(200).json({ success: true, needsVerification: true, email: email, message: 'ভেরিফিকেশন কোড পুনরায় পাঠানো হয়েছে।' });
+                }
+            }
 
             const hashed = await bcrypt.hash(password, 10);
             const trialExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
             
             const newUser = {
                 id: Date.now(),
@@ -255,24 +343,43 @@ app.post('/api/auth/register', async (req, res) => {
                 phoneNumber,
                 email,
                 password: hashed,
-                expiryDate: trialExpiry
+                expiryDate: trialExpiry,
+                isVerified: 0,
+                verificationCode: verificationCode
             };
             users.push(newUser);
             writeLocalTable('users', users);
-            return res.status(201).json({ success: true, user: { id: newUser.id, email, businessName, name: fullName, expiryDate: trialExpiry } });
+            
+            await sendVerificationEmail(email, verificationCode, businessName);
+            return res.status(201).json({ success: true, needsVerification: true, email: email });
         }
 
-        const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
-        if (existing.length > 0) return res.status(400).json({ error: 'Email already exists' });
+        const [existing] = await pool.query('SELECT id, isVerified FROM users WHERE email = ?', [email]);
+        if (existing.length > 0) {
+            if (existing[0].isVerified === 1) {
+                return res.status(400).json({ error: 'Email already exists' });
+            } else {
+                const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+                const hashed = await bcrypt.hash(password, 10);
+                const trialExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+                
+                await pool.query('UPDATE users SET businessName = ?, fullName = ?, phoneNumber = ?, password = ?, expiryDate = ?, verificationCode = ?, isVerified = 0 WHERE id = ?', 
+                    [businessName, fullName, phoneNumber, hashed, trialExpiry, verificationCode, existing[0].id]);
+                
+                await sendVerificationEmail(email, verificationCode, businessName);
+                return res.status(200).json({ success: true, needsVerification: true, email: email, message: 'ভেরিফিকেশন কোড পুনরায় পাঠানো হয়েছে।' });
+            }
+        }
         
         const hashed = await bcrypt.hash(password, 10);
-        
-        // --- TRIAL SYSTEM: 7 Days from Registration ---
         const trialExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
         
-        const [result] = await pool.query('INSERT INTO users (businessName, fullName, phoneNumber, email, password, expiryDate) VALUES (?, ?, ?, ?, ?, ?)', [businessName, fullName, phoneNumber, email, hashed, trialExpiry]);
+        const [result] = await pool.query('INSERT INTO users (businessName, fullName, phoneNumber, email, password, expiryDate, isVerified, verificationCode) VALUES (?, ?, ?, ?, ?, ?, 0, ?)', 
+            [businessName, fullName, phoneNumber, email, hashed, trialExpiry, verificationCode]);
         
-        res.status(201).json({ success: true, user: { id: result.insertId, email, businessName, name: fullName, expiryDate: trialExpiry } });
+        await sendVerificationEmail(email, verificationCode, businessName);
+        res.status(201).json({ success: true, needsVerification: true, email: email });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -289,6 +396,16 @@ app.post('/api/auth/login', async (req, res) => {
             if (owner) {
                 const match = await bcrypt.compare(password, owner.password);
                 if (!match) return res.status(401).json({ error: 'Wrong password' });
+                
+                if (owner.isVerified === 0) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        error: 'email_not_verified', 
+                        email: owner.email,
+                        message: 'আপনার ইমেইলটি এখনও ভেরিফাই করা হয়নি। অনুগ্রহ করে ভেরিফাই করুন।' 
+                    });
+                }
+                
                 return res.json({ 
                     success: true, 
                     user: { 
@@ -335,6 +452,16 @@ app.post('/api/auth/login', async (req, res) => {
         if (ownerRows.length > 0) {
             const match = await bcrypt.compare(password, ownerRows[0].password);
             if (!match) return res.status(401).json({ error: 'Wrong password' });
+            
+            if (ownerRows[0].isVerified === 0) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: 'email_not_verified', 
+                    email: ownerRows[0].email,
+                    message: 'আপনার ইমেইলটি এখনও ভেরিফাই করা হয়নি। অনুগ্রহ করে ভেরিফাই করুন।' 
+                });
+            }
+
             return res.json({ 
                 success: true, 
                 user: { 
@@ -381,6 +508,109 @@ app.post('/api/auth/login', async (req, res) => {
 
         return res.status(401).json({ error: 'User not found' });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Email Verification APIs
+app.post('/api/auth/verify-email', async (req, res) => {
+    try {
+        const { email, code } = req.body;
+        if (!email || !code) {
+            return res.status(400).json({ error: 'Email and verification code are required' });
+        }
+
+        if (useLocalFallback) {
+            const users = readLocalTable('users');
+            const userIndex = users.findIndex(u => u.email === email);
+            if (userIndex === -1) return res.status(400).json({ error: 'User not found' });
+            
+            const user = users[userIndex];
+            if (user.verificationCode !== code) {
+                return res.status(400).json({ error: 'ভেরিফিকেশন কোডটি সঠিক নয়!' });
+            }
+
+            user.isVerified = 1;
+            users[userIndex] = user;
+            writeLocalTable('users', users);
+
+            return res.json({ 
+                success: true, 
+                message: 'ইমেইল ভেরিফিকেশন সফল হয়েছে!',
+                user: { 
+                    id: user.id, 
+                    email: user.email, 
+                    businessName: user.businessName, 
+                    name: user.fullName, 
+                    expiryDate: user.expiryDate,
+                    phoneNumber: user.phoneNumber,
+                    isVerified: 1,
+                    role: 'OWNER'
+                } 
+            });
+        }
+
+        const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+        if (rows.length === 0) return res.status(400).json({ error: 'User not found' });
+
+        const user = rows[0];
+        if (user.verificationCode !== code) {
+            return res.status(400).json({ error: 'ভেরিফিকেশন কোডটি সঠিক নয়!' });
+        }
+
+        await pool.query('UPDATE users SET isVerified = 1 WHERE id = ?', [user.id]);
+
+        return res.json({ 
+            success: true, 
+            message: 'ইমেইল ভেরিফিকেশন সফল হয়েছে!',
+            user: { 
+                id: user.id, 
+                email: user.email, 
+                businessName: user.businessName, 
+                name: user.fullName, 
+                expiryDate: user.expiryDate,
+                phoneNumber: user.phoneNumber,
+                isVerified: 1,
+                role: 'OWNER'
+            } 
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/auth/resend-code', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+        if (useLocalFallback) {
+            const users = readLocalTable('users');
+            const userIndex = users.findIndex(u => u.email === email);
+            if (userIndex === -1) return res.status(400).json({ error: 'User not found' });
+            
+            const user = users[userIndex];
+            user.verificationCode = verificationCode;
+            users[userIndex] = user;
+            writeLocalTable('users', users);
+
+            await sendVerificationEmail(email, verificationCode, user.businessName);
+            return res.json({ success: true, message: 'ভেরিফিকেশন কোডটি পুনরায় পাঠানো হয়েছে!' });
+        }
+
+        const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+        if (rows.length === 0) return res.status(400).json({ error: 'User not found' });
+
+        const user = rows[0];
+        await pool.query('UPDATE users SET verificationCode = ? WHERE id = ?', [verificationCode, user.id]);
+
+        await sendVerificationEmail(email, verificationCode, user.businessName);
+        return res.json({ success: true, message: 'ভেরিফিকেশন কোডটি পুনরায় পাঠানো হয়েছে!' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.patch('/api/auth/profile', async (req, res) => {
