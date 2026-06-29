@@ -629,7 +629,7 @@ app.post('/api/auth/login', async (req, res) => {
             }
 
             // 2. Check Managers
-            const manager = managers.find(m => m.email === cleanEmail);
+            const manager = managers.find(m => m.email && m.email.toLowerCase() === cleanEmail.toLowerCase());
             if (manager) {
                 const match = await bcrypt.compare(password, manager.password);
                 if (!match) return res.status(401).json({ error: 'Wrong password' });
