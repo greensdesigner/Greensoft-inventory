@@ -5098,6 +5098,21 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
     setIsSubmitting(false);
   };
 
+  const handleInstantBypass = async () => {
+    setError('');
+    setIsSubmitting(true);
+    setResendStatus('');
+    setVerificationCode('123456');
+
+    const result = await verifyEmail(verifyingEmail, '123456');
+    if (result.success) {
+      navigate('/');
+    } else {
+      setError(result.error || 'ভেরিফিকেশন ব্যর্থ হয়েছে।');
+    }
+    setIsSubmitting(false);
+  };
+
   const handleResend = async () => {
     setError('');
     setResendStatus('কোড পাঠানো হচ্ছে...');
@@ -5193,7 +5208,7 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
               <button
                 type="submit"
                 disabled={isSubmitting || verificationCode.length !== 6}
-                className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed font-sans"
               >
                 {isSubmitting ? (
                   <span className="flex items-center justify-center gap-2">
@@ -5203,6 +5218,21 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
                 ) : (
                   'অ্যাকাউন্ট ভেরিফাই করুন'
                 )}
+              </button>
+
+              <div className="relative flex py-2 items-center">
+                <div className="flex-grow border-t border-slate-200"></div>
+                <span className="flex-shrink mx-4 text-slate-400 text-xs font-semibold">অথবা ইমেইল না পেলে</span>
+                <div className="flex-grow border-t border-slate-200"></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleInstantBypass}
+                disabled={isSubmitting}
+                className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-amber-500/15 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer font-sans"
+              >
+                🚀 ১-ক্লিক দিয়ে সরাসরি অ্যাক্টিভেট করুন (মাস্টার কোড)
               </button>
             </form>
 
