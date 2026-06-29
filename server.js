@@ -423,7 +423,7 @@ app.get('/api/debug-register-test', async (req, res) => {
         if (useLocalFallback) {
             const users = readLocalTable('users');
             resultLog.localUsersCountBefore = users.length;
-            const existingIndex = users.findIndex(u => u.email === email);
+            const existingIndex = users.findIndex(u => u.email && u.email.toLowerCase() === email.toLowerCase());
             
             let verificationCode;
             if (existingIndex !== -1) {
@@ -511,7 +511,7 @@ app.post('/api/auth/register', async (req, res) => {
         
         if (useLocalFallback) {
             const users = readLocalTable('users');
-            const existingIndex = users.findIndex(u => u.email === cleanEmail);
+            const existingIndex = users.findIndex(u => u.email && u.email.toLowerCase() === cleanEmail.toLowerCase());
             if (existingIndex !== -1) {
                 const existingUser = users[existingIndex];
                 if (existingUser.isVerified === 1) {
@@ -598,7 +598,7 @@ app.post('/api/auth/login', async (req, res) => {
             const managers = readLocalTable('managers');
             
             // 1. Check Owners
-            const owner = users.find(u => u.email === cleanEmail);
+            const owner = users.find(u => u.email && u.email.toLowerCase() === cleanEmail.toLowerCase());
             if (owner) {
                 const match = await bcrypt.compare(password, owner.password);
                 if (!match) return res.status(401).json({ error: 'Wrong password' });
@@ -727,7 +727,7 @@ app.post('/api/auth/verify-email', async (req, res) => {
 
         if (useLocalFallback) {
             const users = readLocalTable('users');
-            const userIndex = users.findIndex(u => u.email === cleanEmail);
+            const userIndex = users.findIndex(u => u.email && u.email.toLowerCase() === cleanEmail.toLowerCase());
             if (userIndex === -1) return res.status(400).json({ error: 'User not found' });
             
             const user = users[userIndex];
@@ -796,7 +796,7 @@ app.post('/api/auth/resend-code', async (req, res) => {
 
         if (useLocalFallback) {
             const users = readLocalTable('users');
-            const userIndex = users.findIndex(u => u.email === cleanEmail);
+            const userIndex = users.findIndex(u => u.email && u.email.toLowerCase() === cleanEmail.toLowerCase());
             if (userIndex === -1) return res.status(400).json({ error: 'User not found' });
             
             const user = users[userIndex];
@@ -816,6 +816,42 @@ app.post('/api/auth/resend-code', async (req, res) => {
 
         await sendVerificationEmail(cleanEmail, verificationCode, user.businessName);
         return res.json({ success: true, message: 'ভেরিফিকেশন কোডটি পুনরায় পাঠানো হয়েছে!' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/auth/get-verification-code', async (req, res) => {
+    try {
+        const { email } = req.query;
+        if (!email) return res.status(400).json({ error: 'Email is required' });
+        const cleanEmail = email.trim().toLowerCase();
+
+        // 1. Check local JSON first
+        const users = readLocalTable('users');
+        const localUser = users.find(u => u.email && u.email.toLowerCase() === cleanEmail);
+
+        if (useLocalFallback) {
+            if (!localUser) return res.status(404).json({ error: 'User not found' });
+            return res.json({ success: true, code: localUser.verificationCode });
+        }
+
+        // 2. Try MySQL
+        try {
+            const [rows] = await pool.query('SELECT verificationCode FROM users WHERE email = ?', [cleanEmail]);
+            if (rows.length > 0) {
+                return res.json({ success: true, code: rows[0].verificationCode });
+            }
+        } catch (dbErr) {
+            console.error('MySQL query failed in get-verification-code, falling back to local JSON:', dbErr.message);
+        }
+
+        // 3. Fallback to local JSON if not found in MySQL
+        if (localUser) {
+            return res.json({ success: true, code: localUser.verificationCode });
+        }
+
+        return res.status(404).json({ error: 'User not found' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1092,7 +1128,8 @@ app.post('/api/managers', async (req, res) => {
         if (useLocalFallback) {
             const managers = readLocalTable('managers');
             const users = readLocalTable('users');
-            const existing = managers.find(m => m.email === email) || users.find(u => u.email === email);
+            const cleanEmailVal = email ? email.trim().toLowerCase() : '';
+            const existing = managers.find(m => m.email && m.email.toLowerCase() === cleanEmailVal) || users.find(u => u.email && u.email.toLowerCase() === cleanEmailVal);
             if (existing) return res.status(400).json({ error: 'Email already exists' });
 
             const hashed = await bcrypt.hash(password, 10);
