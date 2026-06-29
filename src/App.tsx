@@ -84,7 +84,8 @@ import {
   RefreshCw,
   Eye,
   EyeOff,
-  Mail
+  Mail,
+  Key
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
@@ -212,6 +213,14 @@ const translations: any = {
     savePermissions: "Save Permissions",
     accessDenied: "Access Denied",
     managerOnly: "This section is restricted",
+    forgotPassword: "Forgot Password?",
+    resetPassword: "Reset Password",
+    sendResetCode: "Send Reset Code",
+    enterResetEmail: "Enter your email address to recover your password.",
+    resetCodeLabel: "6-Digit Reset Code",
+    newPasswordLabel: "New Password",
+    confirmNewPasswordLabel: "Confirm New Password",
+    backToLogin: "Back to Login Page",
   },
   bn: {
     dashboard: "ড্যাশবোর্ড",
@@ -297,6 +306,14 @@ const translations: any = {
     savePermissions: "পারমিশন সেভ করুন",
     accessDenied: "এক্সেস ডিনাইড",
     managerOnly: "এই সেকশনটি মালিক দ্বারা সংরক্ষিত",
+    forgotPassword: "পাসওয়ার্ড ভুলে গেছেন?",
+    resetPassword: "পাসওয়ার্ড রিসেট করুন",
+    sendResetCode: "রিসেট কোড পাঠান",
+    enterResetEmail: "পাসওয়ার্ড পুনরায় ফিরে পেতে আপনার ইমেইল এড্রেসটি লিখুন।",
+    resetCodeLabel: "৬-ডিজিটের রিসেট কোড",
+    newPasswordLabel: "নতুন পাসওয়ার্ড",
+    confirmNewPasswordLabel: "নতুন পাসওয়ার্ড নিশ্চিত করুন",
+    backToLogin: "লগইন পেজে ফিরে যান",
   },
   es: {
     dashboard: "Tablero",
@@ -726,7 +743,41 @@ const useAuth = () => {
     setUser(null);
   };
 
-  return { user, loading, login, signup, verifyEmail, resendCode, updateProfile, logout, hasPermission };
+  const forgotPassword = async (email: string) => {
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (data.success) {
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || 'Failed to send reset code' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const resetPassword = async (email: string, code: string, newPassword: string) => {
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code, newPassword })
+      });
+      const data = await res.json();
+      if (data.success) {
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || 'Password reset failed' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  return { user, loading, login, signup, verifyEmail, resendCode, updateProfile, logout, hasPermission, forgotPassword, resetPassword };
 };
 
 // --- DATA HOOK ---
@@ -4988,7 +5039,7 @@ const AdminPortal = () => {
   );
 };
 
-const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
+const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword, resetPassword }: any) => {
   const [email, setEmail] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [name, setName] = useState('');
@@ -5008,6 +5059,88 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
   const [verificationSuccessMessage, setVerificationSuccessMessage] = useState('');
   const [resendStatus, setResendStatus] = useState('');
   const [debugCode, setDebugCode] = useState('');
+
+  // Forgot Password state variables
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isResetCodeSent, setIsResetCodeSent] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+  const [resetStatus, setResetStatus] = useState('');
+  const [resetDebugCode, setResetDebugCode] = useState('');
+
+  const handleForgotPasswordSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+    setResetStatus('');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!resetEmail || !emailRegex.test(resetEmail)) {
+      setError('অনুগ্রহ করে একটি সঠিক ইমেইল এড্রেস দিন (যেমন: customer@mail.com)');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const result = await forgotPassword(resetEmail);
+    if (result.success) {
+      setIsResetCodeSent(true);
+      setResetStatus('পাসওয়ার্ড রিসেট কোড আপনার ইমেইল ঠিকানায় পাঠানো হয়েছে।');
+    } else {
+      setError(result.error || 'রিসেট কোড পাঠাতে ব্যর্থ হয়েছে।');
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleResetPasswordSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+    setResetStatus('');
+
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match!');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const result = await resetPassword(resetEmail, resetCode, newPassword);
+    if (result.success) {
+      setIsForgotPassword(false);
+      setIsResetCodeSent(false);
+      setResetEmail('');
+      setResetCode('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setError('');
+      setVerificationSuccessMessage('পাসওয়ার্ড সফলভাবে রিসেট হয়েছে! অনুগ্রহ করে নতুন পাসওয়ার্ড দিয়ে লগইন করুন।');
+    } else {
+      setError(result.error || 'পাসওয়ার্ড রিসেট করা যায়নি। কোডটি পুনরায় চেক করুন।');
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleFetchResetDebugCode = async () => {
+    setError('');
+    setResetStatus('কোড রিট্রিভ করা হচ্ছে...');
+    try {
+      const response = await fetch(`/api/auth/get-verification-code?email=${encodeURIComponent(resetEmail)}`);
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setResetDebugCode(data.code);
+        setResetStatus(`আপনার রিসেট কোডটি সফলভাবে উদ্ধার করা হয়েছে: ${data.code}`);
+      } else {
+        setError(data.error || 'কোডটি পাওয়া যায়নি।');
+        setResetStatus('');
+      }
+    } catch (err: any) {
+      setError('সার্ভার সংযোগে ত্রুটি ঘটেছে।');
+      setResetStatus('');
+    }
+  };
 
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -5237,6 +5370,175 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
               </p>
             </div>
           </>
+        ) : isForgotPassword ? (
+          <>
+            <div className="flex flex-col items-center mb-8">
+              <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4 shadow-lg shadow-emerald-500/20">
+                <Key className="w-6 h-6" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                {t('resetPassword')}
+              </h2>
+              <p className="text-slate-500 text-center mt-2 text-sm leading-relaxed">
+                {isResetCodeSent 
+                  ? `আমরা আপনার ইমেইল এড্রেস ${resetEmail} এ একটি ৬-ডিজিটের ভেরিফিকেশন কোড পাঠিয়েছি।`
+                  : t('enterResetEmail')}
+              </p>
+            </div>
+
+            {resetStatus && (
+              <div className="mb-6 p-3 bg-blue-50 border border-blue-100 text-blue-700 text-sm rounded-xl text-center font-medium">
+                {resetStatus}
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center font-medium">
+                {error}
+              </div>
+            )}
+
+            {!isResetCodeSent ? (
+              <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('emailLabel')}</label>
+                  <input
+                    type="email"
+                    required
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="name@business.com"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      {t('processing')}
+                    </span>
+                  ) : (
+                    t('sendResetCode')
+                  )}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('resetCodeLabel')}</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={resetCode}
+                    onChange={(e) => setResetCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-center text-2xl font-mono font-bold tracking-wider transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('newPasswordLabel')}</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+                    >
+                      {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('confirmNewPasswordLabel')}</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmNewPassword ? "text" : "password"}
+                      required
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+                    >
+                      {showConfirmNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[13px] text-slate-700 space-y-3 leading-relaxed shadow-sm">
+                  <p className="font-bold flex items-center gap-1.5 text-slate-900 text-[14px]">
+                    💡 কোড পেতে সমস্যা হচ্ছে?
+                  </p>
+                  <p className="text-slate-600">
+                    ইমেল ডেলিভারি সিস্টেম বা ফিল্টারের কারণে ইনবক্সে কোড পৌঁছাতে বিলম্ব হতে পারে। অনুগ্রহ করে <strong className="text-emerald-700 font-bold">Spam/Junk</strong> ফোল্ডার চেক করুন অথবা নিচের অপশনটি ব্যবহার করুন:
+                  </p>
+                  <div className="flex flex-col gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleFetchResetDebugCode}
+                      className="w-full py-2 px-3 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100/70 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
+                    >
+                      🔍 কোডটি সরাসরি দেখুন
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || resetCode.length !== 6 || !newPassword || !confirmNewPassword}
+                  className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      {t('processing')}
+                    </span>
+                  ) : (
+                    t('resetPassword')
+                  )}
+                </button>
+              </form>
+            )}
+
+            <div className="mt-8 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsForgotPassword(false);
+                  setIsResetCodeSent(false);
+                  setResetEmail('');
+                  setResetCode('');
+                  setNewPassword('');
+                  setConfirmNewPassword('');
+                  setError('');
+                  setResetStatus('');
+                  setResetDebugCode('');
+                }}
+                className="text-emerald-600 font-bold hover:underline bg-transparent border-none p-0 cursor-pointer text-sm"
+              >
+                {t('backToLogin')}
+              </button>
+            </div>
+          </>
         ) : (
           <>
             <div className="flex flex-col items-center mb-8">
@@ -5262,6 +5564,12 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
                   : t('signupDesc')}
               </p>
             </div>
+
+            {verificationSuccessMessage && !error && (
+              <div className="mb-6 p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm rounded-xl text-center font-medium">
+                {verificationSuccessMessage}
+              </div>
+            )}
 
             {error && (
               <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center font-medium">
@@ -5329,7 +5637,22 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">{t('passwordLabel')}</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-sm font-medium text-slate-700">{t('passwordLabel')}</label>
+                  {type === 'login' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsForgotPassword(true);
+                        setError('');
+                        setResetStatus('');
+                      }}
+                      className="text-xs text-emerald-600 font-semibold hover:underline bg-transparent border-none p-0 cursor-pointer"
+                    >
+                      {t('forgotPassword')}
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
@@ -5411,7 +5734,7 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
 
 // --- MAIN APP CONTENT ---
 const MainApp = () => {
-  const { user, loading, login, signup, verifyEmail, resendCode, updateProfile, logout } = useAuth();
+  const { user, loading, login, signup, verifyEmail, resendCode, updateProfile, logout, forgotPassword, resetPassword } = useAuth();
   const data = useData(user);
   const subscription = useSubscription(user);
   const { t } = useTranslation();
@@ -5432,8 +5755,8 @@ const MainApp = () => {
     <Router>
       <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center"><div className="bg-white p-10 rounded-3xl border border-red-100 shadow-xl max-w-md"><h2 className="text-xl font-bold text-red-600">A critical error has occurred.</h2><p className="text-slate-500 mt-4">There may be an error with the database or browser data. Use the buttons below to return or reset.</p><div className="flex flex-col gap-3 mt-8"><button onClick={() => window.location.href='/'} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors">Go to Home</button><button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors">Reset Data (Logout)</button></div></div></div>}>
         <Routes>
-          <Route path="/login" element={!user ? <AuthPage type="login" login={login} signup={signup} verifyEmail={verifyEmail} resendCode={resendCode} /> : <Navigate to="/" />} />
-          <Route path="/signup" element={!user ? <AuthPage type="signup" login={login} signup={signup} verifyEmail={verifyEmail} resendCode={resendCode} /> : <Navigate to="/" />} />
+          <Route path="/login" element={!user ? <AuthPage type="login" login={login} signup={signup} verifyEmail={verifyEmail} resendCode={resendCode} forgotPassword={forgotPassword} resetPassword={resetPassword} /> : <Navigate to="/" />} />
+          <Route path="/signup" element={!user ? <AuthPage type="signup" login={login} signup={signup} verifyEmail={verifyEmail} resendCode={resendCode} forgotPassword={forgotPassword} resetPassword={resetPassword} /> : <Navigate to="/" />} />
           <Route path="/admin-portal" element={<AdminPortal />} />
           <Route
             path="/*"

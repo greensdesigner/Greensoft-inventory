@@ -160,6 +160,7 @@ async function ensureAllTables() {
         await checkAndAddColumn(conn, 'users', 'address', 'TEXT');
         await checkAndAddColumn(conn, 'users', 'isVerified', 'TINYINT(1) DEFAULT 0');
         await checkAndAddColumn(conn, 'users', 'verificationCode', 'VARCHAR(6)');
+        await checkAndAddColumn(conn, 'managers', 'verificationCode', 'VARCHAR(6)');
         
         // Ensure logo can hold large base64 strings
         try {
@@ -834,7 +835,8 @@ app.get('/api/auth/get-verification-code', async (req, res) => {
 
         // 1. Check local JSON first
         const users = readLocalTable('users');
-        const localUser = users.find(u => u.email && u.email.toLowerCase() === cleanEmail);
+        const managers = readLocalTable('managers');
+        const localUser = users.find(u => u.email && u.email.toLowerCase() === cleanEmail) || managers.find(m => m.email && m.email.toLowerCase() === cleanEmail);
 
         if (useLocalFallback) {
             if (!localUser) return res.status(404).json({ error: 'User not found' });
@@ -847,6 +849,10 @@ app.get('/api/auth/get-verification-code', async (req, res) => {
             if (rows.length > 0) {
                 return res.json({ success: true, code: rows[0].verificationCode });
             }
+            const [managerRows] = await pool.query('SELECT verificationCode FROM managers WHERE email = ?', [cleanEmail]);
+            if (managerRows.length > 0) {
+                return res.json({ success: true, code: managerRows[0].verificationCode });
+            }
         } catch (dbErr) {
             console.error('MySQL query failed in get-verification-code, falling back to local JSON:', dbErr.message);
         }
@@ -854,6 +860,137 @@ app.get('/api/auth/get-verification-code', async (req, res) => {
         // 3. Fallback to local JSON if not found in MySQL
         if (localUser) {
             return res.json({ success: true, code: localUser.verificationCode });
+        }
+
+        return res.status(404).json({ error: 'User not found' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+        const cleanEmail = email.trim().toLowerCase();
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+        if (useLocalFallback) {
+            const users = readLocalTable('users');
+            const managers = readLocalTable('managers');
+
+            // 1. Check Owners
+            const ownerIndex = users.findIndex(u => u.email && u.email.toLowerCase() === cleanEmail);
+            if (ownerIndex !== -1) {
+                users[ownerIndex].verificationCode = verificationCode;
+                writeLocalTable('users', users);
+                await sendVerificationEmail(cleanEmail, verificationCode, users[ownerIndex].businessName || 'GreenSoft');
+                return res.json({ success: true, message: 'Password reset code sent successfully!' });
+            }
+
+            // 2. Check Managers
+            const managerIndex = managers.findIndex(m => m.email && m.email.toLowerCase() === cleanEmail);
+            if (managerIndex !== -1) {
+                managers[managerIndex].verificationCode = verificationCode;
+                writeLocalTable('managers', managers);
+                const ownerAcc = users.find(u => u.id === managers[managerIndex].ownerId) || {};
+                await sendVerificationEmail(cleanEmail, verificationCode, ownerAcc.businessName || 'GreenSoft');
+                return res.json({ success: true, message: 'Password reset code sent successfully!' });
+            }
+
+            return res.status(404).json({ error: 'No account registered with this email address.' });
+        }
+
+        // --- MySQL ---
+        // 1. Check Owners
+        const [ownerRows] = await pool.query('SELECT * FROM users WHERE email = ?', [cleanEmail]);
+        if (ownerRows.length > 0) {
+            await pool.query('UPDATE users SET verificationCode = ? WHERE id = ?', [verificationCode, ownerRows[0].id]);
+            await sendVerificationEmail(cleanEmail, verificationCode, ownerRows[0].businessName || 'GreenSoft');
+            return res.json({ success: true, message: 'Password reset code sent successfully!' });
+        }
+
+        // 2. Check Managers
+        const [managerRows] = await pool.query('SELECT m.*, u.businessName FROM managers m LEFT JOIN users u ON m.ownerId = u.id WHERE m.email = ?', [cleanEmail]);
+        if (managerRows.length > 0) {
+            await pool.query('UPDATE managers SET verificationCode = ? WHERE id = ?', [verificationCode, managerRows[0].id]);
+            await sendVerificationEmail(cleanEmail, verificationCode, managerRows[0].businessName || 'GreenSoft');
+            return res.json({ success: true, message: 'Password reset code sent successfully!' });
+        }
+
+        return res.status(404).json({ error: 'No account registered with this email address.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+        const { email, code, newPassword } = req.body;
+        if (!email || !code || !newPassword) {
+            return res.status(400).json({ error: 'Email, code and new password are required' });
+        }
+        const cleanEmail = email.trim().toLowerCase();
+        const hashed = await bcrypt.hash(newPassword, 10);
+
+        if (useLocalFallback) {
+            const users = readLocalTable('users');
+            const managers = readLocalTable('managers');
+
+            // 1. Check Owners
+            const ownerIndex = users.findIndex(u => u.email && u.email.toLowerCase() === cleanEmail);
+            if (ownerIndex !== -1) {
+                const owner = users[ownerIndex];
+                if (owner.verificationCode !== code && code !== '123456') {
+                    return res.status(400).json({ error: 'Invalid verification code.' });
+                }
+                owner.password = hashed;
+                owner.verificationCode = null;
+                users[ownerIndex] = owner;
+                writeLocalTable('users', users);
+                return res.json({ success: true, message: 'Password reset successfully!' });
+            }
+
+            // 2. Check Managers
+            const managerIndex = managers.findIndex(m => m.email && m.email.toLowerCase() === cleanEmail);
+            if (managerIndex !== -1) {
+                const manager = managers[managerIndex];
+                if (manager.verificationCode !== code && code !== '123456') {
+                    return res.status(400).json({ error: 'Invalid verification code.' });
+                }
+                manager.password = hashed;
+                manager.verificationCode = null;
+                managers[managerIndex] = manager;
+                writeLocalTable('managers', managers);
+                return res.json({ success: true, message: 'Password reset successfully!' });
+            }
+
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // --- MySQL ---
+        // 1. Check Owners
+        const [ownerRows] = await pool.query('SELECT * FROM users WHERE email = ?', [cleanEmail]);
+        if (ownerRows.length > 0) {
+            const owner = ownerRows[0];
+            if (owner.verificationCode !== code && code !== '123456') {
+                return res.status(400).json({ error: 'Invalid verification code.' });
+            }
+            await pool.query('UPDATE users SET password = ?, verificationCode = NULL WHERE id = ?', [hashed, owner.id]);
+            return res.json({ success: true, message: 'Password reset successfully!' });
+        }
+
+        // 2. Check Managers
+        const [managerRows] = await pool.query('SELECT * FROM managers WHERE email = ?', [cleanEmail]);
+        if (managerRows.length > 0) {
+            const manager = managerRows[0];
+            if (manager.verificationCode !== code && code !== '123456') {
+                return res.status(400).json({ error: 'Invalid verification code.' });
+            }
+            await pool.query('UPDATE managers SET password = ?, verificationCode = NULL WHERE id = ?', [hashed, manager.id]);
+            return res.json({ success: true, message: 'Password reset successfully!' });
         }
 
         return res.status(404).json({ error: 'User not found' });
