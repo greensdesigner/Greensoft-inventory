@@ -5043,7 +5043,7 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
         if (result.needsVerification) {
           setVerifyingEmail(result.email);
           setIsVerifying(true);
-          setVerificationSuccessMessage('নিবন্ধন সফল হয়েছে! আপনার ইমেইলে একটি ভেরিফিকেশন কোড পাঠানো হয়েছে।');
+          setVerificationSuccessMessage('Registration successful! A verification code has been sent to your email.');
         } else {
           navigate('/');
         }
@@ -5058,7 +5058,7 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
         if (result.error === 'email_not_verified') {
           setVerifyingEmail(result.email);
           setIsVerifying(true);
-          setVerificationSuccessMessage('আপনার ইমেইলটি এখনও ভেরিফাই করা হয়নি। অনুগ্রহ করে ভেরিফিকেশন সম্পন্ন করুন।');
+          setVerificationSuccessMessage('Your email has not been verified yet. Please complete verification.');
         } else {
           setError(result.error);
         }
@@ -5078,19 +5078,19 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
     if (result.success) {
       navigate('/');
     } else {
-      setError(result.error || 'ভেরিফিকেশন ব্যর্থ হয়েছে। কোডটি আবার চেক করুন।');
+      setError(result.error || 'Verification failed. Please check the code and try again.');
     }
     setIsSubmitting(false);
   };
 
   const handleResend = async () => {
     setError('');
-    setResendStatus('কোড পাঠানো হচ্ছে...');
+    setResendStatus('Sending code...');
     const result = await resendCode(verifyingEmail);
     if (result.success) {
-      setResendStatus('একটি নতুন ভেরিফিকেশন কোড আপনার ইমেইলে পাঠানো হয়েছে।');
+      setResendStatus('A new verification code has been sent to your email.');
     } else {
-      setError(result.error || 'কোড পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।');
+      setError(result.error || 'Failed to send verification code. Please try again later.');
       setResendStatus('');
     }
   };
@@ -5155,10 +5155,10 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
                 <Mail className="w-6 h-6" />
               </div>
               <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                ইমেইল ভেরিফিকেশন
+                Email Verification
               </h2>
               <p className="text-slate-500 text-center mt-2 text-sm leading-relaxed">
-                আমরা আপনার ইমেইল এড্রেস <strong>{verifyingEmail}</strong> এ একটি ৬-ডিজিটের ভেরিফিকেশন কোড পাঠিয়েছি। অ্যাকাউন্টটি সক্রিয় করতে কোডটি নিচে দিন।
+                We have sent a 6-digit verification code to your email address <strong>{verifyingEmail}</strong>. Enter the code below to activate your account.
               </p>
             </div>
 
@@ -5180,34 +5180,9 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
               </div>
             )}
 
-            <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[13px] text-slate-700 space-y-3 leading-relaxed shadow-sm">
-              <p className="font-bold flex items-center gap-1.5 text-slate-900 text-[14px]">
-                💡 কোড পেতে সমস্যা হচ্ছে?
-              </p>
-              <p className="text-slate-600">
-                ইমেল ডেলিভারি সিস্টেম বা ফিল্টারের কারণে ইনবক্সে কোড পৌঁছাতে বিলম্ব হতে পারে। অনুগ্রহ করে <strong className="text-emerald-700 font-bold">Spam/Junk</strong> ফোল্ডার চেক করুন অথবা নিচের যেকোনো একটি অপশন ব্যবহার করুন:
-              </p>
-              <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleFetchDebugCode}
-                  className="flex-1 py-2 px-3 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100/70 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
-                >
-                  🔍 কোডটি সরাসরি দেখুন
-                </button>
-                <button
-                  type="button"
-                  onClick={handleInstantBypass}
-                  className="flex-1 py-2 px-3 bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
-                >
-                  ⚡ সরাসরি অ্যাকাউন্ট খুলুন
-                </button>
-              </div>
-            </div>
-
             <form onSubmit={handleVerify} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2 text-center">৬-ডিজিটের কোডটি লিখুন</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2 text-center">Enter 6-digit Code</label>
                 <input
                   type="text"
                   required
@@ -5230,20 +5205,20 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
                     {t('processing')}
                   </span>
                 ) : (
-                  'অ্যাকাউন্ট ভেরিফাই করুন'
+                  'Verify Account'
                 )}
               </button>
             </form>
 
             <div className="mt-8 text-center space-y-3">
               <p className="text-sm text-slate-500">
-                কোডটি পাননি?{' '}
+                Didn't receive the code?{' '}
                 <button
                   type="button"
                   onClick={handleResend}
                   className="text-emerald-600 font-bold hover:underline bg-transparent border-none p-0 cursor-pointer"
                 >
-                  পুনরায় কোড পাঠান
+                  Resend Code
                 </button>
               </p>
               <p className="text-xs">
@@ -5257,7 +5232,7 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
                   }}
                   className="text-slate-400 hover:text-slate-600 hover:underline"
                 >
-                  লগইন পেজে ফিরে যান
+                  Back to Login Page
                 </button>
               </p>
             </div>
