@@ -1231,7 +1231,55 @@ const setupServer = async () => {
 (async () => {
     await ensureAllTables();
     await setupServer();
-    app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, '0.0.0.0', async () => {
         console.log(`Server started on port ${PORT}`);
+        
+        // Auto check SMTP on start and write to smtp_status.txt
+        const fs = require('fs');
+        const host = process.env.SMTP_HOST ? process.env.SMTP_HOST.trim() : null;
+        const portStr = process.env.SMTP_PORT ? process.env.SMTP_PORT.trim() : '587';
+        const port = parseInt(portStr);
+        const user = process.env.SMTP_USER ? process.env.SMTP_USER.trim() : null;
+        const pass = process.env.SMTP_PASS ? process.env.SMTP_PASS.trim() : null;
+        const from = process.env.SMTP_FROM ? process.env.SMTP_FROM.trim() : null;
+        
+        let statusMsg = `SMTP Start Check at ${new Date().toISOString()}\n`;
+        statusMsg += `SMTP_HOST: ${host}\n`;
+        statusMsg += `SMTP_PORT: ${portStr}\n`;
+        statusMsg += `SMTP_USER: ${user}\n`;
+        statusMsg += `SMTP_FROM: ${from}\n`;
+        statusMsg += `SMTP_PASS exists: ${!!pass}\n`;
+        
+        if (host && user && pass) {
+            try {
+                const testTransp = nodemailer.createTransport({
+                    host,
+                    port,
+                    secure: port === 465,
+                    auth: { user, pass },
+                    tls: {
+                        rejectUnauthorized: false
+                    }
+                });
+                await testTransp.verify();
+                statusMsg += `SUCCESS: SMTP connection verified successfully!\n`;
+                console.log('SMTP connection verified successfully on startup!');
+            } catch (smtpErr) {
+                statusMsg += `ERROR: SMTP connection verification failed!\n`;
+                statusMsg += `Message: ${smtpErr.message}\n`;
+                statusMsg += `Code: ${smtpErr.code}\n`;
+                statusMsg += `Command: ${smtpErr.command}\n`;
+                statusMsg += `Stack: ${smtpErr.stack}\n`;
+                console.error('SMTP connection failed on startup:', smtpErr.message);
+            }
+        } else {
+            statusMsg += `NOT CONFIGURED: Required environment variables are missing.\n`;
+        }
+        
+        try {
+            fs.writeFileSync('./smtp_status.txt', statusMsg);
+        } catch (fsErr) {
+            console.error('Failed to write smtp_status.txt:', fsErr);
+        }
     });
 })();
