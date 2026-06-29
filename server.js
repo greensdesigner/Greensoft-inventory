@@ -224,10 +224,8 @@ async function ensureAllTables() {
 
 // --- API ---
 const nodemailer = require('nodemailer');
-let transporter = null;
+
 function getTransporter() {
-    if (transporter) return transporter;
-    
     const host = process.env.SMTP_HOST ? process.env.SMTP_HOST.trim() : null;
     const portStr = process.env.SMTP_PORT ? process.env.SMTP_PORT.trim() : '587';
     const port = parseInt(portStr);
@@ -235,7 +233,7 @@ function getTransporter() {
     const pass = process.env.SMTP_PASS ? process.env.SMTP_PASS.trim() : null;
     
     if (host && user && pass) {
-        transporter = nodemailer.createTransport({
+        return nodemailer.createTransport({
             host,
             port,
             secure: port === 465,
@@ -244,11 +242,10 @@ function getTransporter() {
                 rejectUnauthorized: false
             }
         });
-        console.log('SMTP transporter initialized with host:', host);
     } else {
         console.log('SMTP is not configured. Email will be simulated/logged.');
     }
-    return transporter;
+    return null;
 }
 
 async function sendVerificationEmail(email, code, businessName) {
@@ -270,20 +267,28 @@ async function sendVerificationEmail(email, code, businessName) {
 
     const mailOptions = {
         from: finalFrom,
+        replyTo: finalFrom,
         to: cleanEmail,
-        subject: `GreenSoft Verification Code: ${cleanCode}`,
+        subject: `ভেরিফিকেশন কোড: ${cleanCode} - GreenSoft`,
+        text: `GreenSoft অ্যাকাউন্ট ভেরিফিকেশন কোড\n\nআপনার ব্যবসা প্রতিষ্ঠান "${cleanBusiness}" ভেরিফাই করার জন্য নিচে দেওয়া কোডটি ব্যবহার করুন:\n\nকোড: ${cleanCode}\n\nধন্যবাদ,\nGreenSoft Ltd.`,
         html: `
-            <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 30px; max-width: 550px; margin: auto; border: 1px solid #e4e4e7; border-radius: 8px; background-color: #ffffff;">
-                <h3 style="color: #0f172a; margin-bottom: 20px;">GreenSoft অ্যাকাউন্ট ভেরিফিকেশন কোড</h3>
-                <p style="color: #334155; font-size: 15px; line-height: 1.6;">আপনার ব্যবসা প্রতিষ্ঠান <strong>${cleanBusiness}</strong> ভেরিফাই করার জন্য নিচে দেওয়া কোডটি ব্যবহার করুন:</p>
-                <div style="font-size: 36px; font-weight: bold; letter-spacing: 4px; color: #059669; padding: 15px; text-align: center; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; margin: 25px 0;">
+            <div style="font-family: Arial, sans-serif; padding: 25px; max-width: 500px; margin: 0 auto; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+                <h2 style="color: #059669; font-size: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-top: 0; text-align: center;">GreenSoft অ্যাকাউন্ট ভেরিফিকেশন</h2>
+                <p style="font-size: 15px; line-height: 1.6; margin: 20px 0;">আপনার ব্যবসা প্রতিষ্ঠান <strong>${cleanBusiness}</strong> ভেরিফাই করার জন্য নিচের ৬-ডিজিটের ভেরিফিকেশন কোডটি ব্যবহার করুন:</p>
+                <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #059669; background-color: #f0fdf4; border: 1px dashed #34d399; padding: 16px; text-align: center; margin: 25px 0; border-radius: 8px;">
                     ${cleanCode}
                 </div>
-                <p style="color: #64748b; font-size: 13px; line-height: 1.5;">এই কোডটি ৫ মিনিটের জন্য কার্যকর থাকবে। এটি কারও সাথে শেয়ার করবেন না।</p>
-                <hr style="border: 0; border-top: 1px solid #e4e4e7; margin: 25px 0;" />
-                <p style="color: #94a3b8; font-size: 12px; text-align: center;">GreenSoft Ltd. &copy; 2026</p>
+                <p style="font-size: 13px; color: #64748b; line-height: 1.5; text-align: center;">এই কোডটি নিরাপত্তা স্বার্থে ৫ মিনিটের জন্য কার্যকর থাকবে। কোডটি অন্য কারও সাথে শেয়ার করবেন না।</p>
+                <div style="margin-top: 30px; border-top: 1px solid #f1f5f9; padding-top: 15px; font-size: 11px; color: #94a3b8; text-align: center;">
+                    GreenSoft Ltd. &copy; 2026
+                </div>
             </div>
-        `
+        `,
+        headers: {
+            'X-Priority': '1', // High priority
+            'X-MSMail-Priority': 'High',
+            'Importance': 'high'
+        }
     };
 
     if (transp) {
