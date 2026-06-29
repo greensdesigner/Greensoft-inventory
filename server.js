@@ -228,10 +228,11 @@ let transporter = null;
 function getTransporter() {
     if (transporter) return transporter;
     
-    const host = process.env.SMTP_HOST;
-    const port = parseInt(process.env.SMTP_PORT || '587');
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
+    const host = process.env.SMTP_HOST ? process.env.SMTP_HOST.trim() : null;
+    const portStr = process.env.SMTP_PORT ? process.env.SMTP_PORT.trim() : '587';
+    const port = parseInt(portStr);
+    const user = process.env.SMTP_USER ? process.env.SMTP_USER.trim() : null;
+    const pass = process.env.SMTP_PASS ? process.env.SMTP_PASS.trim() : null;
     
     if (host && user && pass) {
         transporter = nodemailer.createTransport({
@@ -279,6 +280,12 @@ async function sendVerificationEmail(email, code, businessName) {
             return true;
         } catch (error) {
             console.error(`Failed to send verification email to ${email}:`, error);
+            try {
+                const fs = require('fs');
+                fs.writeFileSync('./smtp_error.txt', `Time: ${new Date().toISOString()}\nTo: ${email}\nError Message: ${error.message}\nError Code: ${error.code}\nCommand: ${error.command}\nStack: ${error.stack}\n`);
+            } catch (fsErr) {
+                console.error('Failed to write smtp_error.txt:', fsErr);
+            }
             return false;
         }
     } else {
@@ -290,6 +297,78 @@ async function sendVerificationEmail(email, code, businessName) {
 }
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date(), useLocalFallback }));
+
+app.get('/api/debug-smtp', async (req, res) => {
+    const host = process.env.SMTP_HOST ? process.env.SMTP_HOST.trim() : null;
+    const portStr = process.env.SMTP_PORT ? process.env.SMTP_PORT.trim() : '587';
+    const port = parseInt(portStr);
+    const user = process.env.SMTP_USER ? process.env.SMTP_USER.trim() : null;
+    const pass = process.env.SMTP_PASS ? process.env.SMTP_PASS.trim() : null;
+    const from = process.env.SMTP_FROM ? process.env.SMTP_FROM.trim() : null;
+
+    const details = {
+        configured: !!(host && user && pass),
+        host,
+        port,
+        user,
+        pass: pass ? `${pass.substring(0, 2)}...${pass.substring(pass.length - 2)}` : null,
+        from
+    };
+
+    if (!details.configured) {
+        return res.status(400).json({
+            success: false,
+            message: 'SMTP-র জন্য প্রয়োজনীয় পরিবেশ ভেরিয়েবলগুলো (SMTP_HOST, SMTP_USER, SMTP_PASS) সেট করা নেই।',
+            details
+        });
+    }
+
+    try {
+        const testTransp = nodemailer.createTransport({
+            host,
+            port: port || 587,
+            secure: port === 465,
+            auth: { user, pass },
+            tls: {
+                rejectUnauthorized: false
+            }
+        });
+
+        // Test connection
+        await testTransp.verify();
+
+        // Try sending a test mail to user's email
+        const defaultFrom = user ? `"GreenSoft" <${user}>` : '"GreenSoft Support" <no-reply@greensoft.com>';
+        const info = await testTransp.sendMail({
+            from: from || defaultFrom,
+            to: 'GreenlabTechnology.Ceo@gmail.com',
+            subject: 'GreenSoft SMTP Test Email',
+            text: 'আপনার SMTP ভেরিফিকেশন সফলভাবে কাজ করছে!',
+            html: '<p>আপনার SMTP ভেরিফিকেশন সফলভাবে কাজ করছে!</p>'
+        });
+
+        return res.json({
+            success: true,
+            message: 'SMTP কানেকশন সফল হয়েছে এবং টেস্ট ইমেইল পাঠানো হয়েছে!',
+            info,
+            details
+        });
+    } catch (error) {
+        // Write the error details to smtp_error.txt as well
+        const fs = require('fs');
+        fs.writeFileSync('./smtp_error.txt', `[DEBUG-SMTP] Time: ${new Date().toISOString()}\nError Message: ${error.message}\nError Code: ${error.code}\nCommand: ${error.command}\nStack: ${error.stack}\n`);
+
+        return res.status(500).json({
+            success: false,
+            message: 'SMTP কানেকশনে ত্রুটি দেখা দিয়েছে!',
+            error: error.message,
+            code: error.code,
+            command: error.command,
+            stack: error.stack,
+            details
+        });
+    }
+});
 
 app.get('/api/debug-db', async (req, res) => {
     try {
