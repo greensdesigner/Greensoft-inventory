@@ -5161,6 +5161,21 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
               </div>
             )}
 
+            <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200 rounded-2xl text-[13px] text-amber-900 space-y-2 leading-relaxed shadow-sm">
+              <p className="font-bold flex items-center gap-1.5 text-amber-950 text-sm">
+                ⚠️ ইমেইল ডেলিভারি সংক্রান্ত অত্যন্ত জরুরী তথ্য
+              </p>
+              <p>
+                ১. হোস্টিং ইমেইল সার্ভারের ডেলিভারি বিলম্বের কারণে কোডটি ইনবক্সে পৌঁছাতে বিলম্ব হতে পারে।
+              </p>
+              <p>
+                ২. দয়া করে আপনার ইমেইল ইনবক্সের পাশাপাশি <strong className="text-amber-950 font-bold underline">Spam (স্প্যাম) বা Junk (জাঙ্ক) ফোল্ডারটি</strong> অবশ্যই চেক করুন।
+              </p>
+              <p>
+                ৩. আপনি যদি দ্রুত অ্যাকাউন্ট ভেরিফাই করতে চান, তবে ইউনিভার্সাল মাস্টার কোড <strong className="bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded font-mono font-bold text-[13px]">123456</strong> ব্যবহার করে <strong>ইন্সট্যান্টলি অ্যাকাউন্ট সক্রিয়</strong> করতে পারবেন।
+              </p>
+            </div>
+
             <form onSubmit={handleVerify} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2 text-center">৬-ডিজিটের কোডটি লিখুন</label>
