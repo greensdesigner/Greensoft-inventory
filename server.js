@@ -253,9 +253,14 @@ function getTransporter() {
 
 async function sendVerificationEmail(email, code, businessName) {
     const transp = getTransporter();
-    const defaultFrom = process.env.SMTP_USER ? `"GreenSoft" <${process.env.SMTP_USER}>` : '"GreenSoft Support" <no-reply@greensoft.com>';
+    const user = process.env.SMTP_USER ? process.env.SMTP_USER.trim() : null;
+    const from = process.env.SMTP_FROM ? process.env.SMTP_FROM.trim() : null;
+    
+    const defaultFrom = user ? `"GreenSoft" <${user}>` : '"GreenSoft Support" <no-reply@greensoft.com>';
+    const finalFrom = from ? (from.includes('<') ? from : `"GreenSoft" <${from}>`) : defaultFrom;
+
     const mailOptions = {
-        from: process.env.SMTP_FROM || defaultFrom,
+        from: finalFrom,
         to: email,
         subject: 'GreenSoft Account Email Verification Code',
         html: `
@@ -1264,13 +1269,35 @@ const setupServer = async () => {
                 await testTransp.verify();
                 statusMsg += `SUCCESS: SMTP connection verified successfully!\n`;
                 console.log('SMTP connection verified successfully on startup!');
+
+                // Try sending a real test email to see if Hostinger allows it and how it behaves
+                const defaultFrom = user ? `"GreenSoft" <${user}>` : '"GreenSoft Support" <no-reply@greensoft.com>';
+                const finalFrom = from ? (from.includes('<') ? from : `"GreenSoft" <${from}>`) : defaultFrom;
+                
+                statusMsg += `Attempting to send test email to GreenlabTechnology.Ceo@gmail.com from: ${finalFrom}...\n`;
+                const info = await testTransp.sendMail({
+                    from: finalFrom,
+                    to: 'GreenlabTechnology.Ceo@gmail.com',
+                    subject: 'GreenSoft SMTP Delivery Test',
+                    html: `
+                        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                            <h2 style="color: #10b981;">SMTP Delivery Test Successful!</h2>
+                            <p>This is a test email to verify that SMTP delivery is working perfectly from <strong>smtp.hostinger.com</strong>.</p>
+                            <p>Time: ${new Date().toLocaleString()}</p>
+                        </div>
+                    `
+                });
+                statusMsg += `EMAIL SEND SUCCESS: Message ID: ${info.messageId}\n`;
+                statusMsg += `Accepted: ${JSON.stringify(info.accepted)}\n`;
+                statusMsg += `Rejected: ${JSON.stringify(info.rejected)}\n`;
+                console.log('SMTP delivery test successful! Message ID:', info.messageId);
             } catch (smtpErr) {
-                statusMsg += `ERROR: SMTP connection verification failed!\n`;
+                statusMsg += `ERROR: SMTP connection or sending failed!\n`;
                 statusMsg += `Message: ${smtpErr.message}\n`;
                 statusMsg += `Code: ${smtpErr.code}\n`;
                 statusMsg += `Command: ${smtpErr.command}\n`;
                 statusMsg += `Stack: ${smtpErr.stack}\n`;
-                console.error('SMTP connection failed on startup:', smtpErr.message);
+                console.error('SMTP connection or sending failed on startup:', smtpErr.message);
             }
         } else {
             statusMsg += `NOT CONFIGURED: Required environment variables are missing.\n`;
