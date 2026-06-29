@@ -269,26 +269,21 @@ async function sendVerificationEmail(email, code, businessName) {
         from: finalFrom,
         replyTo: finalFrom,
         to: cleanEmail,
-        subject: `ভেরিফিকেশন কোড: ${cleanCode} - GreenSoft`,
-        text: `GreenSoft অ্যাকাউন্ট ভেরিফিকেশন কোড\n\nআপনার ব্যবসা প্রতিষ্ঠান "${cleanBusiness}" ভেরিফাই করার জন্য নিচে দেওয়া কোডটি ব্যবহার করুন:\n\nকোড: ${cleanCode}\n\nধন্যবাদ,\nGreenSoft Ltd.`,
+        subject: `GreenSoft Verification Code: ${cleanCode}`,
+        text: `GreenSoft Account Verification Code\n\nYour business "${cleanBusiness}" verification code is: ${cleanCode}\n\nPlease use this code to verify your account.\n\nThank you,\nGreenSoft Ltd.`,
         html: `
             <div style="font-family: Arial, sans-serif; padding: 25px; max-width: 500px; margin: 0 auto; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
-                <h2 style="color: #059669; font-size: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-top: 0; text-align: center;">GreenSoft অ্যাকাউন্ট ভেরিফিকেশন</h2>
-                <p style="font-size: 15px; line-height: 1.6; margin: 20px 0;">আপনার ব্যবসা প্রতিষ্ঠান <strong>${cleanBusiness}</strong> ভেরিফাই করার জন্য নিচের ৬-ডিজিটের ভেরিফিকেশন কোডটি ব্যবহার করুন:</p>
+                <h2 style="color: #059669; font-size: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-top: 0; text-align: center;">GreenSoft Verification Code</h2>
+                <p style="font-size: 15px; line-height: 1.6; margin: 20px 0;">Your business <strong>${cleanBusiness}</strong> verification code is:</p>
                 <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #059669; background-color: #f0fdf4; border: 1px dashed #34d399; padding: 16px; text-align: center; margin: 25px 0; border-radius: 8px;">
                     ${cleanCode}
                 </div>
-                <p style="font-size: 13px; color: #64748b; line-height: 1.5; text-align: center;">এই কোডটি নিরাপত্তা স্বার্থে ৫ মিনিটের জন্য কার্যকর থাকবে। কোডটি অন্য কারও সাথে শেয়ার করবেন না।</p>
+                <p style="font-size: 13px; color: #64748b; line-height: 1.5; text-align: center;">For security reasons, this code will be valid for 5 minutes. Do not share this code with anyone.</p>
                 <div style="margin-top: 30px; border-top: 1px solid #f1f5f9; padding-top: 15px; font-size: 11px; color: #94a3b8; text-align: center;">
                     GreenSoft Ltd. &copy; 2026
                 </div>
             </div>
-        `,
-        headers: {
-            'X-Priority': '1', // High priority
-            'X-MSMail-Priority': 'High',
-            'Importance': 'high'
-        }
+        `
     };
 
     if (transp) {
