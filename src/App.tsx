@@ -5080,7 +5080,7 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!resetEmail || !emailRegex.test(resetEmail)) {
-      setError('অনুগ্রহ করে একটি সঠিক ইমেইল এড্রেস দিন (যেমন: customer@mail.com)');
+      setError('Please enter a valid email address (e.g. customer@mail.com)');
       setIsSubmitting(false);
       return;
     }
@@ -5088,9 +5088,9 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword
     const result = await forgotPassword(resetEmail);
     if (result.success) {
       setIsResetCodeSent(true);
-      setResetStatus('পাসওয়ার্ড রিসেট কোড আপনার ইমেইল ঠিকানায় পাঠানো হয়েছে।');
+      setResetStatus('The password reset code has been sent to your email address.');
     } else {
-      setError(result.error || 'রিসেট কোড পাঠাতে ব্যর্থ হয়েছে।');
+      setError(result.error || 'Failed to send reset code.');
     }
     setIsSubmitting(false);
   };
@@ -5116,9 +5116,9 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword
       setNewPassword('');
       setConfirmNewPassword('');
       setError('');
-      setVerificationSuccessMessage('পাসওয়ার্ড সফলভাবে রিসেট হয়েছে! অনুগ্রহ করে নতুন পাসওয়ার্ড দিয়ে লগইন করুন।');
+      setVerificationSuccessMessage('Password reset successfully! Please log in with your new password.');
     } else {
-      setError(result.error || 'পাসওয়ার্ড রিসেট করা যায়নি। কোডটি পুনরায় চেক করুন।');
+      setError(result.error || 'Password reset failed. Please check the code.');
     }
     setIsSubmitting(false);
   };
@@ -5377,12 +5377,12 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword
                 <Key className="w-6 h-6" />
               </div>
               <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                {t('resetPassword')}
+                Reset Password
               </h2>
               <p className="text-slate-500 text-center mt-2 text-sm leading-relaxed">
                 {isResetCodeSent 
-                  ? `আমরা আপনার ইমেইল এড্রেস ${resetEmail} এ একটি ৬-ডিজিটের ভেরিফিকেশন কোড পাঠিয়েছি।`
-                  : t('enterResetEmail')}
+                  ? `We have sent a 6-digit verification code to your email address ${resetEmail}.`
+                  : "Enter your email address to recover your password."}
               </p>
             </div>
 
@@ -5401,7 +5401,7 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword
             {!isResetCodeSent ? (
               <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('emailLabel')}</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
                   <input
                     type="email"
                     required
@@ -5420,17 +5420,17 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword
                   {isSubmitting ? (
                     <span className="flex items-center justify-center gap-2">
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      {t('processing')}
+                      Processing...
                     </span>
                   ) : (
-                    t('sendResetCode')
+                    "Send Reset Code"
                   )}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('resetCodeLabel')}</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">6-Digit Reset Code</label>
                   <input
                     type="text"
                     required
@@ -5443,7 +5443,7 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('newPasswordLabel')}</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
                   <div className="relative">
                     <input
                       type={showNewPassword ? "text" : "password"}
@@ -5464,7 +5464,7 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('confirmNewPasswordLabel')}</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
                   <div className="relative">
                     <input
                       type={showConfirmNewPassword ? "text" : "password"}
@@ -5484,24 +5484,6 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword
                   </div>
                 </div>
 
-                <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[13px] text-slate-700 space-y-3 leading-relaxed shadow-sm">
-                  <p className="font-bold flex items-center gap-1.5 text-slate-900 text-[14px]">
-                    💡 কোড পেতে সমস্যা হচ্ছে?
-                  </p>
-                  <p className="text-slate-600">
-                    ইমেল ডেলিভারি সিস্টেম বা ফিল্টারের কারণে ইনবক্সে কোড পৌঁছাতে বিলম্ব হতে পারে। অনুগ্রহ করে <strong className="text-emerald-700 font-bold">Spam/Junk</strong> ফোল্ডার চেক করুন অথবা নিচের অপশনটি ব্যবহার করুন:
-                  </p>
-                  <div className="flex flex-col gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={handleFetchResetDebugCode}
-                      className="w-full py-2 px-3 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100/70 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
-                    >
-                      🔍 কোডটি সরাসরি দেখুন
-                    </button>
-                  </div>
-                </div>
-
                 <button
                   type="submit"
                   disabled={isSubmitting || resetCode.length !== 6 || !newPassword || !confirmNewPassword}
@@ -5510,10 +5492,10 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword
                   {isSubmitting ? (
                     <span className="flex items-center justify-center gap-2">
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      {t('processing')}
+                      Processing...
                     </span>
                   ) : (
-                    t('resetPassword')
+                    "Reset Password"
                   )}
                 </button>
               </form>
@@ -5535,7 +5517,7 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword
                 }}
                 className="text-emerald-600 font-bold hover:underline bg-transparent border-none p-0 cursor-pointer text-sm"
               >
-                {t('backToLogin')}
+                Back to Login Page
               </button>
             </div>
           </>
