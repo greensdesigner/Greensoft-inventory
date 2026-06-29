@@ -731,7 +731,7 @@ app.post('/api/auth/verify-email', async (req, res) => {
             if (userIndex === -1) return res.status(400).json({ error: 'User not found' });
             
             const user = users[userIndex];
-            if (user.verificationCode !== code && code !== '123456') {
+            if (user.verificationCode !== code) {
                 return res.status(400).json({ error: 'ভেরিফিকেশন কোডটি সঠিক নয়!' });
             }
 
@@ -759,7 +759,7 @@ app.post('/api/auth/verify-email', async (req, res) => {
         if (rows.length === 0) return res.status(400).json({ error: 'User not found' });
 
         const user = rows[0];
-        if (user.verificationCode !== code && code !== '123456') {
+        if (user.verificationCode !== code) {
             return res.status(400).json({ error: 'ভেরিফিকেশন কোডটি সঠিক নয়!' });
         }
 
@@ -822,39 +822,7 @@ app.post('/api/auth/resend-code', async (req, res) => {
 });
 
 app.get('/api/auth/get-verification-code', async (req, res) => {
-    try {
-        const { email } = req.query;
-        if (!email) return res.status(400).json({ error: 'Email is required' });
-        const cleanEmail = email.trim().toLowerCase();
-
-        // 1. Check local JSON first
-        const users = readLocalTable('users');
-        const localUser = users.find(u => u.email && u.email.toLowerCase() === cleanEmail);
-
-        if (useLocalFallback) {
-            if (!localUser) return res.status(404).json({ error: 'User not found' });
-            return res.json({ success: true, code: localUser.verificationCode });
-        }
-
-        // 2. Try MySQL
-        try {
-            const [rows] = await pool.query('SELECT verificationCode FROM users WHERE email = ?', [cleanEmail]);
-            if (rows.length > 0) {
-                return res.json({ success: true, code: rows[0].verificationCode });
-            }
-        } catch (dbErr) {
-            console.error('MySQL query failed in get-verification-code, falling back to local JSON:', dbErr.message);
-        }
-
-        // 3. Fallback to local JSON if not found in MySQL
-        if (localUser) {
-            return res.json({ success: true, code: localUser.verificationCode });
-        }
-
-        return res.status(404).json({ error: 'User not found' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    return res.status(403).json({ error: 'এই সার্ভিসটি বন্ধ করা হয়েছে।' });
 });
 
 app.patch('/api/auth/profile', async (req, res) => {

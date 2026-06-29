@@ -5007,25 +5007,9 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
   const [verificationCode, setVerificationCode] = useState('');
   const [verificationSuccessMessage, setVerificationSuccessMessage] = useState('');
   const [resendStatus, setResendStatus] = useState('');
-  const [debugCode, setDebugCode] = useState('');
 
   const navigate = useNavigate();
   const { t } = useTranslation();
-
-  const handleFetchDebugCode = async () => {
-    try {
-      const res = await fetch(`/api/auth/get-verification-code?email=${encodeURIComponent(verifyingEmail)}`);
-      const data = await res.json();
-      if (data.success && data.code) {
-        setDebugCode(data.code);
-        setVerificationCode(data.code);
-      } else {
-        setError(data.error || 'ভেরিফিকেশন কোড পাওয়া যায়নি।');
-      }
-    } catch (err: any) {
-      setError('সিস্টেম কোড রিট্রিভ করতে ব্যর্থ হয়েছে।');
-    }
-  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -5094,21 +5078,6 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
       navigate('/');
     } else {
       setError(result.error || 'ভেরিফিকেশন ব্যর্থ হয়েছে। কোডটি আবার চেক করুন।');
-    }
-    setIsSubmitting(false);
-  };
-
-  const handleInstantBypass = async () => {
-    setError('');
-    setIsSubmitting(true);
-    setResendStatus('');
-    setVerificationCode('123456');
-
-    const result = await verifyEmail(verifyingEmail, '123456');
-    if (result.success) {
-      navigate('/');
-    } else {
-      setError(result.error || 'ভেরিফিকেশন ব্যর্থ হয়েছে।');
     }
     setIsSubmitting(false);
   };
@@ -5186,9 +5155,6 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
               <p>
                 ২. দয়া করে আপনার ইমেইল ইনবক্সের পাশাপাশি <strong className="text-amber-950 font-bold underline">Spam (স্প্যাম) বা Junk (জাঙ্ক) ফোল্ডারটি</strong> অবশ্যই চেক করুন।
               </p>
-              <p>
-                ৩. আপনি যদি দ্রুত অ্যাকাউন্ট ভেরিফাই করতে চান, তবে ইউনিভার্সাল মাস্টার কোড <strong className="bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded font-mono font-bold text-[13px]">123456</strong> ব্যবহার করে <strong>ইন্সট্যান্টলি অ্যাকাউন্ট সক্রিয়</strong> করতে পারবেন।
-              </p>
             </div>
 
             <form onSubmit={handleVerify} className="space-y-6">
@@ -5219,49 +5185,7 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
                   'অ্যাকাউন্ট ভেরিফাই করুন'
                 )}
               </button>
-
-              <div className="relative flex py-2 items-center">
-                <div className="flex-grow border-t border-slate-200"></div>
-                <span className="flex-shrink mx-4 text-slate-400 text-xs font-semibold">অথবা ইমেইল না পেলে</span>
-                <div className="flex-grow border-t border-slate-200"></div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleInstantBypass}
-                disabled={isSubmitting}
-                className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-amber-500/15 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer font-sans"
-              >
-                🚀 ১-ক্লিক দিয়ে সরাসরি অ্যাক্টিভেট করুন (মাস্টার কোড)
-              </button>
             </form>
-
-            <div className="mt-4 p-4 bg-emerald-50/70 border border-emerald-100 rounded-2xl space-y-2 text-center text-xs text-slate-600">
-              <p className="font-bold text-emerald-800 flex items-center justify-center gap-1">
-                💡 ডেমো ও ডেভেলপমেন্ট টিপস
-              </p>
-              <p className="leading-relaxed">
-                আপনার ইমেইল ইনবক্সে কোডটি পৌঁছাতে বিলম্ব হলে বা স্প্যাম ফোল্ডারে আটকে গেলে, আপনি নিচের বাটনটি চেপে সরাসরি কোডটি রিট্রিভ করতে পারেন অথবা ইউনিভার্সাল মাস্টার কোড <strong className="text-emerald-700 font-mono text-sm bg-emerald-100/50 px-1.5 py-0.5 rounded">123456</strong> ব্যবহার করে অ্যাকাউন্ট ভেরিফাই করতে পারেন।
-              </p>
-              <div className="pt-2 flex flex-col items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleFetchDebugCode}
-                  className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 text-[11px] font-bold rounded-xl transition-all shadow-md shadow-emerald-600/10 cursor-pointer"
-                >
-                  কোডটি সরাসরি স্ক্রিনে দেখুন
-                </button>
-                {debugCode && (
-                  <motion.div 
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="text-emerald-700 font-mono font-bold text-sm bg-emerald-100 px-3 py-1 rounded-lg border border-emerald-200"
-                  >
-                    কোড: {debugCode}
-                  </motion.div>
-                )}
-              </div>
-            </div>
 
             <div className="mt-8 text-center space-y-3">
               <p className="text-sm text-slate-500">
