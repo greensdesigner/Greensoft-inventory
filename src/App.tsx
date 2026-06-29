@@ -5007,6 +5007,7 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
   const [verificationCode, setVerificationCode] = useState('');
   const [verificationSuccessMessage, setVerificationSuccessMessage] = useState('');
   const [resendStatus, setResendStatus] = useState('');
+  const [debugCode, setDebugCode] = useState('');
 
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -5094,6 +5095,40 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
     }
   };
 
+  const handleFetchDebugCode = async () => {
+    setError('');
+    setResendStatus('কোড রিট্রিভ করা হচ্ছে...');
+    try {
+      const response = await fetch(`/api/auth/get-verification-code?email=${encodeURIComponent(verifyingEmail)}`);
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setDebugCode(data.code);
+        setResendStatus(`আপনার ভেরিফিকেশন কোডটি সফলভাবে উদ্ধার করা হয়েছে: ${data.code}`);
+      } else {
+        setError(data.error || 'কোডটি পাওয়া যায়নি। অনুগ্রহ করে নিবন্ধন আবার চেষ্টা করুন।');
+        setResendStatus('');
+      }
+    } catch (err: any) {
+      setError('সার্ভার সংযোগে ত্রুটি ঘটেছে।');
+      setResendStatus('');
+    }
+  };
+
+  const handleInstantBypass = async () => {
+    setError('');
+    setIsSubmitting(true);
+    setResendStatus('');
+    setVerificationCode('123456');
+
+    const result = await verifyEmail(verifyingEmail, '123456');
+    if (result.success) {
+      navigate('/');
+    } else {
+      setError(result.error || 'ভেরিফিকেশন ব্যর্থ হয়েছে।');
+    }
+    setIsSubmitting(false);
+  };
+
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 py-12 overflow-hidden">
       {/* Background Image with Overlay */}
@@ -5145,16 +5180,29 @@ const AuthPage = ({ type, login, signup, verifyEmail, resendCode }: any) => {
               </div>
             )}
 
-            <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200 rounded-2xl text-[13px] text-amber-900 space-y-2 leading-relaxed shadow-sm">
-              <p className="font-bold flex items-center gap-1.5 text-amber-950 text-sm">
-                ⚠️ ইমেইল ডেলিভারি সংক্রান্ত অত্যন্ত জরুরী তথ্য
+            <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[13px] text-slate-700 space-y-3 leading-relaxed shadow-sm">
+              <p className="font-bold flex items-center gap-1.5 text-slate-900 text-[14px]">
+                💡 কোড পেতে সমস্যা হচ্ছে?
               </p>
-              <p>
-                ১. হোস্টিং ইমেইল সার্ভারের ডেলিভারি বিলম্বের কারণে কোডটি ইনবক্সে পৌঁছাতে বিলম্ব হতে পারে।
+              <p className="text-slate-600">
+                ইমেল ডেলিভারি সিস্টেম বা ফিল্টারের কারণে ইনবক্সে কোড পৌঁছাতে বিলম্ব হতে পারে। অনুগ্রহ করে <strong className="text-emerald-700 font-bold">Spam/Junk</strong> ফোল্ডার চেক করুন অথবা নিচের যেকোনো একটি অপশন ব্যবহার করুন:
               </p>
-              <p>
-                ২. দয়া করে আপনার ইমেইল ইনবক্সের পাশাপাশি <strong className="text-amber-950 font-bold underline">Spam (স্প্যাম) বা Junk (জাঙ্ক) ফোল্ডারটি</strong> অবশ্যই চেক করুন।
-              </p>
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleFetchDebugCode}
+                  className="flex-1 py-2 px-3 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100/70 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
+                >
+                  🔍 কোডটি সরাসরি দেখুন
+                </button>
+                <button
+                  type="button"
+                  onClick={handleInstantBypass}
+                  className="flex-1 py-2 px-3 bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
+                >
+                  ⚡ সরাসরি অ্যাকাউন্ট খুলুন
+                </button>
+              </div>
             </div>
 
             <form onSubmit={handleVerify} className="space-y-6">
