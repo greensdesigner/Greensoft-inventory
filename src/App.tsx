@@ -1655,15 +1655,6 @@ const Dashboard = ({ data }: any) => {
               {t('customDate')}
             </button>
           </div>
-
-          <button
-            onClick={exportPDF}
-            disabled={isExporting}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/10 transition-all cursor-pointer"
-          >
-            <Download size={14} />
-            {isExporting ? t('processing') : t('downloadPDF')}
-          </button>
         </div>
       </div>
 
