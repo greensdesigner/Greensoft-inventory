@@ -85,7 +85,8 @@ import {
   Eye,
   EyeOff,
   Mail,
-  Key
+  Key,
+  Facebook
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
@@ -4586,13 +4587,33 @@ const Subscription = ({ subscription }: any) => {
               <Users size={18} className="text-emerald-600" /> Support
             </h4>
             <div className="space-y-3">
-              <a href="https://wa.me/8801XXXXXXXXX" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-slate-100">
-                <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
+              <a href="https://wa.me/8801838086276" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-slate-100">
+                <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shrink-0">
                   <Smartphone size={20} />
                 </div>
                 <div>
                   <p className="text-sm font-bold text-slate-900">WhatsApp Support</p>
-                  <p className="text-xs text-slate-500">Fastest response</p>
+                  <p className="text-xs text-slate-500">+8801838-086276</p>
+                </div>
+              </a>
+
+              <a href="https://www.facebook.com/GreensDesigner" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-slate-100">
+                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0">
+                  <Facebook size={20} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Facebook Page</p>
+                  <p className="text-xs text-slate-500">GreensDesigner</p>
+                </div>
+              </a>
+
+              <a href="mailto:greenlabtechnology.ceo@gmail.com" className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-slate-100">
+                <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center shrink-0">
+                  <Mail size={20} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Email Support</p>
+                  <p className="text-xs text-slate-500 select-all">greenlabtechnology.ceo@gmail.com</p>
                 </div>
               </a>
             </div>
