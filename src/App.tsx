@@ -221,6 +221,10 @@ const translations: any = {
     newPasswordLabel: "New Password",
     confirmNewPasswordLabel: "Confirm New Password",
     backToLogin: "Back to Login Page",
+    customDate: "Custom Date",
+    startDate: "Start Date",
+    endDate: "End Date",
+    downloadPDF: "Download PDF",
   },
   bn: {
     dashboard: "ড্যাশবোর্ড",
@@ -314,6 +318,10 @@ const translations: any = {
     newPasswordLabel: "নতুন পাসওয়ার্ড",
     confirmNewPasswordLabel: "নতুন পাসওয়ার্ড নিশ্চিত করুন",
     backToLogin: "লগইন পেজে ফিরে যান",
+    customDate: "কাস্টম ডেট",
+    startDate: "শুরুর তারিখ",
+    endDate: "শেষের তারিখ",
+    downloadPDF: "পিডিএফ ডাউনলোড করুন",
   },
   es: {
     dashboard: "Tablero",
@@ -386,6 +394,10 @@ const translations: any = {
     processing: "Procesando...",
     softwareLoading: "El software se está cargando...",
     brandName: "Nombre de la marca",
+    customDate: "Fecha Personalizada",
+    startDate: "Fecha de Inicio",
+    endDate: "Fecha de Fin",
+    downloadPDF: "Descargar PDF",
   }
 };
 
@@ -1382,7 +1394,11 @@ const Layout = ({ children, user, logout, subscription }: any) => {
 
 const Dashboard = ({ data }: any) => {
   const { hasPermission } = useAuth();
-  const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days'>('30days');
+  const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days' | 'custom'>('30days');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [isExporting, setIsExporting] = useState(false);
+  const dashboardRef = useRef<HTMLDivElement>(null);
   const { t, lang } = useTranslation();
   const { formatCurrency, toBengaliNumber } = useCurrency();
 
@@ -1397,6 +1413,24 @@ const Dashboard = ({ data }: any) => {
       date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
     } else {
       date = new Date(dateStr);
+    }
+    date.setHours(0, 0, 0, 0);
+    
+    if (timeFilter === 'custom') {
+      if (!startDate && !endDate) return true;
+      const start = startDate ? new Date(startDate) : null;
+      if (start) start.setHours(0, 0, 0, 0);
+      const end = endDate ? new Date(endDate) : null;
+      if (end) end.setHours(23, 59, 59, 999);
+      
+      if (start && end) {
+        return date >= start && date <= end;
+      } else if (start) {
+        return date >= start;
+      } else if (end) {
+        return date <= end;
+      }
+      return true;
     }
     
     const rangeDate = new Date();
@@ -1453,13 +1487,37 @@ const Dashboard = ({ data }: any) => {
   const netProfitTotal = finalNetResult;
 
   // Calculate Daily Stats for Chart
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
+  let chartDates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }).reverse();
 
-  const dailyStats = last7Days.map(date => {
+  if (timeFilter === 'custom' && startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    const dates: string[] = [];
+    const current = new Date(start);
+    const maxDays = Math.min(diffDays + 1, 31);
+    for (let i = 0; i < maxDays; i++) {
+      dates.push(`${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`);
+      current.setDate(current.getDate() + 1);
+    }
+    chartDates = dates;
+  } else if (timeFilter === 'today') {
+    chartDates = [getTodayStr()];
+  } else if (timeFilter === '30days') {
+    chartDates = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }).reverse();
+  }
+
+  const dailyStats = chartDates.map(date => {
     let dProfit = 0;
     let dLoss = 0;
 
@@ -1510,43 +1568,127 @@ const Dashboard = ({ data }: any) => {
 
   const lowStockItems = data.inventory.filter((item: any) => item.quantity <= (item.minStock || 5));
 
+  const exportPDF = async () => {
+    if (!dashboardRef.current || isExporting) return;
+    setIsExporting(true);
+    try {
+      const element = dashboardRef.current;
+      
+      const buttonsToHide = element.querySelectorAll('.no-pdf-export');
+      buttonsToHide.forEach((btn: any) => {
+        btn.setAttribute('data-original-display', btn.style.display);
+        btn.style.setProperty('display', 'none', 'important');
+      });
+
+      const canvas = await html2canvas(element, {
+        scale: 1.5,
+        useCORS: true,
+        backgroundColor: '#f8fafc',
+        allowTaint: true
+      });
+
+      buttonsToHide.forEach((btn: any) => {
+        const orig = btn.getAttribute('data-original-display');
+        btn.style.display = orig || '';
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+      pdf.save(`Dashboard-Report-${timeFilter === 'custom' ? `${startDate || 'Start'}_to_${endDate || 'End'}` : timeFilter}.pdf`);
+    } catch (error) {
+      console.error("Dashboard PDF Export Error:", error);
+      alert("পিডিএফ ডাউনলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div ref={dashboardRef} className="space-y-8 p-2 bg-[#f8fafc]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-slate-900">{t('dashboardOverview')}</h2>
           <p className="text-sm text-slate-500">{t('businessPerformance')}</p>
         </div>
-        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl w-fit">
-          <button 
-            onClick={() => setTimeFilter('today')}
-            className={cn(
-              "px-4 py-2 text-xs font-bold rounded-lg transition-all",
-              timeFilter === 'today' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
+        <div className="flex flex-wrap items-center gap-3 no-pdf-export">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+            <button 
+              onClick={() => setTimeFilter('today')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === 'today' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('today')}
+            </button>
+            <button 
+              onClick={() => setTimeFilter('7days')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === '7days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('last7Days')}
+            </button>
+            <button 
+              onClick={() => setTimeFilter('30days')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === '30days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('last30Days')}
+            </button>
+            <button 
+              onClick={() => setTimeFilter('custom')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === 'custom' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('customDate')}
+            </button>
+          </div>
+
+          <button
+            onClick={exportPDF}
+            disabled={isExporting}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/10 transition-all cursor-pointer"
           >
-            {t('today')}
-          </button>
-          <button 
-            onClick={() => setTimeFilter('7days')}
-            className={cn(
-              "px-4 py-2 text-xs font-bold rounded-lg transition-all",
-              timeFilter === '7days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            {t('last7Days')}
-          </button>
-          <button 
-            onClick={() => setTimeFilter('30days')}
-            className={cn(
-              "px-4 py-2 text-xs font-bold rounded-lg transition-all",
-              timeFilter === '30days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            {t('last30Days')}
+            <Download size={14} />
+            {isExporting ? t('processing') : t('downloadPDF')}
           </button>
         </div>
       </div>
+
+      {timeFilter === 'custom' && (
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-wrap items-center gap-4 no-pdf-export">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">{t('startDate')}:</span>
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">{t('endDate')}:</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {stats.map((stat, i) => (
@@ -3960,7 +4102,11 @@ const Returns = ({ data }: any) => {
 };
 
 const Reports = ({ data }: any) => {
-  const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days'>('30days');
+  const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days' | 'custom'>('30days');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [isExporting, setIsExporting] = useState(false);
+  const reportsRef = useRef<HTMLDivElement>(null);
   const { t, lang } = useTranslation();
   const { formatCurrency, toBengaliNumber } = useCurrency();
 
@@ -3975,6 +4121,24 @@ const Reports = ({ data }: any) => {
       date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
     } else {
       date = new Date(dateStr);
+    }
+    date.setHours(0, 0, 0, 0);
+    
+    if (timeFilter === 'custom') {
+      if (!startDate && !endDate) return true;
+      const start = startDate ? new Date(startDate) : null;
+      if (start) start.setHours(0, 0, 0, 0);
+      const end = endDate ? new Date(endDate) : null;
+      if (end) end.setHours(23, 59, 59, 999);
+      
+      if (start && end) {
+        return date >= start && date <= end;
+      } else if (start) {
+        return date >= start;
+      } else if (end) {
+        return date <= end;
+      }
+      return true;
     }
     
     const rangeDate = new Date();
@@ -4037,40 +4201,124 @@ const Reports = ({ data }: any) => {
     .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
     .slice(-7);
 
+  const exportPDF = async () => {
+    if (!reportsRef.current || isExporting) return;
+    setIsExporting(true);
+    try {
+      const element = reportsRef.current;
+      
+      const buttonsToHide = element.querySelectorAll('.no-pdf-export');
+      buttonsToHide.forEach((btn: any) => {
+        btn.setAttribute('data-original-display', btn.style.display);
+        btn.style.setProperty('display', 'none', 'important');
+      });
+
+      const canvas = await html2canvas(element, {
+        scale: 1.5,
+        useCORS: true,
+        backgroundColor: '#f8fafc',
+        allowTaint: true
+      });
+
+      buttonsToHide.forEach((btn: any) => {
+        const orig = btn.getAttribute('data-original-display');
+        btn.style.display = orig || '';
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+      pdf.save(`Reports-${timeFilter === 'custom' ? `${startDate || 'Start'}_to_${endDate || 'End'}` : timeFilter}.pdf`);
+    } catch (error) {
+      console.error("Reports PDF Export Error:", error);
+      alert("পিডিএফ ডাউনলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div ref={reportsRef} className="space-y-6 p-2 bg-[#f8fafc]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <PageHeader title={t('reports')} description="Analyze your business performance over time." />
-        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl w-fit shrink-0">
-          <button 
-            onClick={() => setTimeFilter('today')}
-            className={cn(
-              "px-4 py-2 text-xs font-bold rounded-lg transition-all",
-              timeFilter === 'today' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
+        <div className="flex flex-wrap items-center gap-3 no-pdf-export">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit shrink-0">
+            <button 
+              onClick={() => setTimeFilter('today')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === 'today' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('today')}
+            </button>
+            <button 
+              onClick={() => setTimeFilter('7days')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === '7days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('last7Days')}
+            </button>
+            <button 
+              onClick={() => setTimeFilter('30days')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === '30days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('last30Days')}
+            </button>
+            <button 
+              onClick={() => setTimeFilter('custom')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === 'custom' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('customDate')}
+            </button>
+          </div>
+
+          <button
+            onClick={exportPDF}
+            disabled={isExporting}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/10 transition-all cursor-pointer"
           >
-            {t('today')}
-          </button>
-          <button 
-            onClick={() => setTimeFilter('7days')}
-            className={cn(
-              "px-4 py-2 text-xs font-bold rounded-lg transition-all",
-              timeFilter === '7days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            {t('last7Days')}
-          </button>
-          <button 
-            onClick={() => setTimeFilter('30days')}
-            className={cn(
-              "px-4 py-2 text-xs font-bold rounded-lg transition-all",
-              timeFilter === '30days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            {t('last30Days')}
+            <Download size={14} />
+            {isExporting ? t('processing') : t('downloadPDF')}
           </button>
         </div>
       </div>
+
+      {timeFilter === 'custom' && (
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-wrap items-center gap-4 no-pdf-export">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">{t('startDate')}:</span>
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">{t('endDate')}:</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         <Card className="p-6">
