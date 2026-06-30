@@ -4569,35 +4569,14 @@ const Subscription = ({ subscription }: any) => {
                   <CreditCard size={18} /> Pay Online Now
                 </button>
               </div>
-
-              <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold">bKash (Personal)</span>
-                  <button onClick={() => copyToClipboard('01720-150101', 'bkash')} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
-                    {copied === 'bkash' ? <CheckCircle2 size={16} /> : <Copy size={16} />}
-                  </button>
-                </div>
-                <p className="text-2xl font-mono font-bold tracking-wider">01720-150101</p>
-              </div>
-
-              <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold">Nagad (Personal)</span>
-                  <button onClick={() => copyToClipboard('01720-150101', 'nagad')} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
-                    {copied === 'nagad' ? <CheckCircle2 size={16} /> : <Copy size={16} />}
-                  </button>
-                </div>
-                <p className="text-2xl font-mono font-bold tracking-wider">01720-150101</p>
-              </div>
             </div>
 
             <div className="mt-8 p-4 bg-emerald-700/50 rounded-2xl text-xs leading-relaxed">
               <p className="font-bold mb-1 underline">Instructions:</p>
               <ol className="list-decimal list-inside space-y-1 text-emerald-50">
-                <li>Send Money to any of the numbers above.</li>
                 <li>Monthly fee: {formatCurrency(100, 0)}.</li>
-                <li>After payment, send a screenshot to our WhatsApp.</li>
-                <li>We will provide you the 8-digit activation code.</li>
+                <li>Pay online using Stripe to get activated automatically.</li>
+                <li>If you have an activation code, enter it on the left panel.</li>
               </ol>
             </div>
           </Card>
