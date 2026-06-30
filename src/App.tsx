@@ -1721,7 +1721,7 @@ const Dashboard = ({ data }: any) => {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
-                    <span className="text-slate-500">{t('netProfit')}</span>
+                    <span className="text-slate-500">{t('netProfit')} ({lang === 'bn' ? 'নেট রিভিউ' : 'Net Review'})</span>
                   </div>
                 </div>
               </div>
@@ -1763,7 +1763,7 @@ const Dashboard = ({ data }: any) => {
                         let displayName = name;
                         if (name === 'profit') displayName = t('profit') || 'Profit';
                         else if (name === 'loss') displayName = t('loss') || 'Loss';
-                        else if (name === 'net') displayName = t('netProfit') || 'Net Profit';
+                        else if (name === 'net') displayName = `${t('netProfit')} (${lang === 'bn' ? 'নেট রিভিউ' : 'Net Review'})`;
                         
                         if (name === 'net') {
                           return [value < 0 ? `-${formatCurrency(absValue)}` : formatCurrency(absValue), displayName];
