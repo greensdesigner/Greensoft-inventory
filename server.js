@@ -1291,25 +1291,18 @@ app.post('/api/admin/generate-codes', async (req, res) => {
     try {
         const { count, secret } = req.body; 
         
-        // Supported admin keys: 1234 (standard quick PIN), admin, greensstock, or custom secret
+        // Admin key: 2562 (or environment variables)
         const validSecrets = [
+            '2562',
             process.env.ADMIN_SECRET,
-            process.env.ADMIN_KEY,
-            '1234',
-            'admin',
-            'admin123',
-            'greensstock',
-            'greensstock_admin',
-            'greensstock_admin_2024',
-            'greensstock_admin_2026',
-            'greensoft_admin_2024'
+            process.env.ADMIN_KEY
         ].filter(Boolean).map(s => String(s).trim().toLowerCase());
 
         const inputSecret = secret ? String(secret).trim().toLowerCase() : '';
 
         if (!inputSecret || !validSecrets.includes(inputSecret)) {
             return res.status(403).json({ 
-                error: 'Forbidden: Invalid Authentication Key. Please enter 1234 or greensstock_admin' 
+                error: 'Forbidden: Invalid Authentication Key.' 
             });
         }
 

@@ -12,5 +12,23 @@
     "code": "GS-7HVW-0ART",
     "isUsed": 0,
     "createdAt": "2026-09-04T09:47:33.474Z"
+  },
+  {
+    "id": 1788544531243,
+    "code": "GS-75LU-A0FA",
+    "isUsed": 0,
+    "createdAt": "2026-09-04T17:55:31.243Z"
+  },
+  {
+    "id": 1788544531832,
+    "code": "GS-Q62E-BVIP",
+    "isUsed": 0,
+    "createdAt": "2026-09-04T17:55:31.831Z"
+  },
+  {
+    "id": 1788544533579,
+    "code": "GS-DP15-HFJM",
+    "isUsed": 0,
+    "createdAt": "2026-09-04T17:55:33.579Z"
   }
 ]

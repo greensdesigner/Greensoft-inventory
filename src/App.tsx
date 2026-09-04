@@ -5559,7 +5559,7 @@ const Settings = ({ user, data, updateProfile }: any) => {
 };
 
 const AdminPortal = () => {
-  const [adminSecret, setAdminSecret] = useState('1234');
+  const [adminSecret, setAdminSecret] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [codesCount, setCodesCount] = useState(5);
   const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
@@ -5628,13 +5628,6 @@ const AdminPortal = () => {
             <div>
               <div className="flex items-center justify-between mb-2 ml-1">
                 <label className="block text-[10px] font-bold text-slate-400 uppercase">Authentication Key</label>
-                <button 
-                  type="button"
-                  onClick={() => setAdminSecret('1234')}
-                  className="text-[10px] text-emerald-400 hover:text-emerald-300 font-mono underline"
-                >
-                  Use Default (1234)
-                </button>
               </div>
               <div className="relative">
                 <input 
@@ -5644,7 +5637,7 @@ const AdminPortal = () => {
                     setAdminSecret(e.target.value);
                     if (adminError) setAdminError(null);
                   }}
-                  placeholder="Enter key (e.g. 1234)"
+                  placeholder="Enter Authentication Key"
                   className="w-full pl-5 pr-12 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-white text-sm font-mono transition-all" 
                 />
                 <button
@@ -5655,9 +5648,6 @@ const AdminPortal = () => {
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1.5 ml-1">
-                Supported Keys: <span className="text-emerald-400 font-bold font-mono">1234</span> or <span className="text-emerald-400 font-bold font-mono">greensstock_admin</span>
-              </p>
             </div>
 
             <div>
