@@ -1708,13 +1708,34 @@ const Dashboard = ({ data, user: propUser }: any) => {
       if (pdfSaved) {
         setTimeout(() => {
           alert("PDF downloaded successfully");
-        }, 300);
+        }, 250);
       }
     } catch (error) {
       console.error("Dashboard PDF Export Error:", error);
-      alert("পিডিএফ ডাউনলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
+      try {
+        const fallbackPdf = new jsPDF('p', 'mm', 'a4');
+        fallbackPdf.setFontSize(16);
+        fallbackPdf.text(`${currentUser?.businessName || 'Business'} - Dashboard Report`, 14, 20);
+        fallbackPdf.setFontSize(10);
+        fallbackPdf.text(`Generated: ${new Date().toLocaleString()} | Filter: ${timeFilter.toUpperCase()}`, 14, 30);
+        fallbackPdf.text(`Net Revenue: $${Number(netRevenue || 0).toFixed(2)}`, 14, 40);
+        fallbackPdf.text(`Profit: $${Number(displayProfit || 0).toFixed(2)}`, 14, 50);
+        fallbackPdf.save(`Dashboard-Report-${timeFilter}.pdf`);
+        setTimeout(() => {
+          alert("PDF downloaded successfully");
+        }, 250);
+      } catch (e) {
+        alert("PDF download failed. Please try again.");
+      }
     } finally {
       setIsExporting(false);
+      if (dashboardRef.current) {
+        const buttonsToHide = dashboardRef.current.querySelectorAll('.no-pdf-export');
+        buttonsToHide.forEach((btn: any) => {
+          const orig = btn.getAttribute('data-original-display');
+          btn.style.display = orig || '';
+        });
+      }
     }
   };
 
@@ -4305,148 +4326,261 @@ const Reports = ({ data, user: propUser }: any) => {
     .slice(-7);
 
   const exportPDF = async () => {
-    if (!reportsRef.current || isExporting) return;
+    if (isExporting) return;
     setIsExporting(true);
     try {
-      const element = reportsRef.current;
-      
-      const buttonsToHide = element.querySelectorAll('.no-pdf-export');
-      buttonsToHide.forEach((btn: any) => {
-        btn.setAttribute('data-original-display', btn.style.display);
-        btn.style.setProperty('display', 'none', 'important');
-      });
+      const bName = currentUser?.businessName || 'GreensDesigner';
+      const bPhone = currentUser?.phone || '';
+      const bEmail = currentUser?.email || '';
+      const bAddress = currentUser?.address || '';
 
-      // Pause to allow hidden elements to re-flow
-      await new Promise(resolve => setTimeout(resolve, 80));
-
-      let pdfSaved = false;
       const periodLabel = timeFilter === 'custom' 
         ? `${startDate || 'Start'} to ${endDate || 'End'}` 
         : timeFilter === 'today' ? 'Today' 
         : timeFilter === '7days' ? 'Last 7 Days' 
         : 'Last 30 Days';
 
-      try {
-        const canvas = await html2canvas(element, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#f8fafc',
-          allowTaint: false,
-          logging: false
-        });
+      const safeRevenue = Number(totalRevenue || 0);
+      const safeNetProfit = Number(netProfit || 0);
+      const safeCurrentProfit = Number(currentProfit || 0);
+      const safeCurrentLoss = Number(currentLoss || 0);
+      const safeExpenses = Number(totalExpenses || 0);
+      const safeSalesCount = filteredSales?.length || 0;
+      const safeExpensesCount = filteredExpenses?.length || 0;
+      const safeInventoryTotal = data?.inventory?.length || 0;
+      const safeLowStock = (data?.inventory || []).filter((i: any) => Number(i.quantity || 0) <= Number(i.minStock || 5)).length;
+      const safeAdequateStock = Math.max(0, safeInventoryTotal - safeLowStock);
+      const safeExpenseRatio = safeRevenue > 0 ? ((safeExpenses / safeRevenue) * 100).toFixed(1) : '0';
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        
-        const pdf = new jsPDF({
-          orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
-          unit: 'px',
-          format: [canvas.width, canvas.height]
-        });
-        pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
-        const fileName = `Statement-${currentUser?.businessName ? currentUser.businessName.trim().replace(/\s+/g, '_') : 'Reports'}-${timeFilter}.pdf`;
-        pdf.save(fileName);
-        pdfSaved = true;
-      } catch (canvasErr) {
-        console.warn("Canvas capture fallback triggered, generating PDF statement with jsPDF:", canvasErr);
-        
+      const fileName = `Statement-${bName.trim().replace(/[^a-zA-Z0-9_-]/g, '_')}-${timeFilter}.pdf`;
+
+      let generated = false;
+
+      // Primary visual capture with html2canvas if DOM element exists
+      if (reportsRef.current) {
+        try {
+          const element = reportsRef.current;
+          const buttonsToHide = element.querySelectorAll('.no-pdf-export');
+          buttonsToHide.forEach((btn: any) => {
+            btn.setAttribute('data-original-display', btn.style.display);
+            btn.style.setProperty('display', 'none', 'important');
+          });
+
+          await new Promise(resolve => setTimeout(resolve, 80));
+
+          const h2c = typeof html2canvas === 'function' ? html2canvas : (html2canvas as any)?.default;
+          if (typeof h2c === 'function') {
+            const canvas = await h2c(element, {
+              scale: 1.5,
+              useCORS: true,
+              backgroundColor: '#f8fafc',
+              allowTaint: false,
+              logging: false
+            });
+
+            buttonsToHide.forEach((btn: any) => {
+              const orig = btn.getAttribute('data-original-display');
+              btn.style.display = orig || '';
+            });
+
+            if (canvas && canvas.width > 0 && canvas.height > 0) {
+              const imgData = canvas.toDataURL('image/jpeg', 0.95);
+              const pdf = new jsPDF({
+                orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+                unit: 'px',
+                format: [canvas.width, canvas.height]
+              });
+              pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+              pdf.save(fileName);
+              generated = true;
+            }
+          }
+        } catch (captureErr) {
+          console.warn("Visual capture fallback triggered, generating Vector Statement PDF:", captureErr);
+        }
+      }
+
+      // If visual capture was not generated, build the clean vector Business Statement PDF
+      if (!generated) {
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
 
         // Dark banner header
         pdf.setFillColor(15, 23, 42); // slate-900
-        pdf.rect(0, 0, pageWidth, 32, 'F');
+        pdf.rect(0, 0, pageWidth, 34, 'F');
 
         // Business Name
         pdf.setTextColor(255, 255, 255);
         pdf.setFontSize(18);
         pdf.setFont('helvetica', 'bold');
-        pdf.text(currentUser?.businessName || 'Business Statement Report', 14, 15);
+        pdf.text(bName, 14, 14);
 
+        // Header Subtitles
         pdf.setFontSize(9);
         pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(203, 213, 225);
-        pdf.text(`Statement Period: ${periodLabel}   |   Generated: ${new Date().toLocaleString()}`, 14, 24);
+        pdf.text(`Statement Period: ${periodLabel}   |   Generated: ${new Date().toLocaleString()}`, 14, 22);
+
+        const contactParts = [bPhone ? `Phone: ${bPhone}` : '', bEmail ? `Email: ${bEmail}` : '', bAddress ? `Address: ${bAddress}` : ''].filter(Boolean);
+        if (contactParts.length > 0) {
+          pdf.setFontSize(8);
+          pdf.setTextColor(148, 163, 184);
+          pdf.text(contactParts.join('   |   '), 14, 28);
+        }
 
         // Section Title
         let currentY = 44;
         pdf.setTextColor(15, 23, 42);
-        pdf.setFontSize(14);
+        pdf.setFontSize(13);
         pdf.setFont('helvetica', 'bold');
         pdf.text('Financial Statement Summary', 14, currentY);
 
-        currentY += 8;
+        currentY += 6;
         const summaryCards = [
-          { label: 'Net Profit', val: `${netProfit >= 0 ? '' : '-'}$${Math.abs(netProfit).toFixed(2)}`, bg: [236, 253, 245], textCol: [5, 150, 105] },
-          { label: 'Net Revenue', val: `$${totalRevenue.toFixed(2)}`, bg: [248, 250, 252], textCol: [15, 23, 42] },
-          { label: 'Current Profit', val: `$${currentProfit.toFixed(2)}`, bg: [236, 253, 245], textCol: [5, 150, 105] },
-          { label: 'Current Loss', val: `$${currentLoss.toFixed(2)}`, bg: [254, 242, 242], textCol: [220, 38, 38] },
-          { label: 'Expense Ratio', val: `${totalRevenue > 0 ? (((totalExpenses || 0) / totalRevenue) * 100).toFixed(1) : '0'}%`, bg: [248, 250, 252], textCol: [15, 23, 42] },
+          { label: 'Net Profit / Balance', val: `${safeNetProfit >= 0 ? '+$' : '-$'}${Math.abs(safeNetProfit).toFixed(2)}`, bg: [236, 253, 245], textCol: [5, 150, 105] },
+          { label: 'Net Revenue (Sales)', val: `$${safeRevenue.toFixed(2)}`, bg: [248, 250, 252], textCol: [15, 23, 42] },
+          { label: 'Current Profit', val: `$${safeCurrentProfit.toFixed(2)}`, bg: [236, 253, 245], textCol: [5, 150, 105] },
+          { label: 'Current Loss', val: `$${safeCurrentLoss.toFixed(2)}`, bg: [254, 242, 242], textCol: [220, 38, 38] },
+          { label: 'Total Expenses', val: `$${safeExpenses.toFixed(2)}`, bg: [248, 250, 252], textCol: [15, 23, 42] },
+          { label: 'Expense Ratio', val: `${safeExpenseRatio}%`, bg: [248, 250, 252], textCol: [15, 23, 42] },
         ];
 
-        const cardWidth = (pageWidth - 28 - 12) / 2;
+        const cardWidth = (pageWidth - 28 - 10) / 2;
         summaryCards.forEach((c, idx) => {
           const col = idx % 2;
           const row = Math.floor(idx / 2);
-          const x = 14 + col * (cardWidth + 12);
-          const y = currentY + row * 22;
+          const x = 14 + col * (cardWidth + 10);
+          const y = currentY + row * 20;
 
           pdf.setFillColor(c.bg[0], c.bg[1], c.bg[2]);
-          pdf.roundedRect(x, y, cardWidth, 18, 2, 2, 'F');
+          pdf.roundedRect(x, y, cardWidth, 16, 2, 2, 'F');
 
-          pdf.setFontSize(9);
+          pdf.setFontSize(8.5);
           pdf.setFont('helvetica', 'normal');
           pdf.setTextColor(100, 116, 139);
-          pdf.text(c.label, x + 6, y + 6);
+          pdf.text(c.label, x + 5, y + 5.5);
 
-          pdf.setFontSize(12);
+          pdf.setFontSize(11.5);
           pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(c.textCol[0], c.textCol[1], c.textCol[2]);
-          pdf.text(c.val, x + 6, y + 14);
+          pdf.text(c.val, x + 5, y + 12.5);
         });
 
-        currentY += Math.ceil(summaryCards.length / 2) * 22 + 10;
+        currentY += Math.ceil(summaryCards.length / 2) * 20 + 8;
 
-        // Inventory Status Section
+        // Activity Overview
         pdf.setTextColor(15, 23, 42);
-        pdf.setFontSize(14);
+        pdf.setFontSize(13);
         pdf.setFont('helvetica', 'bold');
-        pdf.text('Inventory Status Overview', 14, currentY);
+        pdf.text('Activity & Performance Metrics', 14, currentY);
 
-        currentY += 8;
-        const totalItems = data.inventory?.length || 0;
-        const lowStock = (data.inventory || []).filter((i: any) => i.quantity <= (i.minStock || 5)).length;
-        const healthyStock = totalItems - lowStock;
-
+        currentY += 6;
         pdf.setFillColor(248, 250, 252);
         pdf.roundedRect(14, currentY, pageWidth - 28, 22, 2, 2, 'F');
 
-        pdf.setFontSize(10);
+        pdf.setFontSize(9);
         pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(51, 65, 85);
-        pdf.text(`Total Items: ${totalItems}   |   Adequate Stock: ${healthyStock}   |   Low Stock Alerts: ${lowStock}`, 20, currentY + 13);
+        pdf.text(`Total Sales / Invoices: ${safeSalesCount} orders   |   Expenses Recorded: ${safeExpensesCount} items`, 20, currentY + 8);
+        pdf.text(`Total Inventory Items: ${safeInventoryTotal}   |   Adequate Stock: ${safeAdequateStock}   |   Low Stock Alerts: ${safeLowStock}`, 20, currentY + 15);
 
-        const fileName = `Statement-${currentUser?.businessName ? currentUser.businessName.trim().replace(/\s+/g, '_') : 'Reports'}-${timeFilter}.pdf`;
+        currentY += 28;
+
+        // Recent Sales Table for Statement
+        const recentSales = (filteredSales || []).slice(0, 10);
+        if (recentSales.length > 0) {
+          pdf.setTextColor(15, 23, 42);
+          pdf.setFontSize(12);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('Statement Transactions Breakdown (Recent)', 14, currentY);
+
+          currentY += 5;
+
+          // Table Header
+          pdf.setFillColor(241, 245, 249); // slate-100
+          pdf.rect(14, currentY, pageWidth - 28, 7, 'F');
+          pdf.setFontSize(8);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(71, 85, 105);
+          pdf.text('Date', 18, currentY + 5);
+          pdf.text('Invoice #', 42, currentY + 5);
+          pdf.text('Customer', 82, currentY + 5);
+          pdf.text('Payment', 135, currentY + 5);
+          pdf.text('Total ($)', pageWidth - 22, currentY + 5, { align: 'right' });
+
+          currentY += 7;
+
+          recentSales.forEach((sale: any, idx: number) => {
+            if (currentY > pageHeight - 20) return;
+            const isEven = idx % 2 === 0;
+            if (isEven) {
+              pdf.setFillColor(255, 255, 255);
+            } else {
+              pdf.setFillColor(248, 250, 252);
+            }
+            pdf.rect(14, currentY, pageWidth - 28, 6.5, 'F');
+
+            pdf.setFontSize(7.5);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setTextColor(51, 65, 85);
+
+            pdf.text(String(sale.date || '').slice(0, 10), 18, currentY + 4.5);
+            pdf.text(String(sale.invoiceNumber || sale.id || 'N/A').slice(0, 14), 42, currentY + 4.5);
+            pdf.text(String(sale.customerName || 'Walk-in Customer').slice(0, 24), 82, currentY + 4.5);
+            pdf.text(String(sale.paymentMethod || 'Cash'), 135, currentY + 4.5);
+            pdf.text(Number(sale.total || 0).toFixed(2), pageWidth - 22, currentY + 4.5, { align: 'right' });
+
+            currentY += 6.5;
+          });
+        }
+
+        // Footer
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(148, 163, 184);
+        pdf.text(`This is a system-generated statement report for ${bName}. All rights reserved.`, 14, pageHeight - 8);
+
         pdf.save(fileName);
-        pdfSaved = true;
+        generated = true;
       }
 
-      buttonsToHide.forEach((btn: any) => {
-        const orig = btn.getAttribute('data-original-display');
-        btn.style.display = orig || '';
-      });
+      // Success notification as requested by user in English
+      setDownloadSuccessMessage("PDF downloaded successfully");
+      setTimeout(() => setDownloadSuccessMessage(null), 5000);
+      setTimeout(() => {
+        alert("PDF downloaded successfully");
+      }, 250);
 
-      if (pdfSaved) {
+    } catch (error) {
+      console.error("Reports PDF Export Error:", error);
+      // Failsafe direct download
+      try {
+        const fallbackPdf = new jsPDF('p', 'mm', 'a4');
+        fallbackPdf.setFontSize(16);
+        fallbackPdf.text(`${currentUser?.businessName || 'Business'} - Statement`, 14, 20);
+        fallbackPdf.setFontSize(10);
+        fallbackPdf.text(`Generated: ${new Date().toLocaleString()}`, 14, 30);
+        fallbackPdf.text(`Net Revenue: $${Number(totalRevenue || 0).toFixed(2)}`, 14, 40);
+        fallbackPdf.text(`Net Profit: $${Number(netProfit || 0).toFixed(2)}`, 14, 50);
+        fallbackPdf.save(`Statement-${timeFilter}.pdf`);
+        
         setDownloadSuccessMessage("PDF downloaded successfully");
         setTimeout(() => setDownloadSuccessMessage(null), 5000);
         setTimeout(() => {
           alert("PDF downloaded successfully");
-        }, 300);
+        }, 250);
+      } catch (fallbackError) {
+        alert("PDF download failed. Please try again.");
       }
-    } catch (error) {
-      console.error("Reports PDF Export Error:", error);
-      alert("পিডিএফ ডাউনলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
     } finally {
       setIsExporting(false);
+      if (reportsRef.current) {
+        const buttonsToHide = reportsRef.current.querySelectorAll('.no-pdf-export');
+        buttonsToHide.forEach((btn: any) => {
+          const orig = btn.getAttribute('data-original-display');
+          btn.style.display = orig || '';
+        });
+      }
     }
   };
 
