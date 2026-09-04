@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const Stripe = require('stripe');
 require('dotenv').config();
 
-console.log('--- GREENSOFT SYSTEM BOOTING: V5 (ENV DEBUG) ---');
+console.log('--- GREENSSTOCK SYSTEM BOOTING: V5 (ENV DEBUG) ---');
 console.log('Available Environment Keys:', Object.keys(process.env).sort());
 console.log('Stripe related keys:', Object.keys(process.env).filter(k => k.toLowerCase().includes('stripe')));
 
@@ -258,7 +258,7 @@ async function sendVerificationEmail(email, code, businessName) {
     const fs = require('fs');
     const cleanEmail = email ? email.trim() : '';
     const cleanCode = code ? code.trim() : '';
-    const cleanBusiness = businessName ? businessName.trim() : 'GreenSoft';
+    const cleanBusiness = businessName ? businessName.trim() : 'GreensStock';
     
     let attemptLog = `--- Verification Email Attempt at ${new Date().toISOString()} ---\n`;
     attemptLog += `To: "${cleanEmail}"\nCode: "${cleanCode}"\nBusiness: "${cleanBusiness}"\n`;
@@ -267,26 +267,26 @@ async function sendVerificationEmail(email, code, businessName) {
     const user = process.env.SMTP_USER ? process.env.SMTP_USER.trim() : null;
     const from = process.env.SMTP_FROM ? process.env.SMTP_FROM.trim() : null;
     
-    const defaultFrom = user ? `"GreenSoft" <${user}>` : '"GreenSoft Support" <no-reply@greensoft.com>';
-    const finalFrom = from ? (from.includes('<') ? from : `"GreenSoft" <${from}>`) : defaultFrom;
+    const defaultFrom = user ? `"GreensStock" <${user}>` : '"GreensStock Support" <no-reply@greensstock.com>';
+    const finalFrom = from ? (from.includes('<') ? from : `"GreensStock" <${from}>`) : defaultFrom;
     attemptLog += `From: "${finalFrom}"\n`;
 
     const mailOptions = {
         from: finalFrom,
         replyTo: finalFrom,
         to: cleanEmail,
-        subject: `GreenSoft Verification Code: ${cleanCode}`,
-        text: `GreenSoft Account Verification Code\n\nYour business "${cleanBusiness}" verification code is: ${cleanCode}\n\nPlease use this code to verify your account.\n\nThank you,\nGreenSoft Ltd.`,
+        subject: `GreensStock Verification Code: ${cleanCode}`,
+        text: `GreensStock Account Verification Code\n\nYour business "${cleanBusiness}" verification code is: ${cleanCode}\n\nPlease use this code to verify your account.\n\nThank you,\nGreensStock Ltd.`,
         html: `
             <div style="font-family: Arial, sans-serif; padding: 25px; max-width: 500px; margin: 0 auto; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
-                <h2 style="color: #059669; font-size: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-top: 0; text-align: center;">GreenSoft Verification Code</h2>
+                <h2 style="color: #059669; font-size: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-top: 0; text-align: center;">GreensStock Verification Code</h2>
                 <p style="font-size: 15px; line-height: 1.6; margin: 20px 0;">Your business <strong>${cleanBusiness}</strong> verification code is:</p>
                 <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #059669; background-color: #f0fdf4; border: 1px dashed #34d399; padding: 16px; text-align: center; margin: 25px 0; border-radius: 8px;">
                     ${cleanCode}
                 </div>
                 <p style="font-size: 13px; color: #64748b; line-height: 1.5; text-align: center;">For security reasons, this code will be valid for 5 minutes. Do not share this code with anyone.</p>
                 <div style="margin-top: 30px; border-top: 1px solid #f1f5f9; padding-top: 15px; font-size: 11px; color: #94a3b8; text-align: center;">
-                    GreenSoft Ltd. &copy; 2026
+                    GreensStock Ltd. &copy; 2026
                 </div>
             </div>
         `
@@ -366,11 +366,11 @@ app.get('/api/debug-smtp', async (req, res) => {
         await testTransp.verify();
 
         // Try sending a test mail to user's email
-        const defaultFrom = user ? `"GreenSoft" <${user}>` : '"GreenSoft Support" <no-reply@greensoft.com>';
+        const defaultFrom = user ? `"GreensStock" <${user}>` : '"GreensStock Support" <no-reply@greensstock.com>';
         const info = await testTransp.sendMail({
             from: from || defaultFrom,
             to: 'GreenlabTechnology.Ceo@gmail.com',
-            subject: 'GreenSoft SMTP Test Email',
+            subject: 'GreensStock SMTP Test Email',
             text: 'আপনার SMTP ভেরিফিকেশন সফলভাবে কাজ করছে!',
             html: '<p>আপনার SMTP ভেরিফিকেশন সফলভাবে কাজ করছে!</p>'
         });
@@ -413,7 +413,7 @@ app.get('/api/debug-db', async (req, res) => {
 app.get('/api/debug-register-test', async (req, res) => {
     try {
         const testUser = {
-            businessName: "GreenSoft Test Business",
+            businessName: "GreensStock Test Business",
             fullName: "GreenLab CEO Test",
             phoneNumber: "01712345678",
             email: "GreenlabTechnology.Ceo@gmail.com",
@@ -886,7 +886,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
             if (ownerIndex !== -1) {
                 users[ownerIndex].verificationCode = verificationCode;
                 writeLocalTable('users', users);
-                await sendVerificationEmail(cleanEmail, verificationCode, users[ownerIndex].businessName || 'GreenSoft');
+                await sendVerificationEmail(cleanEmail, verificationCode, users[ownerIndex].businessName || 'GreensStock');
                 return res.json({ success: true, message: 'Password reset code sent successfully!' });
             }
 
@@ -896,7 +896,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
                 managers[managerIndex].verificationCode = verificationCode;
                 writeLocalTable('managers', managers);
                 const ownerAcc = users.find(u => u.id === managers[managerIndex].ownerId) || {};
-                await sendVerificationEmail(cleanEmail, verificationCode, ownerAcc.businessName || 'GreenSoft');
+                await sendVerificationEmail(cleanEmail, verificationCode, ownerAcc.businessName || 'GreensStock');
                 return res.json({ success: true, message: 'Password reset code sent successfully!' });
             }
 
@@ -908,7 +908,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         const [ownerRows] = await pool.query('SELECT * FROM users WHERE email = ?', [cleanEmail]);
         if (ownerRows.length > 0) {
             await pool.query('UPDATE users SET verificationCode = ? WHERE id = ?', [verificationCode, ownerRows[0].id]);
-            await sendVerificationEmail(cleanEmail, verificationCode, ownerRows[0].businessName || 'GreenSoft');
+            await sendVerificationEmail(cleanEmail, verificationCode, ownerRows[0].businessName || 'GreensStock');
             return res.json({ success: true, message: 'Password reset code sent successfully!' });
         }
 
@@ -916,7 +916,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         const [managerRows] = await pool.query('SELECT m.*, u.businessName FROM managers m LEFT JOIN users u ON m.ownerId = u.id WHERE m.email = ?', [cleanEmail]);
         if (managerRows.length > 0) {
             await pool.query('UPDATE managers SET verificationCode = ? WHERE id = ?', [verificationCode, managerRows[0].id]);
-            await sendVerificationEmail(cleanEmail, verificationCode, managerRows[0].businessName || 'GreenSoft');
+            await sendVerificationEmail(cleanEmail, verificationCode, managerRows[0].businessName || 'GreensStock');
             return res.json({ success: true, message: 'Password reset code sent successfully!' });
         }
 
@@ -1174,7 +1174,7 @@ app.post('/api/subscription/create-checkout-session', async (req, res) => {
                     price_data: {
                         currency: 'usd', // User can change this to 'bdt' if their Stripe account supports it
                         product_data: {
-                            name: 'GreenSoft Subscription Extension (30 Days)',
+                            name: 'GreensStock Subscription Extension (30 Days)',
                             description: 'Extend your business management software subscription for 30 days.',
                         },
                         unit_amount: 10000, // $100.00
@@ -1597,14 +1597,14 @@ const setupServer = async () => {
                 console.log('SMTP connection verified successfully on startup!');
 
                 // Try sending a real test email to see if Hostinger allows it and how it behaves
-                const defaultFrom = user ? `"GreenSoft" <${user}>` : '"GreenSoft Support" <no-reply@greensoft.com>';
-                const finalFrom = from ? (from.includes('<') ? from : `"GreenSoft" <${from}>`) : defaultFrom;
+                const defaultFrom = user ? `"GreensStock" <${user}>` : '"GreensStock Support" <no-reply@greensstock.com>';
+                const finalFrom = from ? (from.includes('<') ? from : `"GreensStock" <${from}>`) : defaultFrom;
                 
                 statusMsg += `Attempting to send test email to GreenlabTechnology.Ceo@gmail.com from: ${finalFrom}...\n`;
                 const info = await testTransp.sendMail({
                     from: finalFrom,
                     to: 'GreenlabTechnology.Ceo@gmail.com',
-                    subject: 'GreenSoft SMTP Delivery Test',
+                    subject: 'GreensStock SMTP Delivery Test',
                     html: `
                         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
                             <h2 style="color: #10b981;">SMTP Delivery Test Successful!</h2>
