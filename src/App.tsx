@@ -91,7 +91,7 @@ import {
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import html2pdf from 'html2pdf.js';
 import { useReactToPrint } from 'react-to-print';
 import { 
@@ -1645,27 +1645,71 @@ const Dashboard = ({ data, user: propUser }: any) => {
         btn.style.setProperty('display', 'none', 'important');
       });
 
-      const canvas = await html2canvas(element, {
-        scale: 1.5,
-        useCORS: true,
-        backgroundColor: '#f8fafc',
-        allowTaint: true
-      });
+      await new Promise(resolve => setTimeout(resolve, 80));
+
+      let pdfSaved = false;
+
+      try {
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#f8fafc',
+          allowTaint: false,
+          logging: false
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        
+        const pdf = new jsPDF({
+          orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+          unit: 'px',
+          format: [canvas.width, canvas.height]
+        });
+        pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+        const fileName = `Dashboard-Report-${timeFilter === 'custom' ? `${startDate || 'Start'}_to_${endDate || 'End'}` : timeFilter}.pdf`;
+        pdf.save(fileName);
+        pdfSaved = true;
+      } catch (canvasErr) {
+        console.warn("Canvas capture fallback triggered for Dashboard:", canvasErr);
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        pdf.setFillColor(15, 23, 42);
+        pdf.rect(0, 0, pageWidth, 28, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(currentUser?.businessName || 'Business Dashboard Report', 14, 14);
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Generated: ${new Date().toLocaleString()} | Filter: ${timeFilter.toUpperCase()}`, 14, 21);
+        
+        pdf.setTextColor(15, 23, 42);
+        pdf.setFontSize(13);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Financial Summary', 14, 38);
+
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Net Revenue: $${Number(netRevenue || 0).toFixed(2)}`, 14, 46);
+        pdf.text(`Current Profit: $${Number(displayProfit || 0).toFixed(2)}`, 14, 53);
+        pdf.text(`Current Loss: $${Number(displayLoss || 0).toFixed(2)}`, 14, 60);
+        pdf.text(`Total Sales Count: ${filteredSales.length}`, 14, 67);
+
+        const fileName = `Dashboard-Report-${timeFilter === 'custom' ? `${startDate || 'Start'}_to_${endDate || 'End'}` : timeFilter}.pdf`;
+        pdf.save(fileName);
+        pdfSaved = true;
+      }
 
       buttonsToHide.forEach((btn: any) => {
         const orig = btn.getAttribute('data-original-display');
         btn.style.display = orig || '';
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 1.0);
-      
-      const pdf = new jsPDF({
-        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
-        unit: 'px',
-        format: [canvas.width, canvas.height]
-      });
-      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
-      pdf.save(`Dashboard-Report-${timeFilter === 'custom' ? `${startDate || 'Start'}_to_${endDate || 'End'}` : timeFilter}.pdf`);
+      if (pdfSaved) {
+        setTimeout(() => {
+          alert("PDF downloaded successfully");
+        }, 300);
+      }
     } catch (error) {
       console.error("Dashboard PDF Export Error:", error);
       alert("পিডিএফ ডাউনলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
@@ -4157,11 +4201,14 @@ const Returns = ({ data }: any) => {
   );
 };
 
-const Reports = ({ data }: any) => {
+const Reports = ({ data, user: propUser }: any) => {
+  const { user: authUser } = useAuth();
+  const currentUser = propUser || authUser;
   const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days' | 'custom'>('30days');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
+  const [downloadSuccessMessage, setDownloadSuccessMessage] = useState<string | null>(null);
   const reportsRef = useRef<HTMLDivElement>(null);
   const { t, lang } = useTranslation();
   const { formatCurrency, toBengaliNumber } = useCurrency();
@@ -4269,27 +4316,132 @@ const Reports = ({ data }: any) => {
         btn.style.setProperty('display', 'none', 'important');
       });
 
-      const canvas = await html2canvas(element, {
-        scale: 1.5,
-        useCORS: true,
-        backgroundColor: '#f8fafc',
-        allowTaint: true
-      });
+      // Pause to allow hidden elements to re-flow
+      await new Promise(resolve => setTimeout(resolve, 80));
+
+      let pdfSaved = false;
+      const periodLabel = timeFilter === 'custom' 
+        ? `${startDate || 'Start'} to ${endDate || 'End'}` 
+        : timeFilter === 'today' ? 'Today' 
+        : timeFilter === '7days' ? 'Last 7 Days' 
+        : 'Last 30 Days';
+
+      try {
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#f8fafc',
+          allowTaint: false,
+          logging: false
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        
+        const pdf = new jsPDF({
+          orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+          unit: 'px',
+          format: [canvas.width, canvas.height]
+        });
+        pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+        const fileName = `Statement-${currentUser?.businessName ? currentUser.businessName.trim().replace(/\s+/g, '_') : 'Reports'}-${timeFilter}.pdf`;
+        pdf.save(fileName);
+        pdfSaved = true;
+      } catch (canvasErr) {
+        console.warn("Canvas capture fallback triggered, generating PDF statement with jsPDF:", canvasErr);
+        
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+
+        // Dark banner header
+        pdf.setFillColor(15, 23, 42); // slate-900
+        pdf.rect(0, 0, pageWidth, 32, 'F');
+
+        // Business Name
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(18);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(currentUser?.businessName || 'Business Statement Report', 14, 15);
+
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(203, 213, 225);
+        pdf.text(`Statement Period: ${periodLabel}   |   Generated: ${new Date().toLocaleString()}`, 14, 24);
+
+        // Section Title
+        let currentY = 44;
+        pdf.setTextColor(15, 23, 42);
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Financial Statement Summary', 14, currentY);
+
+        currentY += 8;
+        const summaryCards = [
+          { label: 'Net Profit', val: `${netProfit >= 0 ? '' : '-'}$${Math.abs(netProfit).toFixed(2)}`, bg: [236, 253, 245], textCol: [5, 150, 105] },
+          { label: 'Net Revenue', val: `$${totalRevenue.toFixed(2)}`, bg: [248, 250, 252], textCol: [15, 23, 42] },
+          { label: 'Current Profit', val: `$${currentProfit.toFixed(2)}`, bg: [236, 253, 245], textCol: [5, 150, 105] },
+          { label: 'Current Loss', val: `$${currentLoss.toFixed(2)}`, bg: [254, 242, 242], textCol: [220, 38, 38] },
+          { label: 'Expense Ratio', val: `${totalRevenue > 0 ? (((totalExpenses || 0) / totalRevenue) * 100).toFixed(1) : '0'}%`, bg: [248, 250, 252], textCol: [15, 23, 42] },
+        ];
+
+        const cardWidth = (pageWidth - 28 - 12) / 2;
+        summaryCards.forEach((c, idx) => {
+          const col = idx % 2;
+          const row = Math.floor(idx / 2);
+          const x = 14 + col * (cardWidth + 12);
+          const y = currentY + row * 22;
+
+          pdf.setFillColor(c.bg[0], c.bg[1], c.bg[2]);
+          pdf.roundedRect(x, y, cardWidth, 18, 2, 2, 'F');
+
+          pdf.setFontSize(9);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(100, 116, 139);
+          pdf.text(c.label, x + 6, y + 6);
+
+          pdf.setFontSize(12);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(c.textCol[0], c.textCol[1], c.textCol[2]);
+          pdf.text(c.val, x + 6, y + 14);
+        });
+
+        currentY += Math.ceil(summaryCards.length / 2) * 22 + 10;
+
+        // Inventory Status Section
+        pdf.setTextColor(15, 23, 42);
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Inventory Status Overview', 14, currentY);
+
+        currentY += 8;
+        const totalItems = data.inventory?.length || 0;
+        const lowStock = (data.inventory || []).filter((i: any) => i.quantity <= (i.minStock || 5)).length;
+        const healthyStock = totalItems - lowStock;
+
+        pdf.setFillColor(248, 250, 252);
+        pdf.roundedRect(14, currentY, pageWidth - 28, 22, 2, 2, 'F');
+
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(51, 65, 85);
+        pdf.text(`Total Items: ${totalItems}   |   Adequate Stock: ${healthyStock}   |   Low Stock Alerts: ${lowStock}`, 20, currentY + 13);
+
+        const fileName = `Statement-${currentUser?.businessName ? currentUser.businessName.trim().replace(/\s+/g, '_') : 'Reports'}-${timeFilter}.pdf`;
+        pdf.save(fileName);
+        pdfSaved = true;
+      }
 
       buttonsToHide.forEach((btn: any) => {
         const orig = btn.getAttribute('data-original-display');
         btn.style.display = orig || '';
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 1.0);
-      
-      const pdf = new jsPDF({
-        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
-        unit: 'px',
-        format: [canvas.width, canvas.height]
-      });
-      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
-      pdf.save(`Reports-${timeFilter === 'custom' ? `${startDate || 'Start'}_to_${endDate || 'End'}` : timeFilter}.pdf`);
+      if (pdfSaved) {
+        setDownloadSuccessMessage("PDF downloaded successfully");
+        setTimeout(() => setDownloadSuccessMessage(null), 5000);
+        setTimeout(() => {
+          alert("PDF downloaded successfully");
+        }, 300);
+      }
     } catch (error) {
       console.error("Reports PDF Export Error:", error);
       alert("পিডিএফ ডাউনলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
@@ -4376,6 +4528,41 @@ const Reports = ({ data }: any) => {
         </div>
       )}
       
+      {/* Business Statement Info Card */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          {currentUser?.logo ? (
+            <img 
+              src={currentUser.logo} 
+              alt="Logo" 
+              className="w-12 h-12 rounded-xl object-contain border border-slate-100 bg-slate-50 p-1 shrink-0" 
+              crossOrigin="anonymous" 
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xl shadow-md shadow-emerald-600/20 shrink-0">
+              {(currentUser?.businessName || 'GS').slice(0, 2).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 leading-tight">
+              {currentUser?.businessName || 'Business Statement Report'}
+            </h2>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              {currentUser?.phone ? `${currentUser.phone} • ` : ''}
+              {currentUser?.email || 'Statement generated from POS & Inventory'}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Statement: {timeFilter === 'custom' ? `${startDate || 'Start'} to ${endDate || 'End'}` : timeFilter === 'today' ? 'Today' : timeFilter === '7days' ? 'Last 7 Days' : 'Last 30 Days'}
+          </span>
+          <span className="text-xs text-slate-400 font-medium">
+            {new Date().toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         <Card className="p-6">
           <p className="text-sm text-slate-500 font-medium">Net Profit</p>
@@ -4485,6 +4672,13 @@ const Reports = ({ data }: any) => {
           )}
         </Card>
       </div>
+
+      {downloadSuccessMessage && (
+        <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 z-50 border border-slate-700 animate-in fade-in slide-in-from-bottom-4">
+          <CheckCircle2 className="text-emerald-400 shrink-0" size={20} />
+          <span className="text-sm font-semibold">{downloadSuccessMessage}</span>
+        </div>
+      )}
     </div>
   );
 };
@@ -6088,7 +6282,7 @@ const MainApp = () => {
                     <Route path="/suppliers" element={subscription.active ? <Suppliers data={data} /> : <Navigate to="/subscription" />} />
                     <Route path="/customers" element={subscription.active ? <Customers data={data} /> : <Navigate to="/subscription" />} />
                     <Route path="/expenses" element={subscription.active ? <Expenses data={data} /> : <Navigate to="/subscription" />} />
-                    <Route path="/reports" element={subscription.active ? <Reports data={data} /> : <Navigate to="/subscription" />} />
+                    <Route path="/reports" element={subscription.active ? <Reports data={data} user={user} /> : <Navigate to="/subscription" />} />
                     <Route path="/subscription" element={<Subscription subscription={subscription} />} />
                     <Route path="/settings" element={subscription.active ? <Settings user={user} data={data} updateProfile={updateProfile} /> : <Navigate to="/subscription" />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
