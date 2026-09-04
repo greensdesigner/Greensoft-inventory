@@ -86,7 +86,15 @@ import {
   EyeOff,
   Mail,
   Key,
-  Facebook
+  Facebook,
+  Lock,
+  Unlock,
+  ShieldAlert,
+  Clock,
+  Phone,
+  AlertTriangle,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
@@ -486,10 +494,20 @@ const WHATSAPP_NUM = "01720150101";
 
 // --- SUBSCRIPTION HOOK ---
 const useSubscription = (user: any) => {
-  const [subscription, setSubscription] = useState<{ active: boolean, expiryDate: string | null, loading: boolean }>({
+  const [subscription, setSubscription] = useState<{ 
+    active: boolean, 
+    expiryDate: string | null, 
+    loading: boolean,
+    isLocked: boolean,
+    lockReason?: string,
+    subscriptionFee: number 
+  }>({
     active: true,
     expiryDate: null,
-    loading: true
+    loading: true,
+    isLocked: false,
+    lockReason: '',
+    subscriptionFee: 500
   });
 
   const checkStatus = async () => {
@@ -501,7 +519,14 @@ const useSubscription = (user: any) => {
     try {
       const res = await fetch(`/api/subscription/status?userId=${checkId}`);
       const data = await res.json();
-      setSubscription({ active: !!data.active, expiryDate: data.expiryDate, loading: false });
+      setSubscription({ 
+        active: !data.isLocked && !!data.active, 
+        expiryDate: data.expiryDate, 
+        isLocked: !!data.isLocked,
+        lockReason: data.lockReason || '',
+        subscriptionFee: data.subscriptionFee !== undefined ? Number(data.subscriptionFee) : 500,
+        loading: false 
+      });
       return data;
     } catch (e) {
       setSubscription(prev => ({ ...prev, loading: false }));
@@ -4967,7 +4992,7 @@ const Subscription = ({ subscription }: any) => {
             <div className="mt-8 p-4 bg-emerald-700/50 rounded-2xl text-xs leading-relaxed">
               <p className="font-bold mb-1 underline">Instructions:</p>
               <ol className="list-decimal list-inside space-y-1 text-emerald-50">
-                <li>Monthly fee: {formatCurrency(100, 0)}.</li>
+                <li>Monthly fee: {formatCurrency(subscription.subscriptionFee !== undefined ? subscription.subscriptionFee : 500, 0)}.</li>
                 <li>Pay online using Stripe to get activated automatically.</li>
                 <li>If you have an activation code, enter it on the left panel.</li>
               </ol>
@@ -5558,40 +5583,364 @@ const Settings = ({ user, data, updateProfile }: any) => {
   );
 };
 
+const AccountLockedScreen = ({ user, logout, onRefreshStatus, lockReason }: any) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    if (onRefreshStatus) await onRefreshStatus();
+    setIsRefreshing(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-slate-900 border border-red-500/30 rounded-3xl p-8 text-center text-white shadow-2xl relative overflow-hidden">
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-red-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="w-20 h-20 bg-red-500/20 text-red-400 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+          <Lock size={38} />
+        </div>
+
+        <span className="px-3 py-1 bg-red-500/20 text-red-400 text-xs font-bold rounded-full uppercase tracking-wider mb-3 inline-block border border-red-500/30">
+          সফটওয়্যার অ্যাক্সেস সাময়িক স্থগিত (Locked)
+        </span>
+
+        <h2 className="text-2xl font-black mb-2 text-white font-primary">
+          {user?.businessName || 'আপনার প্রতিষ্ঠান'}
+        </h2>
+        <p className="text-sm text-slate-400 mb-6">
+          কর্তৃপক্ষের নির্দেশনায় আপনার সফটওয়্যারটির ব্যবহার সাময়িকভাবে লক করা হয়েছে।
+        </p>
+
+        {lockReason && (
+          <div className="p-4 bg-red-950/40 border border-red-800/40 rounded-2xl text-left mb-6">
+            <p className="text-[11px] font-bold text-red-400 uppercase tracking-wide mb-1">লক করার কারণ:</p>
+            <p className="text-sm text-red-200">{lockReason}</p>
+          </div>
+        )}
+
+        <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-700/60 text-left mb-6 space-y-2">
+          <p className="text-xs font-bold text-slate-300 uppercase tracking-wide">সফটওয়্যারটি আনলক করতে যোগাযোগ করুন:</p>
+          <div className="flex items-center gap-2 text-sm text-slate-300">
+            <Phone size={15} className="text-emerald-400 shrink-0" />
+            <a href={`tel:${WHATSAPP_NUM}`} className="hover:text-emerald-400 underline font-mono">{WHATSAPP_NUM}</a>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-slate-300">
+            <Mail size={15} className="text-emerald-400 shrink-0" />
+            <span className="font-mono text-xs">GreenlabTechnology.Ceo@gmail.com</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50"
+          >
+            <RefreshCw size={16} className={cn(isRefreshing && "animate-spin")} />
+            <span>{isRefreshing ? 'স্ট্যাটাস যাচাই হচ্ছে...' : 'স্ট্যাটাস রিফ্রেশ করুন'}</span>
+          </button>
+          <button
+            onClick={logout}
+            className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition-colors"
+          >
+            লগআউট করুন
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AdminPortal = () => {
-  const [adminSecret, setAdminSecret] = useState('');
+  const [adminSecret, setAdminSecret] = useState(() => sessionStorage.getItem('greensstock_admin_auth') || '');
+  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(sessionStorage.getItem('greensstock_admin_auth')));
+  const [inputKey, setInputKey] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // Authenticated State
+  const [activeTab, setActiveTab] = useState<'users' | 'codes'>('users');
+  const [users, setUsers] = useState<any[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'EXPIRED' | 'LOCKED'>('ALL');
+  const [updatingUserId, setUpdatingUserId] = useState<number | string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Per-user edited values
+  const [feeInputs, setFeeInputs] = useState<Record<string, number>>({});
+  const [expiryInputs, setExpiryInputs] = useState<Record<string, string>>({});
+
+  // Lock Confirmation Modal
+  const [lockingUser, setLockingUser] = useState<any | null>(null);
+  const [lockReasonInput, setLockReasonInput] = useState('বিল বকেয়া রয়েছে / Payment Pending');
+
+  // Activation Codes State
   const [codesCount, setCodesCount] = useState(5);
   const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
-  const [isAdminLoading, setIsAdminLoading] = useState(false);
-  const [adminError, setAdminError] = useState<string | null>(null);
+  const [isGeneratingCodes, setIsGeneratingCodes] = useState(false);
+  const [codeGenError, setCodeGenError] = useState<string | null>(null);
 
-  const generateCodes = async () => {
-    if (!adminSecret.trim()) {
-      setAdminError('Please enter the Authentication Key');
+  // Notification helper
+  const showToast = (msg: string) => {
+    setSuccessToast(msg);
+    setTimeout(() => setSuccessToast(null), 3000);
+  };
+
+  // Fetch Users
+  const fetchUsers = async (secretToUse?: string) => {
+    const key = secretToUse || adminSecret;
+    if (!key) return;
+    setIsLoadingUsers(true);
+    try {
+      const res = await fetch(`/api/admin/users`, {
+        headers: { 'x-admin-secret': key }
+      });
+      const data = await res.json();
+      if (res.ok && data.users) {
+        setUsers(data.users);
+        // Initialize inputs
+        const initialFees: Record<string, number> = {};
+        const initialExpiries: Record<string, string> = {};
+        data.users.forEach((u: any) => {
+          initialFees[u.id] = u.subscriptionFee !== undefined ? Number(u.subscriptionFee) : 500;
+          if (u.expiryDate) {
+            const d = new Date(u.expiryDate);
+            if (!isNaN(d.getTime())) {
+              initialExpiries[u.id] = d.toISOString().split('T')[0];
+            }
+          }
+        });
+        setFeeInputs(initialFees);
+        setExpiryInputs(initialExpiries);
+      } else {
+        if (res.status === 403) {
+          sessionStorage.removeItem('greensstock_admin_auth');
+          setIsAuthenticated(false);
+          setAuthError('অথেন্টিকেশন কী বাতিল বা পরিবর্তন করা হয়েছে। দয়া করে পুনরায় দিন।');
+        }
+      }
+    } catch (e: any) {
+      console.error('Fetch users error:', e);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated && adminSecret) {
+      fetchUsers();
+    }
+  }, [isAuthenticated, adminSecret]);
+
+  // Handle Login to Admin Portal
+  const handleLogin = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanKey = inputKey.trim();
+    if (!cleanKey) {
+      setAuthError('দয়া করে অথেন্টিকেশন কী প্রদান করুন');
       return;
     }
-    setIsAdminLoading(true);
-    setAdminError(null);
+    setIsVerifying(true);
+    setAuthError(null);
+    try {
+      const res = await fetch('/api/admin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: cleanKey })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        sessionStorage.setItem('greensstock_admin_auth', cleanKey);
+        setAdminSecret(cleanKey);
+        setIsAuthenticated(true);
+        setInputKey('');
+        fetchUsers(cleanKey);
+      } else {
+        setAuthError(data.error || 'ভুল অথেন্টিকেশন কী! অনুগ্রহ করে সঠিক কী দিন।');
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'সার্ভারে সংযোগ করা যায়নি। অনুগ্রহ করে পুনরায় চেষ্টা করুন।');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  // Handle Logout / Lock Portal
+  const handleLockPortal = () => {
+    sessionStorage.removeItem('greensstock_admin_auth');
+    setAdminSecret('');
+    setIsAuthenticated(false);
+    setUsers([]);
+    setInputKey('');
+  };
+
+  // Update User Fee
+  const handleUpdateFee = async (userId: number | string) => {
+    const feeToSet = feeInputs[userId] !== undefined ? feeInputs[userId] : 500;
+    setUpdatingUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': adminSecret
+        },
+        body: JSON.stringify({ subscriptionFee: feeToSet })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, subscriptionFee: feeToSet } : u));
+        showToast(`ইউজারের সাবস্ক্রিপশন ফি ৳${feeToSet} সফলভাবে আপডেট হয়েছে!`);
+      } else {
+        alert(data.error || 'আপডেট ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      alert(e.message || 'নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  // Adjust Fee quickly (+/-)
+  const adjustFeeQuick = (userId: number | string, delta: number) => {
+    const current = feeInputs[userId] !== undefined ? feeInputs[userId] : 500;
+    const next = Math.max(0, current + delta);
+    setFeeInputs(prev => ({ ...prev, [userId]: next }));
+  };
+
+  // Update User Expiry Date
+  const handleUpdateExpiry = async (userId: number | string, customIso?: string) => {
+    let newIso = customIso;
+    if (!newIso) {
+      const dateStr = expiryInputs[userId];
+      if (!dateStr) return alert('দয়া করে একটি সঠিক তারিখ নির্বাচন করুন');
+      newIso = new Date(`${dateStr}T23:59:59.000Z`).toISOString();
+    }
+    setUpdatingUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': adminSecret
+        },
+        body: JSON.stringify({ expiryDate: newIso })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, expiryDate: newIso } : u));
+        const dateObj = new Date(newIso);
+        setExpiryInputs(prev => ({ ...prev, [userId]: dateObj.toISOString().split('T')[0] }));
+        showToast('ইউজারের মেয়াদ সফলভাবে আপডেট করা হয়েছে!');
+      } else {
+        alert(data.error || 'মেয়াদ আপডেট ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      alert(e.message || 'নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  // Quick Extend Expiry (+30, +60, +90, +365 days)
+  const quickExtendExpiry = (user: any, daysToAdd: number) => {
+    const baseDate = (user.expiryDate && new Date(user.expiryDate) > new Date())
+      ? new Date(user.expiryDate)
+      : new Date();
+    baseDate.setDate(baseDate.getDate() + daysToAdd);
+    const newIso = baseDate.toISOString();
+    handleUpdateExpiry(user.id, newIso);
+  };
+
+  // Toggle User Lock
+  const handleLockConfirm = async () => {
+    if (!lockingUser) return;
+    const userId = lockingUser.id;
+    setUpdatingUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': adminSecret
+        },
+        body: JSON.stringify({
+          isLocked: true,
+          lockReason: lockReasonInput.trim() || 'প্রশাসনিক নির্দেশনায় সফটওয়্যার লক করা হয়েছে'
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(prev => prev.map(u => u.id === userId ? {
+          ...u,
+          isLocked: true,
+          lockReason: lockReasonInput.trim() || 'প্রশাসনিক নির্দেশনায় সফটওয়্যার লক করা হয়েছে'
+        } : u));
+        showToast('সফটওয়্যারটি সফলভাবে লক করা হয়েছে!');
+        setLockingUser(null);
+      } else {
+        alert(data.error || 'লক ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      alert(e.message || 'নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  const handleUnlockUser = async (userId: number | string) => {
+    setUpdatingUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': adminSecret
+        },
+        body: JSON.stringify({
+          isLocked: false,
+          lockReason: ''
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, isLocked: false, lockReason: '' } : u));
+        showToast('সফটওয়্যারটি সফলভাবে আনলক করা হয়েছে!');
+      } else {
+        alert(data.error || 'আনলক ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      alert(e.message || 'নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  // Activation Code Generator Handler
+  const generateCodes = async () => {
+    setIsGeneratingCodes(true);
+    setCodeGenError(null);
     try {
       const res = await fetch('/api/admin/generate-codes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ count: codesCount, secret: adminSecret.trim() })
+        body: JSON.stringify({ count: codesCount, secret: adminSecret })
       });
       const data = await res.json();
       if (res.ok && data.codes) {
         setGeneratedCodes(data.codes);
-        setAdminError(null);
+        showToast(`${data.codes.length}টি লাইসেন্স কোড তৈরি হয়েছে!`);
       } else {
-        setAdminError(data.error || 'Failed to generate codes. Please check your key.');
+        setCodeGenError(data.error || 'কোড তৈরিতে সমস্যা হয়েছে');
       }
     } catch (err: any) {
-      setAdminError(err.message || 'Connection error. Please try again.');
+      setCodeGenError(err.message || 'কানেকশন এরর');
     } finally {
-      setIsAdminLoading(false);
+      setIsGeneratingCodes(false);
     }
   };
 
@@ -5608,154 +5957,743 @@ const AdminPortal = () => {
     setTimeout(() => setCopiedAll(false), 2000);
   };
 
-  return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md p-8 bg-slate-900 text-white border-slate-800 shadow-2xl">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-emerald-600/20 rounded-xl flex items-center justify-center">
-            <ShieldCheck className="text-emerald-500" size={24} />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+  // Filter and Search Users
+  const filteredUsers = users.filter(u => {
+    // Search query
+    const q = searchQuery.toLowerCase().trim();
+    const matchesSearch = !q ||
+      (u.businessName && u.businessName.toLowerCase().includes(q)) ||
+      (u.fullName && u.fullName.toLowerCase().includes(q)) ||
+      (u.phoneNumber && u.phoneNumber.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q));
+
+    if (!matchesSearch) return false;
+
+    // Status filter
+    const isExpired = !u.expiryDate || new Date(u.expiryDate) < new Date();
+    const isLocked = Boolean(u.isLocked);
+
+    if (statusFilter === 'LOCKED') return isLocked;
+    if (statusFilter === 'ACTIVE') return !isLocked && !isExpired;
+    if (statusFilter === 'EXPIRED') return !isLocked && isExpired;
+    return true;
+  });
+
+  const totalUsersCount = users.length;
+  const lockedUsersCount = users.filter(u => Boolean(u.isLocked)).length;
+  const activeUsersCount = users.filter(u => !u.isLocked && u.expiryDate && new Date(u.expiryDate) > new Date()).length;
+  const expiredUsersCount = users.filter(u => !u.isLocked && (!u.expiryDate || new Date(u.expiryDate) <= new Date())).length;
+
+  // ==========================================
+  // VIEW 1: SECURITY GATE (BEFORE AUTHENTICATION)
+  // ==========================================
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        {/* Background ambient accents */}
+        <div className="absolute top-1/4 -left-32 w-80 h-80 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 -right-32 w-80 h-80 bg-slate-800/20 rounded-full blur-3xl pointer-events-none" />
+
+        <Card className="w-full max-w-md p-8 bg-slate-900 text-white border-slate-800 shadow-2xl relative z-10">
+          <div className="flex flex-col items-center text-center mb-8">
+            <div className="w-14 h-14 bg-emerald-600/20 border border-emerald-500/30 rounded-2xl flex items-center justify-center mb-4 text-emerald-400 shadow-inner">
+              <ShieldCheck size={32} />
+            </div>
+            <h1 className="text-2xl font-black bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
               GreensStock Admin
             </h1>
-            <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">License Control Portal</p>
+            <p className="text-xs text-slate-400 mt-1">
+              ইউজার ম্যানেজমেন্ট ও সফটওয়্যার কন্ট্রোল প্রবেশদ্বার
+            </p>
           </div>
-        </div>
 
-        <div className="space-y-6">
-          <div className="space-y-4 p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50">
+          <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <div className="flex items-center justify-between mb-2 ml-1">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase">Authentication Key</label>
+                <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                  Authentication Key
+                </label>
               </div>
               <div className="relative">
                 <input 
                   type={showPassword ? "text" : "password"} 
-                  value={adminSecret}
+                  value={inputKey}
+                  autoFocus
                   onChange={e => {
-                    setAdminSecret(e.target.value);
-                    if (adminError) setAdminError(null);
+                    setInputKey(e.target.value);
+                    if (authError) setAuthError(null);
                   }}
                   placeholder="Enter Authentication Key"
-                  className="w-full pl-5 pr-12 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-white text-sm font-mono transition-all" 
+                  className="w-full pl-5 pr-12 py-3.5 bg-slate-950/80 border border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none text-white text-base font-mono transition-all placeholder:text-slate-600" 
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 transition-colors"
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Batch Amount (1-50)</label>
-              <input 
-                type="number" 
-                value={codesCount}
-                onChange={e => setCodesCount(Math.min(Math.max(parseInt(e.target.value) || 1, 1), 50))}
-                min="1" max="50"
-                className="w-full px-5 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-white text-sm transition-all" 
-              />
-            </div>
+            {authError && (
+              <motion.div 
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3.5 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl flex items-center gap-2.5"
+              >
+                <AlertCircle size={16} className="shrink-0 text-red-400" />
+                <span>{authError}</span>
+              </motion.div>
+            )}
 
             <button 
-              onClick={generateCodes}
-              disabled={isAdminLoading || !adminSecret.trim()}
-              className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-900/20 group"
+              type="submit"
+              disabled={isVerifying || !inputKey.trim()}
+              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2 text-sm"
             >
-              {isAdminLoading ? (
-                <div className="flex items-center justify-center gap-2">
+              {isVerifying ? (
+                <>
                   <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                  <span>Generating Codes...</span>
-                </div>
+                  <span>যাচাই করা হচ্ছে...</span>
+                </>
               ) : (
-                <div className="flex items-center justify-center gap-2">
-                  <Zap size={18} className="text-emerald-300 group-hover:scale-110 transition-transform" />
-                  <span>Generate Codes</span>
-                </div>
+                <>
+                  <Key size={18} />
+                  <span>প্রবেশ করুন (Access Portal)</span>
+                </>
               )}
             </button>
+          </form>
+        </Card>
+
+        <p className="mt-8 text-slate-600 text-[10px] font-mono uppercase tracking-[0.3em]">
+          GreensStock Master License Controller
+        </p>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // VIEW 2: FULL ADMIN PORTAL (AFTER AUTHENTICATION)
+  // ==========================================
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {successToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-5 right-5 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-sm font-bold border border-emerald-400/30"
+          >
+            <CheckCircle2 size={18} />
+            <span>{successToast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Top Navigation Bar */}
+      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-30 px-4 lg:px-8 py-4">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-600/20 border border-emerald-500/30 rounded-xl flex items-center justify-center text-emerald-400">
+              <ShieldCheck size={24} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-black text-white">GreensStock Admin Console</h1>
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                  Super Admin
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">সফটওয়্যার ইউজার, সাবস্ক্রিপশন ফি ও মেয়াদ ব্যবস্থাপনা</p>
+            </div>
           </div>
 
-          {adminError && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl font-mono flex items-start gap-2"
-            >
-              <AlertCircle size={15} className="mt-0.5 shrink-0 text-red-400" />
-              <span>[SYSTEM_ERROR]: {adminError}</span>
-            </motion.div>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Tabs */}
+            <div className="bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 flex items-center">
+              <button
+                onClick={() => setActiveTab('users')}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                  activeTab === 'users'
+                    ? "bg-emerald-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                <Users size={15} />
+                <span>ইউজার ও সাবস্ক্রিপশন ({users.length})</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('codes')}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                  activeTab === 'codes'
+                    ? "bg-emerald-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                <Zap size={15} />
+                <span>অ্যাক্টিভেশন কোড</span>
+              </button>
+            </div>
 
-          {generatedCodes.length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="space-y-4"
+            {/* Refresh Button */}
+            <button
+              onClick={() => fetchUsers()}
+              disabled={isLoadingUsers}
+              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-colors"
+              title="তথ্য রিফ্রেশ করুন"
             >
-              <div className="flex items-center justify-between px-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Generated Batch Output</p>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-emerald-400 font-bold uppercase">{generatedCodes.length} Ready</span>
-                  <button
-                    onClick={copyAllCodes}
-                    className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 px-2 py-1 rounded-md"
-                  >
-                    {copiedAll ? <CheckCircle2 size={12} /> : <Copy size={12} />}
-                    <span>{copiedAll ? 'All Copied!' : 'Copy All'}</span>
-                  </button>
+              <RefreshCw size={16} className={cn(isLoadingUsers && "animate-spin text-emerald-400")} />
+            </button>
+
+            {/* Lock / Logout Button */}
+            <button
+              onClick={handleLockPortal}
+              className="flex items-center gap-2 px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition-colors"
+              title="পোর্টাল লক করুন"
+            >
+              <Lock size={14} />
+              <span>লক করুন (Exit)</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-8">
+        {activeTab === 'users' ? (
+          <>
+            {/* Stat Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">মোট ইউজার</span>
+                  <Users size={18} className="text-slate-400" />
                 </div>
+                <p className="text-2xl font-black text-white">{totalUsersCount}</p>
+                <p className="text-[11px] text-slate-500 mt-1">সকল রেজিস্টার্ড প্রতিষ্ঠান</p>
               </div>
-              <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
-                {generatedCodes.map((c, i) => {
-                  const isThisCopied = copiedCode === c;
+
+              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
+                <div className="flex items-center justify-between text-emerald-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">সচল একাউন্ট</span>
+                  <CheckCircle2 size={18} />
+                </div>
+                <p className="text-2xl font-black text-emerald-400">{activeUsersCount}</p>
+                <p className="text-[11px] text-slate-500 mt-1">মেয়াদ কার্যকর আছে</p>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">মেয়াদোত্তীর্ণ</span>
+                  <Clock size={18} />
+                </div>
+                <p className="text-2xl font-black text-amber-400">{expiredUsersCount}</p>
+                <p className="text-[11px] text-slate-500 mt-1">নবায়ন প্রয়োজন</p>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
+                <div className="flex items-center justify-between text-red-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">লক করা সফটওয়্যার</span>
+                  <Lock size={18} />
+                </div>
+                <p className="text-2xl font-black text-red-400">{lockedUsersCount}</p>
+                <p className="text-[11px] text-slate-500 mt-1">এক্সেস ব্লক করা</p>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+              <div className="relative w-full md:w-96">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="দোকানের নাম, মালিকের নাম, মোবাইল বা ইমেইল..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 transition-colors"
+                />
+              </div>
+
+              {/* Status Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+                {(['ALL', 'ACTIVE', 'EXPIRED', 'LOCKED'] as const).map(tab => {
+                  const labels = {
+                    ALL: `সব (${totalUsersCount})`,
+                    ACTIVE: `সচল (${activeUsersCount})`,
+                    EXPIRED: `মেয়াদ শেষ (${expiredUsersCount})`,
+                    LOCKED: `লকড (${lockedUsersCount})`
+                  };
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setStatusFilter(tab)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
+                        statusFilter === tab
+                          ? "bg-slate-800 text-white border border-slate-700 shadow-sm"
+                          : "text-slate-400 hover:text-slate-200"
+                      )}
+                    >
+                      {labels[tab]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* User List */}
+            {isLoadingUsers ? (
+              <div className="py-20 flex flex-col items-center justify-center text-center">
+                <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-slate-400 text-sm font-medium">ইউজার লিস্ট লোড হচ্ছে...</p>
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="py-20 text-center bg-slate-900/40 rounded-3xl border border-dashed border-slate-800">
+                <Users size={48} className="mx-auto text-slate-700 mb-3" />
+                <h3 className="text-base font-bold text-slate-300">কোন ইউজার পাওয়া যায়নি</h3>
+                <p className="text-xs text-slate-500 mt-1">অনুসন্ধান ফিল্টার পরিবর্তন করে পুনরায় চেষ্টা করুন।</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredUsers.map(userItem => {
+                  const isLocked = Boolean(userItem.isLocked);
+                  const isExpired = !userItem.expiryDate || new Date(userItem.expiryDate) < new Date();
+                  const currentFee = feeInputs[userItem.id] !== undefined ? feeInputs[userItem.id] : (userItem.subscriptionFee || 500);
+                  const currentExpiryVal = expiryInputs[userItem.id] || (userItem.expiryDate ? new Date(userItem.expiryDate).toISOString().split('T')[0] : '');
+
+                  // Days Remaining
+                  let remainingDaysText = 'মেয়াদ নেই';
+                  if (userItem.expiryDate) {
+                    const target = new Date(userItem.expiryDate).getTime();
+                    const now = new Date().getTime();
+                    const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
+                    if (diffDays > 0) {
+                      remainingDaysText = `${diffDays} দিন বাকি`;
+                    } else if (diffDays === 0) {
+                      remainingDaysText = 'আজ মেয়াদ শেষ';
+                    } else {
+                      remainingDaysText = `${Math.abs(diffDays)} দিন আগে শেষ`;
+                    }
+                  }
+
+                  const isUpdating = updatingUserId === userItem.id;
+
                   return (
                     <div 
-                      key={i} 
-                      className="flex items-center justify-between p-3 bg-slate-900/90 rounded-xl border border-slate-800 group cursor-pointer hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all active:scale-[0.98]" 
-                      onClick={() => copyToClipboard(c)}
+                      key={userItem.id} 
+                      className={cn(
+                        "bg-slate-900 rounded-2xl border transition-all p-5 lg:p-6 space-y-5",
+                        isLocked 
+                          ? "border-red-500/40 bg-red-950/10 shadow-lg shadow-red-950/20" 
+                          : "border-slate-800 hover:border-slate-700/80"
+                      )}
                     >
-                      <span className="font-mono text-sm tracking-[0.15em] text-emerald-400 font-bold">{c}</span>
-                      <div className={cn(
-                        "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all uppercase flex items-center gap-1",
-                        isThisCopied 
-                          ? "bg-emerald-500 text-white" 
-                          : "bg-slate-800 text-slate-400 group-hover:text-emerald-400 group-hover:bg-slate-700"
-                      )}>
-                        {isThisCopied ? (
-                          <>
-                            <CheckCircle2 size={11} />
-                            <span>Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy size={11} />
-                            <span>Copy</span>
-                          </>
-                        )}
+                      {/* User Header Info */}
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+                        <div className="flex items-start gap-3.5">
+                          <div className={cn(
+                            "w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg shrink-0 border",
+                            isLocked 
+                              ? "bg-red-500/20 text-red-400 border-red-500/30" 
+                              : "bg-emerald-600/20 text-emerald-400 border-emerald-500/30"
+                          )}>
+                            {userItem.businessName ? userItem.businessName.charAt(0).toUpperCase() : 'B'}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                              <h3 className="text-base font-bold text-white font-primary">{userItem.businessName || 'প্রতিষ্ঠান'}</h3>
+                              
+                              {/* Status Badge */}
+                              {isLocked ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40 flex items-center gap-1">
+                                  <Lock size={10} /> সফটওয়্যার লকড
+                                </span>
+                              ) : !isExpired ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                  <CheckCircle2 size={10} /> সচল (Active)
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                                  <AlertCircle size={10} /> মেয়াদ শেষ
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 text-xs text-slate-400 mt-1 flex-wrap">
+                              <span>মালিক: <strong className="text-slate-300">{userItem.fullName || 'N/A'}</strong></span>
+                              <span>•</span>
+                              <span>মোবাইল: <strong className="text-slate-300 font-mono">{userItem.phoneNumber || 'N/A'}</strong></span>
+                              <span>•</span>
+                              <span>ইমেইল: <strong className="text-slate-300 font-mono text-[11px]">{userItem.email || 'N/A'}</strong></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Top Action / Lock Status Pill */}
+                        <div>
+                          {isLocked ? (
+                            <button
+                              onClick={() => handleUnlockUser(userItem.id)}
+                              disabled={isUpdating}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-950/40 flex items-center gap-1.5"
+                            >
+                              <Unlock size={14} />
+                              <span>সফটওয়্যার আনলক করুন</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setLockingUser(userItem);
+                                setLockReasonInput('বিল বকেয়া রয়েছে / Payment Pending');
+                              }}
+                              disabled={isUpdating}
+                              className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                            >
+                              <Lock size={14} />
+                              <span>সফটওয়্যার লক করুন</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Locked Notice if applicable */}
+                      {isLocked && (
+                        <div className="p-3 bg-red-950/30 border border-red-500/30 rounded-xl flex items-center gap-2 text-xs text-red-300">
+                          <AlertTriangle size={15} className="text-red-400 shrink-0" />
+                          <span>
+                            <strong>সতর্কতা:</strong> এই সফটওয়্যারটি লক অবস্থায় রয়েছে। ব্যবহারকারী কোনো ফিচার ব্যবহার করতে পারবেন না। 
+                            {userItem.lockReason && ` (কারণ: ${userItem.lockReason})`}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Controls Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+                        {/* Control 1: Subscription Fee */}
+                        <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-300 uppercase tracking-wide flex items-center gap-1.5">
+                              <DollarSign size={14} className="text-emerald-400" />
+                              সাবস্ক্রিপশন ফি নির্ধারণ
+                            </span>
+                            <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                              বর্তমান: ৳{userItem.subscriptionFee !== undefined ? userItem.subscriptionFee : 500} / মাস
+                            </span>
+                          </div>
+
+                          {/* Quick Add / Subtract Buttons */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => adjustFeeQuick(userItem.id, -500)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              -500
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => adjustFeeQuick(userItem.id, -100)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              -100
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => adjustFeeQuick(userItem.id, 100)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-mono font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              +100
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => adjustFeeQuick(userItem.id, 500)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-mono font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              +500
+                            </button>
+                          </div>
+
+                          {/* Amount Input and Save Button */}
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">৳</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={currentFee}
+                                onChange={e => {
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  setFeeInputs(prev => ({ ...prev, [userItem.id]: val }));
+                                }}
+                                className="w-full pl-7 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold font-mono text-white focus:outline-none focus:border-emerald-500"
+                                placeholder="যেকোনো ফি বসান"
+                              />
+                            </div>
+                            <button
+                              onClick={() => handleUpdateFee(userItem.id)}
+                              disabled={isUpdating}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shrink-0 flex items-center gap-1.5"
+                            >
+                              {isUpdating ? <RefreshCw size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                              <span>ফি সেভ করুন</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Control 2: Subscription Expiry Date */}
+                        <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-300 uppercase tracking-wide flex items-center gap-1.5">
+                              <Calendar size={14} className="text-cyan-400" />
+                              মেয়াদ নির্ধারণ ও বৃদ্ধি
+                            </span>
+                            <span className={cn(
+                              "text-xs font-bold px-2 py-0.5 rounded-md font-mono",
+                              !isExpired ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+                            )}>
+                              {remainingDaysText}
+                            </span>
+                          </div>
+
+                          {/* Quick Duration Add Buttons */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => quickExtendExpiry(userItem, 30)}
+                              disabled={isUpdating}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              +৩০ দিন
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => quickExtendExpiry(userItem, 60)}
+                              disabled={isUpdating}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              +৬০ দিন
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => quickExtendExpiry(userItem, 90)}
+                              disabled={isUpdating}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              +৯০ দিন
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => quickExtendExpiry(userItem, 365)}
+                              disabled={isUpdating}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              +১ বছর
+                            </button>
+                          </div>
+
+                          {/* Custom Date Input and Save Button */}
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="date"
+                              value={currentExpiryVal}
+                              onChange={e => {
+                                setExpiryInputs(prev => ({ ...prev, [userItem.id]: e.target.value }));
+                              }}
+                              className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold font-mono text-white focus:outline-none focus:border-cyan-500"
+                            />
+                            <button
+                              onClick={() => handleUpdateExpiry(userItem.id)}
+                              disabled={isUpdating || !expiryInputs[userItem.id]}
+                              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shrink-0 flex items-center gap-1.5"
+                            >
+                              {isUpdating ? <RefreshCw size={12} className="animate-spin" /> : <Calendar size={12} />}
+                              <span>মেয়াদ সেভ করুন</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-              <button 
-                onClick={() => setGeneratedCodes([])}
-                className="w-full py-2 text-[10px] font-bold text-slate-500 hover:text-slate-300 uppercase tracking-widest transition-colors"
-              >
-                Clear Generated List
-              </button>
+            )}
+          </>
+        ) : (
+          /* Tab 2: Activation Code Generator */
+          <div className="max-w-2xl mx-auto space-y-6">
+            <Card className="p-6 lg:p-8 bg-slate-900 border-slate-800 text-white shadow-xl">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-emerald-600/20 border border-emerald-500/30 rounded-xl flex items-center justify-center text-emerald-400">
+                  <Zap size={22} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">লাইসেন্স অ্যাক্টিভেশন কোড জেনারেটর</h2>
+                  <p className="text-xs text-slate-400">এক ক্লিকে নতুন অফলাইন/অনলাইন অ্যাক্টিভেশন কোড তৈরি করুন</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase mb-2">
+                    একবারে কতটি কোড তৈরি করবেন (১-৫০)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={codesCount}
+                    onChange={e => setCodesCount(Math.min(Math.max(parseInt(e.target.value) || 1, 1), 50))}
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono font-bold text-sm focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <button
+                  onClick={generateCodes}
+                  disabled={isGeneratingCodes}
+                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2"
+                >
+                  {isGeneratingCodes ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                      <span>কোড তৈরি হচ্ছে...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={18} />
+                      <span>কোড তৈরি করুন (Generate Codes)</span>
+                    </>
+                  )}
+                </button>
+
+                {codeGenError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs flex items-center gap-2">
+                    <AlertCircle size={15} />
+                    <span>{codeGenError}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Generated Codes List */}
+              {generatedCodes.length > 0 && (
+                <div className="mt-8 space-y-4 border-t border-slate-800 pt-6">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 uppercase">
+                      তৈরি হওয়া কোড সমূহ ({generatedCodes.length}টি)
+                    </span>
+                    <button
+                      onClick={copyAllCodes}
+                      className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-lg transition-colors"
+                    >
+                      {copiedAll ? <CheckCircle2 size={13} /> : <Copy size={13} />}
+                      <span>{copiedAll ? 'সব কপি হয়েছে!' : 'সব কোড কপি করুন'}</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                    {generatedCodes.map((codeItem, idx) => {
+                      const isThisCopied = copiedCode === codeItem;
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => copyToClipboard(codeItem)}
+                          className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800/80 hover:border-emerald-500/50 cursor-pointer transition-all group"
+                        >
+                          <span className="font-mono text-sm tracking-wider font-bold text-emerald-400">
+                            {codeItem}
+                          </span>
+                          <span className={cn(
+                            "px-2 py-1 rounded-lg text-[10px] font-bold uppercase transition-all flex items-center gap-1",
+                            isThisCopied 
+                              ? "bg-emerald-500 text-white" 
+                              : "bg-slate-800 text-slate-400 group-hover:text-emerald-400"
+                          )}>
+                            {isThisCopied ? <CheckCircle2 size={11} /> : <Copy size={11} />}
+                            <span>{isThisCopied ? 'Copied' : 'Copy'}</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setGeneratedCodes([])}
+                    className="w-full py-2 text-xs font-bold text-slate-500 hover:text-slate-300 uppercase tracking-wider transition-colors"
+                  >
+                    তালিকা পরিষ্কার করুন
+                  </button>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+      </main>
+
+      {/* Lock Confirmation Modal */}
+      <AnimatePresence>
+        {lockingUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setLockingUser(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              className="relative w-full max-w-md bg-slate-900 border border-red-500/30 rounded-3xl p-6 text-white shadow-2xl z-10 space-y-4"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center mx-auto">
+                <Lock size={24} />
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-white">সফটওয়্যার লক নিশ্চিতকরণ</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  আপনি কি নিশ্চিত যে <strong className="text-white font-primary">{lockingUser.businessName}</strong>-এর সফটওয়্যার লক করতে চান?
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  লক করার কারণ (ইউজারকে প্রদর্শন করা হবে):
+                </label>
+                <input
+                  type="text"
+                  value={lockReasonInput}
+                  onChange={e => setLockReasonInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-red-500"
+                  placeholder="যেমন: মাসিক সাবস্ক্রিপশন বিল বকেয়া"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setLockingUser(null)}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-colors"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLockConfirm}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-colors shadow-lg shadow-red-950/40"
+                >
+                  হ্যাঁ, লক করুন
+                </button>
+              </div>
             </motion.div>
-          )}
-        </div>
-      </Card>
-      
-      <p className="absolute bottom-8 text-slate-700 text-[10px] font-mono uppercase tracking-[0.4em]">
-        Authorized Access Only
-      </p>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -6469,21 +7407,30 @@ const MainApp = () => {
             path="/*"
             element={
               user ? (
-                <Layout user={user} logout={logout} subscription={subscription}>
-                  <Routes>
-                    <Route path="/" element={subscription.active ? <Dashboard data={data} user={user} /> : <Navigate to="/subscription" />} />
-                    <Route path="/inventory" element={subscription.active ? <Inventory data={data} /> : <Navigate to="/subscription" />} />
-                    <Route path="/sales" element={subscription.active ? <Sales data={data} /> : <Navigate to="/subscription" />} />
-                    <Route path="/returns" element={subscription.active ? <Returns data={data} /> : <Navigate to="/subscription" />} />
-                    <Route path="/suppliers" element={subscription.active ? <Suppliers data={data} /> : <Navigate to="/subscription" />} />
-                    <Route path="/customers" element={subscription.active ? <Customers data={data} /> : <Navigate to="/subscription" />} />
-                    <Route path="/expenses" element={subscription.active ? <Expenses data={data} /> : <Navigate to="/subscription" />} />
-                    <Route path="/reports" element={subscription.active ? <Reports data={data} user={user} /> : <Navigate to="/subscription" />} />
-                    <Route path="/subscription" element={<Subscription subscription={subscription} />} />
-                    <Route path="/settings" element={subscription.active ? <Settings user={user} data={data} updateProfile={updateProfile} /> : <Navigate to="/subscription" />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                  </Routes>
-                </Layout>
+                subscription.isLocked ? (
+                  <AccountLockedScreen
+                    user={user}
+                    logout={logout}
+                    onRefreshStatus={subscription.checkStatus}
+                    lockReason={subscription.lockReason}
+                  />
+                ) : (
+                  <Layout user={user} logout={logout} subscription={subscription}>
+                    <Routes>
+                      <Route path="/" element={subscription.active ? <Dashboard data={data} user={user} /> : <Navigate to="/subscription" />} />
+                      <Route path="/inventory" element={subscription.active ? <Inventory data={data} /> : <Navigate to="/subscription" />} />
+                      <Route path="/sales" element={subscription.active ? <Sales data={data} /> : <Navigate to="/subscription" />} />
+                      <Route path="/returns" element={subscription.active ? <Returns data={data} /> : <Navigate to="/subscription" />} />
+                      <Route path="/suppliers" element={subscription.active ? <Suppliers data={data} /> : <Navigate to="/subscription" />} />
+                      <Route path="/customers" element={subscription.active ? <Customers data={data} /> : <Navigate to="/subscription" />} />
+                      <Route path="/expenses" element={subscription.active ? <Expenses data={data} /> : <Navigate to="/subscription" />} />
+                      <Route path="/reports" element={subscription.active ? <Reports data={data} user={user} /> : <Navigate to="/subscription" />} />
+                      <Route path="/subscription" element={<Subscription subscription={subscription} />} />
+                      <Route path="/settings" element={subscription.active ? <Settings user={user} data={data} updateProfile={updateProfile} /> : <Navigate to="/subscription" />} />
+                      <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                  </Layout>
+                )
               ) : (
                 <Navigate to="/login" />
               )

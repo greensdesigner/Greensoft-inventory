@@ -160,6 +160,9 @@ async function ensureAllTables() {
         await checkAndAddColumn(conn, 'users', 'address', 'TEXT');
         await checkAndAddColumn(conn, 'users', 'isVerified', 'TINYINT(1) DEFAULT 0');
         await checkAndAddColumn(conn, 'users', 'verificationCode', 'VARCHAR(6)');
+        await checkAndAddColumn(conn, 'users', 'subscriptionFee', 'DECIMAL(10,2) DEFAULT 500.00');
+        await checkAndAddColumn(conn, 'users', 'isLocked', 'TINYINT(1) DEFAULT 0');
+        await checkAndAddColumn(conn, 'users', 'lockReason', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'managers', 'verificationCode', 'VARCHAR(6)');
         
         // Ensure logo can hold large base64 strings
@@ -1097,16 +1100,30 @@ app.get('/api/subscription/status', async (req, res) => {
             const owner = users.find(u => u.id == userId);
             if (!owner) return res.status(404).json({ error: 'User not found' });
             const expiryDate = owner.expiryDate;
-            const isActive = new Date(expiryDate) > new Date();
-            return res.json({ active: isActive, expiryDate });
+            const isLocked = Boolean(owner.isLocked);
+            const isActive = !isLocked && (new Date(expiryDate) > new Date());
+            return res.json({ 
+                active: isActive, 
+                expiryDate, 
+                isLocked,
+                lockReason: owner.lockReason || '',
+                subscriptionFee: owner.subscriptionFee !== undefined ? Number(owner.subscriptionFee) : 500
+            });
         }
 
-        const [rows] = await pool.query('SELECT expiryDate FROM users WHERE id = ?', [userId]);
+        const [rows] = await pool.query('SELECT expiryDate, isLocked, lockReason, subscriptionFee FROM users WHERE id = ?', [userId]);
         if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
         
         const expiryDate = rows[0].expiryDate;
-        const isActive = new Date(expiryDate) > new Date();
-        res.json({ active: isActive, expiryDate });
+        const isLocked = Boolean(rows[0].isLocked);
+        const isActive = !isLocked && (new Date(expiryDate) > new Date());
+        res.json({ 
+            active: isActive, 
+            expiryDate, 
+            isLocked,
+            lockReason: rows[0].lockReason || '',
+            subscriptionFee: rows[0].subscriptionFee !== null && rows[0].subscriptionFee !== undefined ? Number(rows[0].subscriptionFee) : 500
+        });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1286,21 +1303,125 @@ app.post('/api/subscription/confirm-payment', async (req, res) => {
     }
 });
 
+// --- ADMIN PORTAL API ---
+const isValidAdminSecret = (secret) => {
+    const validSecrets = [
+        '2562',
+        process.env.ADMIN_SECRET,
+        process.env.ADMIN_KEY
+    ].filter(Boolean).map(s => String(s).trim().toLowerCase());
+    const input = secret ? String(secret).trim().toLowerCase() : '';
+    return Boolean(input && validSecrets.includes(input));
+};
+
+// Admin verify key
+app.post('/api/admin/verify', (req, res) => {
+    const { secret } = req.body;
+    if (!isValidAdminSecret(secret)) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Invalid Authentication Key.' });
+    }
+    res.json({ success: true, message: 'Authenticated' });
+});
+
+// Admin get all registered users
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const secret = req.headers['x-admin-secret'] || req.query.secret;
+        if (!isValidAdminSecret(secret)) {
+            return res.status(403).json({ error: 'Forbidden: Invalid Authentication Key.' });
+        }
+
+        let userList = [];
+        if (pool && !useLocalFallback) {
+            try {
+                const [rows] = await pool.query(
+                    'SELECT id, businessName, fullName, phoneNumber, email, expiryDate, subscriptionFee, isLocked, lockReason, createdAt FROM users ORDER BY id DESC'
+                );
+                userList = rows.map(u => ({
+                    ...u,
+                    subscriptionFee: u.subscriptionFee !== null && u.subscriptionFee !== undefined ? Number(u.subscriptionFee) : 500,
+                    isLocked: Boolean(u.isLocked)
+                }));
+            } catch (e) {
+                console.warn('DB query users warning:', e.message);
+            }
+        }
+
+        if (userList.length === 0) {
+            const localUsers = readLocalTable('users');
+            userList = localUsers.map(u => ({
+                id: u.id,
+                businessName: u.businessName || 'Business',
+                fullName: u.fullName || '',
+                phoneNumber: u.phoneNumber || '',
+                email: u.email || '',
+                expiryDate: u.expiryDate || '',
+                subscriptionFee: u.subscriptionFee !== undefined ? Number(u.subscriptionFee) : 500,
+                isLocked: Boolean(u.isLocked),
+                lockReason: u.lockReason || '',
+                createdAt: u.createdAt || new Date().toISOString()
+            }));
+        }
+
+        res.json({ success: true, users: userList });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Admin update user subscription, expiry date, lock status
+app.patch('/api/admin/users/:id', async (req, res) => {
+    try {
+        const secret = req.headers['x-admin-secret'] || req.body.secret;
+        if (!isValidAdminSecret(secret)) {
+            return res.status(403).json({ error: 'Forbidden: Invalid Authentication Key.' });
+        }
+
+        const userId = req.params.id;
+        const { subscriptionFee, expiryDate, isLocked, lockReason } = req.body;
+
+        // 1. Update in local_db
+        const localUsers = readLocalTable('users');
+        const localIdx = localUsers.findIndex(u => u.id == userId);
+        if (localIdx !== -1) {
+            if (subscriptionFee !== undefined) localUsers[localIdx].subscriptionFee = Number(subscriptionFee);
+            if (expiryDate !== undefined) localUsers[localIdx].expiryDate = expiryDate;
+            if (isLocked !== undefined) localUsers[localIdx].isLocked = isLocked ? 1 : 0;
+            if (lockReason !== undefined) localUsers[localIdx].lockReason = lockReason;
+            writeLocalTable('users', localUsers);
+        }
+
+        // 2. Update in MySQL pool if available
+        if (pool && !useLocalFallback) {
+            try {
+                const updates = [];
+                const params = [];
+                if (subscriptionFee !== undefined) { updates.push('subscriptionFee = ?'); params.push(Number(subscriptionFee)); }
+                if (expiryDate !== undefined) { updates.push('expiryDate = ?'); params.push(expiryDate); }
+                if (isLocked !== undefined) { updates.push('isLocked = ?'); params.push(isLocked ? 1 : 0); }
+                if (lockReason !== undefined) { updates.push('lockReason = ?'); params.push(lockReason); }
+
+                if (updates.length > 0) {
+                    params.push(userId);
+                    await pool.query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+                }
+            } catch (e) {
+                console.warn('DB update user warning:', e.message);
+            }
+        }
+
+        res.json({ success: true, message: 'User updated successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Admin-only: Generate codes (Optional, but useful for the owner)
 app.post('/api/admin/generate-codes', async (req, res) => {
     try {
         const { count, secret } = req.body; 
         
-        // Admin key: 2562 (or environment variables)
-        const validSecrets = [
-            '2562',
-            process.env.ADMIN_SECRET,
-            process.env.ADMIN_KEY
-        ].filter(Boolean).map(s => String(s).trim().toLowerCase());
-
-        const inputSecret = secret ? String(secret).trim().toLowerCase() : '';
-
-        if (!inputSecret || !validSecrets.includes(inputSecret)) {
+        if (!isValidAdminSecret(secret)) {
             return res.status(403).json({ 
                 error: 'Forbidden: Invalid Authentication Key.' 
             });
