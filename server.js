@@ -1116,37 +1116,73 @@ app.post('/api/subscription/activate', async (req, res) => {
         if (!code) return res.status(400).json({ error: 'Code is required' });
         if (!userId) return res.status(400).json({ error: 'User ID is required' });
 
-        if (useLocalFallback) {
-            const users = readLocalTable('users');
-            const idx = users.findIndex(u => u.id == userId);
-            if (idx === -1) return res.status(404).json({ error: 'User not found' });
+        const cleanCode = code.trim().toUpperCase();
+        let codeValidated = false;
 
-            let currentExpiry = new Date(users[idx].expiryDate);
+        // 1. Check in MySQL if available
+        if (pool && !useLocalFallback) {
+            try {
+                const [codes] = await pool.query('SELECT * FROM activation_codes WHERE code = ? AND isUsed = 0', [cleanCode]);
+                if (codes && codes.length > 0) {
+                    codeValidated = true;
+                    await pool.query('UPDATE activation_codes SET isUsed = 1, usedAt = ?, usedByUserId = ? WHERE id = ?', [new Date().toISOString(), userId, codes[0].id]);
+                }
+            } catch (e) {
+                console.warn('DB code check warning:', e.message);
+            }
+        }
+
+        // 2. Check in local activation_codes table
+        if (!codeValidated) {
+            try {
+                const localCodes = readLocalTable('activation_codes');
+                const idx = localCodes.findIndex(c => c.code && c.code.trim().toUpperCase() === cleanCode && !c.isUsed);
+                if (idx !== -1) {
+                    codeValidated = true;
+                    localCodes[idx].isUsed = 1;
+                    localCodes[idx].usedAt = new Date().toISOString();
+                    localCodes[idx].usedByUserId = userId;
+                    writeLocalTable('activation_codes', localCodes);
+                }
+            } catch (e) {
+                console.warn('Local code check warning:', e.message);
+            }
+        }
+
+        // If code is not found in either system
+        if (!codeValidated) {
+            return res.status(401).json({ error: 'Invalid or already used activation code' });
+        }
+
+        // 3. Extend subscription in MySQL if active
+        if (pool && !useLocalFallback) {
+            try {
+                const [userRows] = await pool.query('SELECT expiryDate FROM users WHERE id = ?', [userId]);
+                if (userRows.length > 0) {
+                    let currentExpiry = new Date(userRows[0].expiryDate);
+                    let baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+                    const newExpiry = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+                    await pool.query('UPDATE users SET expiryDate = ? WHERE id = ?', [newExpiry, userId]);
+                    return res.json({ success: true, expiryDate: newExpiry });
+                }
+            } catch (e) {
+                console.warn('DB user expiry update warning:', e.message);
+            }
+        }
+
+        // 4. Extend subscription in local users table
+        const users = readLocalTable('users');
+        const userIdx = users.findIndex(u => u.id == userId);
+        if (userIdx !== -1) {
+            let currentExpiry = new Date(users[userIdx].expiryDate);
             let baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
             const newExpiry = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
-            
-            users[idx].expiryDate = newExpiry;
+            users[userIdx].expiryDate = newExpiry;
             writeLocalTable('users', users);
             return res.json({ success: true, expiryDate: newExpiry });
         }
 
-        const [codes] = await pool.query('SELECT * FROM activation_codes WHERE code = ? AND isUsed = 0', [code]);
-        if (codes.length === 0) {
-            return res.status(401).json({ error: 'Invalid or already used activation code' });
-        }
-
-        // Mark code as used by this user
-        await pool.query('UPDATE activation_codes SET isUsed = 1, usedAt = ?, usedByUserId = ? WHERE id = ?', [new Date().toISOString(), userId, codes[0].id]);
-
-        // Extend user subscription by 30 days
-        const [userRows] = await pool.query('SELECT expiryDate FROM users WHERE id = ?', [userId]);
-        let currentExpiry = new Date(userRows[0].expiryDate);
-        let baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
-        
-        const newExpiry = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        await pool.query('UPDATE users SET expiryDate = ? WHERE id = ?', [newExpiry, userId]);
-
-        res.json({ success: true, expiryDate: newExpiry });
+        res.status(404).json({ error: 'User account not found' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1254,19 +1290,60 @@ app.post('/api/subscription/confirm-payment', async (req, res) => {
 app.post('/api/admin/generate-codes', async (req, res) => {
     try {
         const { count, secret } = req.body; 
-        // Simple protection: only if secret matches (owner can change this in code)
-        if (secret !== 'greensoft_admin_2024') return res.status(403).json({ error: 'Forbidden' });
+        
+        // Supported admin keys: 1234 (standard quick PIN), admin, greensstock, or custom secret
+        const validSecrets = [
+            process.env.ADMIN_SECRET,
+            process.env.ADMIN_KEY,
+            '1234',
+            'admin',
+            'admin123',
+            'greensstock',
+            'greensstock_admin',
+            'greensstock_admin_2024',
+            'greensstock_admin_2026',
+            'greensoft_admin_2024'
+        ].filter(Boolean).map(s => String(s).trim().toLowerCase());
+
+        const inputSecret = secret ? String(secret).trim().toLowerCase() : '';
+
+        if (!inputSecret || !validSecrets.includes(inputSecret)) {
+            return res.status(403).json({ 
+                error: 'Forbidden: Invalid Authentication Key. Please enter 1234 or greensstock_admin' 
+            });
+        }
 
         const codes = [];
-        for (let i = 0; i < (count || 5); i++) {
-            const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+        const generateCount = Math.min(Math.max(parseInt(count) || 1, 1), 50);
+
+        for (let i = 0; i < generateCount; i++) {
+            const code = 'GS-' + Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+            codes.push(code);
+
+            // 1. Insert into MySQL database if connected
+            if (pool) {
+                try {
+                    await pool.query('INSERT INTO activation_codes (code) VALUES (?)', [code]);
+                } catch (e) {
+                    console.warn('DB activation_codes insert warning:', e.message);
+                }
+            }
+
+            // 2. Persist in local_db as well
             try {
-                await pool.query('INSERT INTO activation_codes (code) VALUES (?)', [code]);
-                codes.push(code);
-            } catch (e) { /* ignore duplicate randoms */ }
+                const localCodes = readLocalTable('activation_codes');
+                if (!localCodes.some(c => c.code === code)) {
+                    localCodes.push({ id: Date.now() + i, code, isUsed: 0, createdAt: new Date().toISOString() });
+                    writeLocalTable('activation_codes', localCodes);
+                }
+            } catch (e) {
+                console.warn('Local activation_codes insert warning:', e.message);
+            }
         }
-        res.json({ codes });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+        res.json({ success: true, codes });
+    } catch (err) { 
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 // --- MANAGER MANAGEMENT API ---

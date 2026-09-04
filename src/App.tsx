@@ -5559,33 +5559,53 @@ const Settings = ({ user, data, updateProfile }: any) => {
 };
 
 const AdminPortal = () => {
-  const [adminSecret, setAdminSecret] = useState('');
+  const [adminSecret, setAdminSecret] = useState('1234');
+  const [showPassword, setShowPassword] = useState(false);
   const [codesCount, setCodesCount] = useState(5);
   const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
   const [isAdminLoading, setIsAdminLoading] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
 
   const generateCodes = async () => {
+    if (!adminSecret.trim()) {
+      setAdminError('Please enter the Authentication Key');
+      return;
+    }
     setIsAdminLoading(true);
     setAdminError(null);
     try {
       const res = await fetch('/api/admin/generate-codes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ count: codesCount, secret: adminSecret })
+        body: JSON.stringify({ count: codesCount, secret: adminSecret.trim() })
       });
       const data = await res.json();
-      if (data.codes) {
+      if (res.ok && data.codes) {
         setGeneratedCodes(data.codes);
-        setAdminSecret('');
+        setAdminError(null);
       } else {
-        setAdminError(data.error || 'Failed to generate codes');
+        setAdminError(data.error || 'Failed to generate codes. Please check your key.');
       }
     } catch (err: any) {
-      setAdminError(err.message);
+      setAdminError(err.message || 'Connection error. Please try again.');
     } finally {
       setIsAdminLoading(false);
     }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCode(text);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
+
+  const copyAllCodes = () => {
+    if (generatedCodes.length === 0) return;
+    navigator.clipboard.writeText(generatedCodes.join('\n'));
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
   };
 
   return (
@@ -5606,34 +5626,60 @@ const AdminPortal = () => {
         <div className="space-y-6">
           <div className="space-y-4 p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50">
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2 ml-1">Authentication Key</label>
-              <input 
-                type="password" 
-                value={adminSecret}
-                onChange={e => setAdminSecret(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full px-5 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-white text-sm transition-all" 
-              />
+              <div className="flex items-center justify-between mb-2 ml-1">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase">Authentication Key</label>
+                <button 
+                  type="button"
+                  onClick={() => setAdminSecret('1234')}
+                  className="text-[10px] text-emerald-400 hover:text-emerald-300 font-mono underline"
+                >
+                  Use Default (1234)
+                </button>
+              </div>
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  value={adminSecret}
+                  onChange={e => {
+                    setAdminSecret(e.target.value);
+                    if (adminError) setAdminError(null);
+                  }}
+                  placeholder="Enter key (e.g. 1234)"
+                  className="w-full pl-5 pr-12 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-white text-sm font-mono transition-all" 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1.5 ml-1">
+                Supported Keys: <span className="text-emerald-400 font-bold font-mono">1234</span> or <span className="text-emerald-400 font-bold font-mono">greensstock_admin</span>
+              </p>
             </div>
+
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2 ml-1">Batch Amount (1-50)</label>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Batch Amount (1-50)</label>
               <input 
                 type="number" 
                 value={codesCount}
-                onChange={e => setCodesCount(parseInt(e.target.value))}
+                onChange={e => setCodesCount(Math.min(Math.max(parseInt(e.target.value) || 1, 1), 50))}
                 min="1" max="50"
                 className="w-full px-5 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-white text-sm transition-all" 
               />
             </div>
+
             <button 
               onClick={generateCodes}
-              disabled={isAdminLoading || !adminSecret}
+              disabled={isAdminLoading || !adminSecret.trim()}
               className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-900/20 group"
             >
               {isAdminLoading ? (
                 <div className="flex items-center justify-center gap-2">
                   <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                  <span>Generating...</span>
+                  <span>Generating Codes...</span>
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-2">
@@ -5648,9 +5694,9 @@ const AdminPortal = () => {
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 text-xs rounded-xl font-mono flex items-start gap-2"
+              className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl font-mono flex items-start gap-2"
             >
-              <AlertCircle size={14} className="mt-0.5 shrink-0" />
+              <AlertCircle size={15} className="mt-0.5 shrink-0 text-red-400" />
               <span>[SYSTEM_ERROR]: {adminError}</span>
             </motion.div>
           )}
@@ -5662,33 +5708,55 @@ const AdminPortal = () => {
               className="space-y-4"
             >
               <div className="flex items-center justify-between px-1">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Generated Batch Output</p>
-                <div className="flex items-center gap-2">
-                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                   <span className="text-[10px] text-emerald-500 font-bold uppercase">{generatedCodes.length} Ready</span>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Generated Batch Output</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-emerald-400 font-bold uppercase">{generatedCodes.length} Ready</span>
+                  <button
+                    onClick={copyAllCodes}
+                    className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 px-2 py-1 rounded-md"
+                  >
+                    {copiedAll ? <CheckCircle2 size={12} /> : <Copy size={12} />}
+                    <span>{copiedAll ? 'All Copied!' : 'Copy All'}</span>
+                  </button>
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
-                {generatedCodes.map((c, i) => (
-                  <div 
-                    key={i} 
-                    className="flex items-center justify-between p-3 bg-slate-900/80 rounded-xl border border-slate-800 group cursor-pointer hover:border-emerald-500/50 hover:bg-slate-800 transition-all active:scale-[0.98]" 
-                    onClick={() => {
-                      navigator.clipboard.writeText(c);
-                    }}
-                  >
-                    <span className="font-mono text-sm tracking-[0.2em] text-emerald-400 font-bold">{c}</span>
-                    <div className="px-2 py-1 bg-slate-800 rounded-lg text-[10px] font-bold text-slate-500 group-hover:text-emerald-400 transition-colors uppercase">
-                      Copy
+                {generatedCodes.map((c, i) => {
+                  const isThisCopied = copiedCode === c;
+                  return (
+                    <div 
+                      key={i} 
+                      className="flex items-center justify-between p-3 bg-slate-900/90 rounded-xl border border-slate-800 group cursor-pointer hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all active:scale-[0.98]" 
+                      onClick={() => copyToClipboard(c)}
+                    >
+                      <span className="font-mono text-sm tracking-[0.15em] text-emerald-400 font-bold">{c}</span>
+                      <div className={cn(
+                        "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all uppercase flex items-center gap-1",
+                        isThisCopied 
+                          ? "bg-emerald-500 text-white" 
+                          : "bg-slate-800 text-slate-400 group-hover:text-emerald-400 group-hover:bg-slate-700"
+                      )}>
+                        {isThisCopied ? (
+                          <>
+                            <CheckCircle2 size={11} />
+                            <span>Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={11} />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <button 
                 onClick={() => setGeneratedCodes([])}
-                className="w-full py-2 text-[10px] font-bold text-slate-600 hover:text-slate-400 uppercase tracking-widest transition-colors"
+                className="w-full py-2 text-[10px] font-bold text-slate-500 hover:text-slate-300 uppercase tracking-widest transition-colors"
               >
-                Flush Batch Memory
+                Clear Generated List
               </button>
             </motion.div>
           )}
