@@ -616,33 +616,57 @@ const useAuth = () => {
     role?: 'OWNER' | 'MANAGER';
     ownerId?: number;
     permissions?: any;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
+  } | null>(() => {
+    try {
+      const savedUser = localStorage.getItem('greensoft_user');
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (!parsed.role) parsed.role = 'OWNER';
+        return parsed;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(false);
 
   const hasPermission = (module: string, action: 'view' | 'edit' | 'delete' = 'view') => {
-    if (!user) return false;
-    if (!user.role || user.role === 'OWNER') return true;
-    if (user.role === 'MANAGER') {
+    // Only restrict if explicitly a MANAGER
+    if (user && user.role === 'MANAGER') {
       if (!user.permissions) return false;
       const modPerms = user.permissions[module];
       if (!modPerms) return false;
       return modPerms[action] === true;
     }
+    // OWNER or unassigned has full access
     return true;
   };
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('greensoft_user');
-    if (savedUser) {
+    const handleUserUpdate = () => {
       try {
-        const parsed = JSON.parse(savedUser);
-        if (!parsed.role) parsed.role = 'OWNER';
-        setUser(parsed);
+        const savedUser = localStorage.getItem('greensoft_user');
+        if (savedUser) {
+          const parsed = JSON.parse(savedUser);
+          if (!parsed.role) parsed.role = 'OWNER';
+          setUser(parsed);
+        }
       } catch (e) {
         console.error(e);
       }
-    }
-    setLoading(false);
+    };
+
+    window.addEventListener('greensoft_user_updated', handleUserUpdate);
+    window.addEventListener('storage', handleUserUpdate);
+
+    // Initial check
+    handleUserUpdate();
+
+    return () => {
+      window.removeEventListener('greensoft_user_updated', handleUserUpdate);
+      window.removeEventListener('storage', handleUserUpdate);
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -654,8 +678,10 @@ const useAuth = () => {
       });
       const data = await res.json();
       if (data.success) {
-        localStorage.setItem('greensoft_user', JSON.stringify(data.user));
-        setUser(data.user);
+        const userData = { ...data.user, role: data.user.role || 'OWNER' };
+        localStorage.setItem('greensoft_user', JSON.stringify(userData));
+        setUser(userData);
+        window.dispatchEvent(new Event('greensoft_user_updated'));
         return { success: true };
       }
       if (data.error === 'email_not_verified') {
@@ -685,8 +711,10 @@ const useAuth = () => {
         if (data.needsVerification) {
           return { success: true, needsVerification: true, email: data.email, message: data.message };
         }
-        localStorage.setItem('greensoft_user', JSON.stringify(data.user));
-        setUser(data.user);
+        const userObj = { ...data.user, role: data.user.role || 'OWNER' };
+        localStorage.setItem('greensoft_user', JSON.stringify(userObj));
+        setUser(userObj);
+        window.dispatchEvent(new Event('greensoft_user_updated'));
         return { success: true };
       }
       return { success: false, error: data.error || 'Registration failed' };
@@ -704,8 +732,10 @@ const useAuth = () => {
       });
       const data = await res.json();
       if (data.success) {
-        localStorage.setItem('greensoft_user', JSON.stringify(data.user));
-        setUser(data.user);
+        const userObj = { ...data.user, role: data.user.role || 'OWNER' };
+        localStorage.setItem('greensoft_user', JSON.stringify(userObj));
+        setUser(userObj);
+        window.dispatchEvent(new Event('greensoft_user_updated'));
         return { success: true, message: data.message };
       }
       return { success: false, error: data.error || 'ভেরিফিকেশন কোডটি সঠিক নয়!' };
@@ -756,6 +786,7 @@ const useAuth = () => {
             console.warn('LocalStorage save failed:', storageErr);
           }
           setUser(updatedUser);
+          window.dispatchEvent(new Event('greensoft_user_updated'));
           return { success: true };
         }
         return { success: false, error: data.error || 'Update failed' };
@@ -772,6 +803,7 @@ const useAuth = () => {
   const logout = () => {
     localStorage.removeItem('greensoft_user');
     setUser(null);
+    window.dispatchEvent(new Event('greensoft_user_updated'));
   };
 
   const forgotPassword = async (email: string) => {
@@ -1411,8 +1443,22 @@ const Layout = ({ children, user, logout, subscription }: any) => {
 
 // --- PAGES ---
 
-const Dashboard = ({ data }: any) => {
-  const { hasPermission } = useAuth();
+const Dashboard = ({ data, user: propUser }: any) => {
+  const { user: authUser } = useAuth();
+  const currentUser = propUser || authUser;
+
+  const hasPermission = (module: string, action: 'view' | 'edit' | 'delete' = 'view') => {
+    // Only restrict if explicitly a MANAGER
+    if (currentUser && currentUser.role === 'MANAGER') {
+      if (!currentUser.permissions) return false;
+      const modPerms = currentUser.permissions[module];
+      if (!modPerms) return false;
+      return modPerms[action] === true;
+    }
+    // OWNER or any user has full dashboard visibility
+    return true;
+  };
+
   const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days' | 'custom'>('30days');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -1585,7 +1631,7 @@ const Dashboard = ({ data }: any) => {
     { key: 'sales', label: t('totalSales'), value: lang === 'bn' ? toBengaliNumber(filteredSales.length) : filteredSales.length.toString(), icon: ShoppingCart, color: 'bg-blue-500' },
   ].filter(stat => hasPermission(stat.key as any, 'view'));
 
-  const lowStockItems = data.inventory.filter((item: any) => item.quantity <= (item.minStock || 5));
+  const lowStockItems = (data?.inventory || []).filter((item: any) => item.quantity <= (item.minStock || 5));
 
   const exportPDF = async () => {
     if (!dashboardRef.current || isExporting) return;
@@ -1824,9 +1870,9 @@ const Dashboard = ({ data }: any) => {
                 <h3 className="font-bold text-slate-900">Recent Sales</h3>
                 <Link to="/sales" className="text-sm text-emerald-600 font-medium hover:underline">View all</Link>
               </div>
-              {data.sales.length > 0 ? (
+              {(data?.sales || []).length > 0 ? (
                 <Table headers={['Customer', 'Date', 'Sales Price', 'Status']}>
-                  {data.sales.slice(-5).reverse().map((item: any) => (
+                  {(data?.sales || []).slice(-5).reverse().map((item: any) => (
                     <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="font-medium text-slate-900">{item.customerName}</div>
@@ -6035,7 +6081,7 @@ const MainApp = () => {
               user ? (
                 <Layout user={user} logout={logout} subscription={subscription}>
                   <Routes>
-                    <Route path="/" element={subscription.active ? <Dashboard data={data} /> : <Navigate to="/subscription" />} />
+                    <Route path="/" element={subscription.active ? <Dashboard data={data} user={user} /> : <Navigate to="/subscription" />} />
                     <Route path="/inventory" element={subscription.active ? <Inventory data={data} /> : <Navigate to="/subscription" />} />
                     <Route path="/sales" element={subscription.active ? <Sales data={data} /> : <Navigate to="/subscription" />} />
                     <Route path="/returns" element={subscription.active ? <Returns data={data} /> : <Navigate to="/subscription" />} />
