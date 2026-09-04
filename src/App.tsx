@@ -621,18 +621,27 @@ const useAuth = () => {
 
   const hasPermission = (module: string, action: 'view' | 'edit' | 'delete' = 'view') => {
     if (!user) return false;
-    if (user.role === 'OWNER') return true;
-    if (!user.permissions) return false;
-    
-    const modPerms = user.permissions[module];
-    if (!modPerms) return false;
-    
-    return modPerms[action] === true;
+    if (!user.role || user.role === 'OWNER') return true;
+    if (user.role === 'MANAGER') {
+      if (!user.permissions) return false;
+      const modPerms = user.permissions[module];
+      if (!modPerms) return false;
+      return modPerms[action] === true;
+    }
+    return true;
   };
 
   useEffect(() => {
     const savedUser = localStorage.getItem('greensoft_user');
-    if (savedUser) setUser(JSON.parse(savedUser));
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (!parsed.role) parsed.role = 'OWNER';
+        setUser(parsed);
+      } catch (e) {
+        console.error(e);
+      }
+    }
     setLoading(false);
   }, []);
 
@@ -736,8 +745,17 @@ const useAuth = () => {
         const data = await res.json();
         console.log('--- UPDATE RESPONSE ---', data);
         if (data.success) {
-          localStorage.setItem('greensoft_user', JSON.stringify(data.user));
-          setUser(data.user);
+          const updatedUser = {
+            ...user,
+            ...data.user,
+            role: data.user?.role || user?.role || 'OWNER'
+          };
+          try {
+            localStorage.setItem('greensoft_user', JSON.stringify(updatedUser));
+          } catch (storageErr) {
+            console.warn('LocalStorage save failed:', storageErr);
+          }
+          setUser(updatedUser);
           return { success: true };
         }
         return { success: false, error: data.error || 'Update failed' };
@@ -4932,9 +4950,41 @@ const Settings = ({ user, data, updateProfile }: any) => {
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('অনুগ্রহ করে একটি ছবি ফাইল নির্বাচন করুন (PNG, JPG, WebP)');
+        return;
+      }
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogo(reader.result as string);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 400; // Optimal size for crisp header, invoice & reports
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL('image/png');
+            setLogo(compressedDataUrl);
+          } else {
+            setLogo(event.target?.result as string);
+          }
+        };
+        img.src = event.target?.result as string;
       };
       reader.readAsDataURL(file);
     }

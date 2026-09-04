@@ -1011,16 +1011,41 @@ app.patch('/api/auth/profile', async (req, res) => {
         if (useLocalFallback) {
             const users = readLocalTable('users');
             const idx = users.findIndex(u => u.id == userId);
-            if (idx === -1) return res.status(404).json({ error: 'User not found' });
+            if (idx === -1) {
+                // Check if manager is updating profile
+                const managers = readLocalTable('managers');
+                const mIdx = managers.findIndex(m => m.id == userId);
+                if (mIdx !== -1) {
+                    managers[mIdx] = {
+                        ...managers[mIdx],
+                        name: fullName !== undefined ? fullName : managers[mIdx].name,
+                        email: email !== undefined ? email : managers[mIdx].email
+                    };
+                    writeLocalTable('managers', managers);
+                    return res.json({
+                        success: true,
+                        user: {
+                            id: managers[mIdx].id,
+                            ownerId: managers[mIdx].ownerId,
+                            email: managers[mIdx].email,
+                            name: managers[mIdx].name,
+                            role: 'MANAGER',
+                            permissions: managers[mIdx].permissions || {}
+                        }
+                    });
+                }
+                return res.status(404).json({ error: 'User not found' });
+            }
             
             users[idx] = {
                 ...users[idx],
-                businessName,
-                fullName,
-                phoneNumber,
-                address,
-                email,
-                logo
+                businessName: businessName !== undefined ? businessName : users[idx].businessName,
+                fullName: fullName !== undefined ? fullName : users[idx].fullName,
+                phoneNumber: phoneNumber !== undefined ? phoneNumber : users[idx].phoneNumber,
+                address: address !== undefined ? address : users[idx].address,
+                email: email !== undefined ? email : users[idx].email,
+                logo: logo !== undefined ? logo : users[idx].logo,
+                role: users[idx].role || 'OWNER'
             };
             writeLocalTable('users', users);
             return res.json({
@@ -1033,7 +1058,8 @@ app.patch('/api/auth/profile', async (req, res) => {
                     expiryDate: users[idx].expiryDate,
                     phoneNumber: users[idx].phoneNumber,
                     address: users[idx].address,
-                    logo: users[idx].logo
+                    logo: users[idx].logo,
+                    role: users[idx].role || 'OWNER'
                 }
             });
         }
@@ -1053,7 +1079,8 @@ app.patch('/api/auth/profile', async (req, res) => {
                 expiryDate: rows[0].expiryDate, 
                 phoneNumber: rows[0].phoneNumber, 
                 address: rows[0].address,
-                logo: rows[0].logo
+                logo: rows[0].logo,
+                role: 'OWNER'
             } 
         });
     } catch (err) { res.status(500).json({ error: err.message }); }

@@ -8,6 +8,9 @@
     "password": "$2b$10$A8j2y.trX/dM0b8yVRiyveZv9t3u8T7mhEoKROMsYRCJiD39/DvUq",
     "expiryDate": "2026-07-06T07:13:27.985Z",
     "isVerified": 0,
-    "verificationCode": "859709"
+    "role": "OWNER",
+    "verificationCode": "859709",
+    "address": "Dhaka, Bangladesh",
+    "logo": ""
   }
 ]
