@@ -2098,7 +2098,7 @@ const QRScanner = ({ onScan, onClose, inventory }: { onScan: (data: string) => s
     onClose();
   };
 
-  const startFrontCamera = async () => {
+  const startBackCamera = async () => {
     setIsLoading(true);
     setErrorMessage('');
 
@@ -2177,43 +2177,43 @@ const QRScanner = ({ onScan, onClose, inventory }: { onScan: (data: string) => s
         }, 2500);
       };
 
-      // Request Front Camera specifically using facingMode: "user"
+      // Request Back Camera specifically using facingMode: "environment"
       try {
         await qr.start(
-          { facingMode: "user" }, // Specifically Front Camera
+          { facingMode: "environment" }, // Specifically Back Camera
           config,
           onScanSuccess,
           () => {} // Silent frame scan
         );
-      } catch (errUserFacing) {
-        console.warn("Direct facingMode user failed, checking cameras list...", errUserFacing);
+      } catch (errEnvironment) {
+        console.warn("Direct facingMode: environment failed, checking cameras list...", errEnvironment);
         const cameras = await Html5Qrcode.getCameras();
         if (cameras && cameras.length > 0) {
-          // Select front camera if available by label, else default to first camera
-          const frontCam = cameras.find(c => {
+          // Select back camera if available by label, else default to rear/last or first camera
+          const backCam = cameras.find(c => {
             const label = (c.label || '').toLowerCase();
-            return label.includes('front') || label.includes('user') || label.includes('selfie') || label.includes('facetime') || label.includes('integrated');
-          }) || cameras[0];
+            return label.includes('back') || label.includes('rear') || label.includes('environment');
+          }) || (cameras.length > 1 ? cameras[cameras.length - 1] : cameras[0]);
 
           await qr.start(
-            frontCam.id,
+            backCam.id,
             config,
             onScanSuccess,
             () => {}
           );
         } else {
-          throw errUserFacing;
+          throw errEnvironment;
         }
       }
 
       setIsCameraActive(true);
     } catch (err: any) {
-      console.error("Failed to start front camera:", err);
+      console.error("Failed to start back camera:", err);
       const isPermissionErr = err?.name === 'NotAllowedError' || String(err).includes('Permission') || String(err).includes('NotAllowedError');
       setErrorMessage(
         isPermissionErr
           ? "Camera permission was denied. Please allow camera access in your browser."
-          : "Could not activate front camera. Please verify your camera is connected."
+          : "Could not activate back camera. Please verify your camera is connected."
       );
       setIsCameraActive(false);
     } finally {
@@ -2272,14 +2272,14 @@ const QRScanner = ({ onScan, onClose, inventory }: { onScan: (data: string) => s
                 <button
                   type="button"
                   id="btn-request-camera-permissions"
-                  onClick={startFrontCamera}
+                  onClick={startBackCamera}
                   disabled={isLoading}
                   className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-semibold rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-75"
                 >
                   {isLoading ? (
                     <>
                       <RefreshCw size={16} className="animate-spin" />
-                      <span>Starting Front Camera...</span>
+                      <span>Starting Back Camera...</span>
                     </>
                   ) : (
                     <>
@@ -2297,7 +2297,7 @@ const QRScanner = ({ onScan, onClose, inventory }: { onScan: (data: string) => s
             <div className="mt-3 px-3 py-2 bg-slate-100 rounded-xl flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                <span>Front Camera Active</span>
+                <span>Back Camera Active</span>
               </div>
               <button
                 type="button"
