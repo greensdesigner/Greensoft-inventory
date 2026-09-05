@@ -2475,7 +2475,7 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
       <div className="text-right flex flex-col items-end justify-center">
         <div className="pt-4 flex flex-col items-end gap-1">
           <span className="text-[10px] font-bold uppercase text-slate-400">Invoice Date</span>
-          <span className="font-bold text-slate-700">{sale.date}</span>
+          <span className="font-bold text-slate-700">{(sale.date || '').split('T')[0]}</span>
         </div>
       </div>
     </div>
@@ -2492,35 +2492,45 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
         </thead>
         <tbody>
           {sale.items ? (
-            sale.items.map((item: any, idx: number) => (
-              <tr key={idx} style={{ borderBottom: idx !== sale.items.length - 1 ? '1px solid #f8fafc' : 'none' }}>
-                <td style={{ padding: '1rem 0' }}>
-                  <div className="font-bold" style={{ color: '#0f172a' }}>
-                    {item.brand && <span className="text-[10px] text-slate-400 font-medium block leading-none mb-0.5">{item.brand}</span>}
-                    {item.productName}
-                  </div>
-                  <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {item.productCategory}</div>
-                  {item.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {item.serialNumber}</div>}
-                </td>
-                <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155' }}>{sale.quantity}</td>
-                <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>{formatCurrency(item.total / item.quantity)}</td>
-                <td style={{ padding: '1rem 0', textAlign: 'right', fontStyle: 'normal', fontWeight: 'bold', color: '#0f172a' }}>{formatCurrency(item.total)}</td>
-              </tr>
-            ))
+            sale.items.map((item: any, idx: number) => {
+              const itemQty = Number(item.quantity) || 1;
+              const unitPrice = itemQty > 0 ? (Number(item.total) / itemQty) : (Number(item.buyPrice) || Number(item.total));
+              return (
+                <tr key={idx} style={{ borderBottom: idx !== sale.items.length - 1 ? '1px solid #f8fafc' : 'none' }}>
+                  <td style={{ padding: '1rem 0' }}>
+                    <div className="font-bold" style={{ color: '#0f172a' }}>
+                      {item.brand && <span className="text-[10px] text-slate-400 font-medium block leading-none mb-0.5">{item.brand}</span>}
+                      {item.productName}
+                    </div>
+                    <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {item.productCategory}</div>
+                    {item.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {item.serialNumber}</div>}
+                  </td>
+                  <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155', fontWeight: 'bold' }}>{itemQty}</td>
+                  <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>{formatCurrency(unitPrice)}</td>
+                  <td style={{ padding: '1rem 0', textAlign: 'right', fontStyle: 'normal', fontWeight: 'bold', color: '#0f172a' }}>{formatCurrency(item.total)}</td>
+                </tr>
+              );
+            })
           ) : (
-            <tr>
-              <td style={{ padding: '1rem 0' }}>
-                <div className="font-bold" style={{ color: '#0f172a' }}>
-                  {sale.brand && <span className="text-[10px] text-slate-400 font-medium block leading-none mb-0.5">{sale.brand}</span>}
-                  {sale.productName}
-                </div>
-                <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {sale.productCategory}</div>
-                {sale.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {sale.serialNumber}</div>}
-              </td>
-              <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155' }}>{sale.quantity}</td>
-              <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>{formatCurrency(sale.total / sale.quantity)}</td>
-              <td style={{ padding: '1rem 0', textAlign: 'right', fontStyle: 'normal', fontWeight: 'bold', color: '#0f172a' }}>{formatCurrency(sale.total)}</td>
-            </tr>
+            (() => {
+              const saleQty = Number(sale.quantity) || 1;
+              const unitPrice = saleQty > 0 ? (Number(sale.total) / saleQty) : (Number(sale.buyPrice) || Number(sale.total));
+              return (
+                <tr>
+                  <td style={{ padding: '1rem 0' }}>
+                    <div className="font-bold" style={{ color: '#0f172a' }}>
+                      {sale.brand && <span className="text-[10px] text-slate-400 font-medium block leading-none mb-0.5">{sale.brand}</span>}
+                      {sale.productName}
+                    </div>
+                    <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {sale.productCategory}</div>
+                    {sale.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {sale.serialNumber}</div>}
+                  </td>
+                  <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155', fontWeight: 'bold' }}>{saleQty}</td>
+                  <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>{formatCurrency(unitPrice)}</td>
+                  <td style={{ padding: '1rem 0', textAlign: 'right', fontStyle: 'normal', fontWeight: 'bold', color: '#0f172a' }}>{formatCurrency(sale.total)}</td>
+                </tr>
+              );
+            })()
           )}
         </tbody>
       </table>
@@ -3010,9 +3020,10 @@ const Sales = ({ data }: any) => {
       customerAddress: newSale.customerAddress,
       items: newSale.items.map(item => ({
         ...item,
-        quantity: parseBanglaInt(item.quantity),
+        quantity: parseBanglaInt(item.quantity) || 1,
         total: parseBanglaFloat(item.total)
       })),
+      quantity: newSale.items.reduce((acc, item) => acc + (parseBanglaInt(item.quantity) || 1), 0),
       total: totalAmount,
       date: newSale.date
     });
@@ -3097,17 +3108,41 @@ const Sales = ({ data }: any) => {
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">
                   {item.items ? (
-                    <div className="flex flex-col gap-1">
-                      <span className="font-bold text-emerald-600">{item.items.length} Products</span>
-                      <span className="text-[10px] text-slate-400 truncate max-w-[150px]">
-                        {item.items.map((i: any) => (i.brand ? `${i.brand} ${i.productName}` : i.productName)).join(', ')}
-                      </span>
-                    </div>
+                    (() => {
+                      const totalQty = item.items.reduce((sum: number, i: any) => sum + (Number(i.quantity) || 1), 0);
+                      const qtyLabel = lang === 'bn' 
+                        ? `${toBengaliNumber(totalQty)} টি পণ্য` 
+                        : `${totalQty} ${totalQty === 1 ? 'Product' : 'Products'}`;
+                      const detailText = item.items.map((i: any) => {
+                        const name = i.brand ? `${i.brand} ${i.productName}` : i.productName;
+                        const q = Number(i.quantity) || 1;
+                        return `${name}${q > 1 ? ` (x${q})` : ''}`;
+                      }).join(', ');
+                      return (
+                        <div className="flex flex-col gap-1">
+                          <span className="font-bold text-emerald-600">{qtyLabel}</span>
+                          <span className="text-[10px] text-slate-400 truncate max-w-[200px]" title={detailText}>
+                            {detailText}
+                          </span>
+                        </div>
+                      );
+                    })()
                   ) : (
-                    <div className="font-medium">
-                      {item.brand && <span className="text-[10px] text-slate-400 font-medium block">{item.brand}</span>}
-                      {item.productName}
-                    </div>
+                    (() => {
+                      const totalQty = Number(item.quantity) || 1;
+                      const qtyLabel = lang === 'bn' 
+                        ? `${toBengaliNumber(totalQty)} টি পণ্য` 
+                        : `${totalQty} ${totalQty === 1 ? 'Product' : 'Products'}`;
+                      const name = item.brand ? `${item.brand} ${item.productName}` : item.productName;
+                      return (
+                        <div className="flex flex-col gap-1">
+                          <span className="font-bold text-emerald-600">{qtyLabel}</span>
+                          <span className="text-[10px] text-slate-400">
+                            {name}{totalQty > 1 ? ` (x${totalQty})` : ''}
+                          </span>
+                        </div>
+                      );
+                    })()
                   )}
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{(item.date || '').split('T')[0]}</td>
@@ -3539,6 +3574,7 @@ const Customers = ({ data }: any) => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [newCustomer, setNewCustomer] = useState({ name: '', email: '', phone: '', address: '', orders: '0', spent: '0' });
+  const { t, lang } = useTranslation();
   const { formatCurrency, toBengaliNumber } = useCurrency();
 
   const handleAdd = (e: FormEvent) => {
@@ -3664,7 +3700,11 @@ const Customers = ({ data }: any) => {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-bold text-emerald-600">{formatCurrency(sale.total)}</p>
-                        <p className="text-[10px] text-slate-400">{sale.items?.length || 1} items</p>
+                        <p className="text-[10px] text-slate-400">
+                          {sale.items 
+                            ? sale.items.reduce((s: number, i: any) => s + (Number(i.quantity) || 1), 0)
+                            : (Number(sale.quantity) || 1)} {lang === 'bn' ? 'টি পণ্য' : 'items'}
+                        </p>
                       </div>
                     </div>
                   ))}
