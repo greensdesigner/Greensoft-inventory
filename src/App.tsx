@@ -94,10 +94,11 @@ import {
   Phone,
   AlertTriangle,
   UserCheck,
-  UserX
+  UserX,
+  Camera
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas-pro';
 import html2pdf from 'html2pdf.js';
@@ -2069,89 +2070,245 @@ const playErrorBeep = () => {
 const QRScanner = ({ onScan, onClose, inventory }: { onScan: (data: string) => string, onClose: () => void, inventory: any[] }) => {
   const [scanMessage, setScanMessage] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
   const lastScanRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
 
+  const stopCamera = async () => {
+    if (scannerRef.current) {
+      try {
+        const state = scannerRef.current.getState();
+        if (state === 2 || state === 3) { // SCANNING or PAUSED
+          await scannerRef.current.stop();
+        }
+        scannerRef.current.clear();
+      } catch (e) {
+        console.warn("Stop scanner error:", e);
+      } finally {
+        scannerRef.current = null;
+        setIsCameraActive(false);
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleClose = async () => {
+    await stopCamera();
+    onClose();
+  };
+
+  const startFrontCamera = async () => {
+    setIsLoading(true);
+    setErrorMessage('');
+
+    try {
+      // Make sure any previous scanner instance is stopped cleanly
+      if (scannerRef.current) {
+        try {
+          const state = scannerRef.current.getState();
+          if (state === 2 || state === 3) {
+            await scannerRef.current.stop();
+          }
+          scannerRef.current.clear();
+        } catch (_) {}
+      }
+
+      const qr = new Html5Qrcode("qr-reader");
+      scannerRef.current = qr;
+
+      const config = {
+        fps: 15,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+      };
+
+      const onScanSuccess = (decodedText: string) => {
+        const now = Date.now();
+        // Cool-down to prevent double scan within 1.5 seconds
+        if (lastScanRef.current.code === decodedText && now - lastScanRef.current.time < 1500) {
+          return;
+        }
+
+        lastScanRef.current = { code: decodedText, time: now };
+
+        const product = inventory.find((p: any) => 
+          String(p.id) === String(decodedText) || 
+          p.serialNumber === decodedText || 
+          p.modelNumber === decodedText
+        );
+
+        if (!product) {
+          setErrorMessage("Product not found in Inventory!");
+          setScanMessage('');
+          playErrorBeep();
+          return;
+        }
+
+        if (product.quantity <= 0) {
+          setErrorMessage(`${product.name} is out of stock!`);
+          setScanMessage('');
+          playErrorBeep();
+          return;
+        }
+
+        const status = onScan(decodedText);
+        if (status === 'out_of_stock_exceeded') {
+          setErrorMessage(`Cannot exceed available stock of ${product.quantity} units for ${product.name}`);
+          setScanMessage('');
+          playErrorBeep();
+          return;
+        } else if (status === 'not_found' || status === 'out_of_stock') {
+          setErrorMessage(`${product.name} is out of stock or not found`);
+          setScanMessage('');
+          playErrorBeep();
+          return;
+        }
+
+        // Success feedback
+        playBeep();
+        setErrorMessage('');
+        const actionText = status === 'updated' ? 'Quantity +1' : 'Added to list';
+        setScanMessage(`Scanned: ${product.name} (${actionText})`);
+
+        // Clear message after 2.5 seconds
+        setTimeout(() => {
+          setScanMessage(prev => prev.includes(product.name) ? '' : prev);
+        }, 2500);
+      };
+
+      // Request Front Camera specifically using facingMode: "user"
+      try {
+        await qr.start(
+          { facingMode: "user" }, // Specifically Front Camera
+          config,
+          onScanSuccess,
+          () => {} // Silent frame scan
+        );
+      } catch (errUserFacing) {
+        console.warn("Direct facingMode user failed, checking cameras list...", errUserFacing);
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length > 0) {
+          // Select front camera if available by label, else default to first camera
+          const frontCam = cameras.find(c => {
+            const label = (c.label || '').toLowerCase();
+            return label.includes('front') || label.includes('user') || label.includes('selfie') || label.includes('facetime') || label.includes('integrated');
+          }) || cameras[0];
+
+          await qr.start(
+            frontCam.id,
+            config,
+            onScanSuccess,
+            () => {}
+          );
+        } else {
+          throw errUserFacing;
+        }
+      }
+
+      setIsCameraActive(true);
+    } catch (err: any) {
+      console.error("Failed to start front camera:", err);
+      const isPermissionErr = err?.name === 'NotAllowedError' || String(err).includes('Permission') || String(err).includes('NotAllowedError');
+      setErrorMessage(
+        isPermissionErr
+          ? "Camera permission was denied. Please allow camera access in your browser."
+          : "Could not activate front camera. Please verify your camera is connected."
+      );
+      setIsCameraActive(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const scanner = new Html5QrcodeScanner(
-      "qr-reader",
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      /* verbose= */ false
-    );
-    
-    const onScanSuccess = (decodedText: string) => {
-      const now = Date.now();
-      // Cool-down to prevent double scan within 1.5 seconds
-      if (lastScanRef.current.code === decodedText && now - lastScanRef.current.time < 1500) {
-        return;
-      }
-      
-      lastScanRef.current = { code: decodedText, time: now };
-      
-      const product = inventory.find((p: any) => p.id === decodedText);
-      if (!product) {
-        setErrorMessage("Product not found in Inventory!");
-        setScanMessage('');
-        playErrorBeep();
-        return;
-      }
-      
-      if (product.quantity <= 0) {
-        setErrorMessage(`${product.name} is out of stock!`);
-        setScanMessage('');
-        playErrorBeep();
-        return;
-      }
-
-      const status = onScan(decodedText);
-      if (status === 'out_of_stock_exceeded') {
-        setErrorMessage(`Cannot exceed available stock of ${product.quantity} units for ${product.name}`);
-        setScanMessage('');
-        playErrorBeep();
-        return;
-      } else if (status === 'not_found' || status === 'out_of_stock') {
-        setErrorMessage(`${product.name} is out of stock or not found`);
-        setScanMessage('');
-        playErrorBeep();
-        return;
-      }
-      
-      // Success feedback
-      playBeep();
-      setErrorMessage('');
-      const actionText = status === 'updated' ? 'Quantity +1' : 'Added to list';
-      setScanMessage(`Scanned: ${product.name} (${actionText})`);
-      
-      // Clear message after 2.5 seconds
-      setTimeout(() => {
-        setScanMessage(prev => prev.includes(product.name) ? '' : prev);
-      }, 2500);
-    };
-
-    scanner.render(onScanSuccess, (error) => {
-      // console.warn(error);
-    });
-
     return () => {
-      scanner.clear().catch(error => console.error("Failed to clear scanner", error));
+      if (scannerRef.current) {
+        try {
+          const state = scannerRef.current.getState();
+          if (state === 2 || state === 3) {
+            scannerRef.current.stop().then(() => {
+              scannerRef.current?.clear();
+            }).catch(() => {});
+          } else {
+            scannerRef.current.clear();
+          }
+        } catch (_) {}
+      }
     };
-  }, [onScan, inventory]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
       <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden relative shadow-2xl border border-slate-100">
         <button 
-          onClick={onClose}
+          onClick={handleClose}
           type="button"
-          className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 rounded-full z-10 transition-colors"
+          className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 rounded-full z-20 transition-colors cursor-pointer"
+          title="Close"
         >
           <X size={20} />
         </button>
+
         <div className="p-6">
           <h3 className="text-xl font-bold text-slate-900 mb-1 text-center">Scan Product QR Code</h3>
           <p className="text-xs text-slate-500 text-center mb-4">Continuous scanning is active. Items add automatically.</p>
           
-          <div id="qr-reader" className="w-full rounded-2xl overflow-hidden border border-slate-200 shadow-inner"></div>
-          
+          <div className="w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 relative min-h-[300px] flex items-center justify-center shadow-inner">
+            {/* The mounting container for Html5Qrcode video */}
+            <div 
+              id="qr-reader" 
+              className="w-full"
+              style={{ minHeight: '300px' }}
+            />
+
+            {/* Clean Initial UI: Only Request Camera Permissions (No Scan Image File, No Info icon, No clutter) */}
+            {!isCameraActive && (
+              <div className="absolute inset-0 bg-slate-50 flex flex-col items-center justify-center p-6 text-center z-10">
+                <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center mb-5 text-slate-700">
+                  <Smartphone size={36} className="text-slate-700 stroke-[1.75]" />
+                </div>
+
+                <button
+                  type="button"
+                  id="btn-request-camera-permissions"
+                  onClick={startFrontCamera}
+                  disabled={isLoading}
+                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-semibold rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-75"
+                >
+                  {isLoading ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      <span>Starting Front Camera...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera size={18} />
+                      <span>Request Camera Permissions</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Active Status & Stop Controller */}
+          {isCameraActive && (
+            <div className="mt-3 px-3 py-2 bg-slate-100 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span>Front Camera Active</span>
+              </div>
+              <button
+                type="button"
+                onClick={stopCamera}
+                className="text-xs text-slate-500 hover:text-red-600 font-medium transition-colors px-2 py-1 rounded-lg hover:bg-slate-200 cursor-pointer"
+              >
+                Stop Camera
+              </button>
+            </div>
+          )}
+
           {/* Status Feedback Popups */}
           {scanMessage && (
             <div className="mt-4 p-3 bg-emerald-50 text-emerald-800 rounded-2xl border border-emerald-100 flex items-center gap-2 text-xs font-semibold animate-pulse">
@@ -2880,7 +3037,11 @@ const Sales = ({ data }: any) => {
   });
 
   const handleScan = (decodedText: string): string => {
-    const product = data.inventory.find((p: any) => p.id === decodedText);
+    const product = data.inventory.find((p: any) => 
+      String(p.id) === String(decodedText) || 
+      p.serialNumber === decodedText || 
+      p.modelNumber === decodedText
+    );
     if (!product) {
       return 'not_found';
     }

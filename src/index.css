@@ -95,3 +95,23 @@
   }
 }
 
+/* Custom styles for QR Scanner to ensure clean Front Camera stream without clutter */
+#qr-reader {
+  border: none !important;
+  width: 100% !important;
+}
+
+#qr-reader video {
+  border-radius: 1rem;
+  object-fit: cover;
+  width: 100% !important;
+  transform: scaleX(-1); /* Mirror front camera for natural selfie view */
+}
+
+#qr-reader img[alt="Info icon"],
+#qr-reader a,
+#qr-reader span[style*="float: right"] {
+  display: none !important;
+}
+
+
