@@ -3169,25 +3169,35 @@ const Sales = ({ data }: any) => {
     } else if (field === 'productId') {
       const product = data.inventory.find((p: any) => String(p.id) === String(value));
       if (product) {
+        item.productId = product.id;
         item.productName = product.name;
-        item.brand = product.brand || '';
-        item.productCategory = product.category;
+        item.brand = product.brand || item.brand || '';
+        item.productCategory = product.category || item.productCategory || '';
         item.buyPrice = product.price;
         item.unitPrice = product.price;
         item.total = calculateItemPriceWithTax(product.price, item.quantity, item.taxPercent);
+      } else {
+        item.productId = '';
+        item.productName = '';
+        item.buyPrice = 0;
+        item.unitPrice = 0;
+        item.total = '0';
       }
     } else if (field === 'quantity') {
-      const product = data.inventory.find((p: any) => String(p.id) === String(item.productId));
-      const uPrice = Number(item.unitPrice) || (product ? product.price : 0);
+      const uPrice = Number(item.unitPrice) || Number(item.buyPrice) || 0;
       if (uPrice > 0) {
         item.total = calculateItemPriceWithTax(uPrice, value, item.taxPercent);
       }
     } else if (field === 'taxPercent') {
-      const product = data.inventory.find((p: any) => String(p.id) === String(item.productId));
-      const uPrice = Number(item.unitPrice) || (product ? product.price : 0);
+      const uPrice = Number(item.unitPrice) || Number(item.buyPrice) || 0;
       if (uPrice > 0) {
         item.total = calculateItemPriceWithTax(uPrice, item.quantity, value);
       }
+    } else if (field === 'unitPrice') {
+      const uPrice = parseBanglaFloat(value, 0);
+      item.unitPrice = uPrice;
+      item.buyPrice = uPrice;
+      item.total = calculateItemPriceWithTax(uPrice, item.quantity, item.taxPercent);
     }
 
     newItems[index] = item;
@@ -3215,13 +3225,15 @@ const Sales = ({ data }: any) => {
     // Validation
     for (const item of newSale.items) {
       if (!item.productId) {
-        alert('Please select a product for all items');
+        alert(lang === 'bn' ? 'অনুগ্রহ করে সকল আইটেমের জন্য প্রোডাক্ট নির্বাচন করুন' : 'Please select a product for all items');
         return;
       }
-      const product = data.inventory.find((p: any) => p.id === item.productId);
-      const qty = parseInt(item.quantity);
-      if (qty > product.quantity) {
-        alert(`Not enough stock for ${product.name}. Only ${product.quantity} units available.`);
+      const product = data.inventory.find((p: any) => String(p.id) === String(item.productId));
+      const qty = parseBanglaInt(item.quantity, 1);
+      if (product && qty > (Number(product.quantity) || 0)) {
+        alert(lang === 'bn' 
+          ? `পণ্য "${product.name}" এর পর্যাপ্ত স্টক নেই। মাত্র ${product.quantity} টি পণ্য অবশিষ্ট আছে।`
+          : `Not enough stock for ${product.name}. Only ${product.quantity} units available.`);
         return;
       }
     }
@@ -3256,7 +3268,7 @@ const Sales = ({ data }: any) => {
 
     // 2. Update Inventory for each item
     newSale.items.forEach(item => {
-      const product = data.inventory.find((p: any) => p.id === item.productId);
+      const product = data.inventory.find((p: any) => String(p.id) === String(item.productId));
       if (product) {
         data.editItem('inventory', item.productId, {
           quantity: (Number(product.quantity) || 0) - (parseBanglaInt(item.quantity) || 0)
@@ -3529,36 +3541,26 @@ const Sales = ({ data }: any) => {
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
                           {lang === 'bn' ? 'প্রোডাক্ট' : 'Product'}
                         </label>
-                        <input 
-                          list={`product-list-${index}`}
-                          type="text"
+                        <select 
                           required
-                          placeholder={lang === 'bn' ? 'প্রোডাক্ট খুঁজুন...' : 'Search product...'}
-                          value={item.productName || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            updateItem(index, 'productName', val);
-                            const product = data.inventory.find((p: any) => p.name === val);
-                            if (product) {
-                              updateItem(index, 'productId', product.id);
-                            }
-                          }}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                        />
-                        <datalist id={`product-list-${index}`}>
+                          value={item.productId}
+                          onChange={(e) => updateItem(index, 'productId', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-medium text-slate-800"
+                        >
+                          <option value="">{lang === 'bn' ? '-- প্রোডাক্ট নির্বাচন করুন --' : '-- Select Product --'}</option>
                           {data.inventory
                             .filter((p: any) => (!item.productCategory || p.category === item.productCategory) && (!item.brand || p.brand === item.brand))
                             .map((p: any) => (
-                              <option key={p.id} value={p.name}>
-                                {p.name} ({formatCurrency(p.price)}) - Stock: {p.quantity}
+                              <option key={p.id} value={p.id}>
+                                {p.name} {p.brand ? `[${p.brand}]` : ''} — {formatCurrency(p.price)} ({lang === 'bn' ? `স্টক: ${p.quantity}` : `Stock: ${p.quantity}`})
                               </option>
                             ))
                           }
-                        </datalist>
+                        </select>
                       </div>
                     </div>
 
-                    {/* Bottom Row: Quantity, Tax %, Sales Price (Total), Serial Number */}
+                    {/* Bottom Row: Quantity, Unit Price, Tax %, Serial Number */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
@@ -3568,7 +3570,20 @@ const Sales = ({ data }: any) => {
                           type="number" required min="1"
                           value={item.quantity}
                           onChange={(e) => updateItem(index, 'quantity', e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-semibold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          {lang === 'bn' ? 'একক মূল্য (Unit Price)' : 'Unit Price'}
+                        </label>
+                        <input 
+                          type="number" step="0.01" min="0"
+                          placeholder="0.00"
+                          value={item.unitPrice || ''}
+                          onChange={(e) => updateItem(index, 'unitPrice', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-semibold text-slate-800"
                         />
                       </div>
 
@@ -3585,39 +3600,29 @@ const Sales = ({ data }: any) => {
                             placeholder="0"
                             value={item.taxPercent || ''}
                             onChange={(e) => updateItem(index, 'taxPercent', e.target.value)}
-                            className="w-full pl-3 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-semibold text-slate-700"
+                            className="w-full pl-3 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-bold text-emerald-700"
                           />
                           <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
                             %
                           </span>
                         </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                          {lang === 'bn' ? 'বিক্রয় মূল্য (ট্যাক্স সহ)' : 'Sales Price (Total)'}
-                        </label>
-                        <input 
-                          type="number" required step="0.01"
-                          value={item.total}
-                          onChange={(e) => updateItem(index, 'total', e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-bold text-emerald-600"
-                        />
-                        {taxRate > 0 && basePrice > 0 ? (
-                          <div className="text-[10px] text-emerald-700 mt-1 font-medium leading-tight">
-                            {lang === 'bn' 
-                              ? `মূল্য: ${formatCurrency(basePrice)} + ট্যাক্স (${taxRate}%): ${formatCurrency(taxAmount)}`
-                              : `Base: ${formatCurrency(basePrice)} + Tax (${taxRate}%): ${formatCurrency(taxAmount)}`}
-                          </div>
-                        ) : (
-                          uPrice > 0 ? (
-                            <div className="text-[10px] text-slate-400 mt-1 font-medium leading-tight">
-                              {lang === 'bn'
-                                ? `একক মূল্য: ${formatCurrency(uPrice)} × ${qty}`
-                                : `Unit: ${formatCurrency(uPrice)} × ${qty}`}
-                            </div>
-                          ) : null
-                        )}
+                        {/* Quick Tax % Presets */}
+                        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                          {[0, 5, 7.5, 10, 15].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => updateItem(index, 'taxPercent', preset.toString())}
+                              className={`px-1.5 py-0.5 text-[9px] font-bold rounded-md border transition-all ${
+                                Number(item.taxPercent) === preset
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                  : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                              }`}
+                            >
+                              {preset}%
+                            </button>
+                          ))}
+                        </div>
                       </div>
 
                       <div>
@@ -3639,6 +3644,44 @@ const Sales = ({ data }: any) => {
                         </datalist>
                       </div>
                     </div>
+
+                    {/* Live Calculated Price with Tax Breakdown */}
+                    {uPrice > 0 && (
+                      <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-0.5 text-xs text-slate-600">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-700">
+                              {lang === 'bn' ? 'বেস মূল্য:' : 'Base Total:'}
+                            </span>
+                            <span className="font-bold text-slate-900">{formatCurrency(basePrice)}</span>
+                            <span className="text-slate-400 text-[11px]">({formatCurrency(uPrice)} × {qty})</span>
+                          </div>
+                          {taxRate > 0 ? (
+                            <div className="flex items-center gap-2 text-emerald-800">
+                              <span className="font-semibold">
+                                {lang === 'bn' ? `ট্যাক্স (${taxRate}% যোগ):` : `Tax (${taxRate}% added):`}
+                              </span>
+                              <span className="font-bold text-emerald-700">+{formatCurrency(taxAmount)}</span>
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-slate-400">
+                              {lang === 'bn' ? 'কোন ট্যাক্স প্রযোজ্য নয় (০%)' : 'No tax applied (0%)'}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3 bg-white px-3.5 py-1.5 rounded-xl border border-emerald-200 shadow-xs self-start sm:self-auto">
+                          <div className="text-right">
+                            <span className="block text-[9px] font-extrabold text-emerald-800 uppercase tracking-wider">
+                              {lang === 'bn' ? 'ট্যাক্স সহ প্রোডাক্ট প্রাইস' : 'Price with Tax'}
+                            </span>
+                            <span className="text-lg font-black text-emerald-600">
+                              {formatCurrency(parseFloat(item.total) || (basePrice + taxAmount))}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -3667,7 +3710,9 @@ const Sales = ({ data }: any) => {
             
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  {lang === 'bn' ? 'তারিখ (Date)' : 'Date'}
+                </label>
                 <input 
                   type="date" required 
                   value={newSale.date} onChange={e => setNewSale({...newSale, date: e.target.value})}
@@ -3675,8 +3720,9 @@ const Sales = ({ data }: any) => {
                 />
               </div>
               <div className="flex items-end">
-                <button type="submit" className="w-full py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10">
-                  Confirm Sale
+                <button type="submit" className="w-full py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10 flex items-center justify-center gap-2">
+                  <CheckCircle2 size={16} />
+                  {lang === 'bn' ? 'বিক্রয় নিশ্চিত করুন (Confirm)' : 'Confirm Sale'}
                 </button>
               </div>
             </div>
