@@ -2661,6 +2661,11 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
                     </div>
                     <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {item.productCategory}</div>
                     {item.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {item.serialNumber}</div>}
+                    {Number(item.taxPercent) > 0 && (
+                      <div className="text-[11px] font-semibold" style={{ color: '#059669', fontSize: '0.75rem' }}>
+                        Tax: {item.taxPercent}%
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155', fontWeight: 'bold' }}>{itemQty}</td>
                   <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>{formatCurrency(unitPrice)}</td>
@@ -2693,22 +2698,35 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
       </table>
     </div>
 
-    <div className="flex justify-end" style={{ display: 'flex', justifyContent: 'flex-end' }}>
-      <div style={{ width: '250px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.5rem' }}>
-          <span>Subtotal</span>
-          <span>{formatCurrency(sale.total)}</span>
+    {(() => {
+      const subtotalVal = sale.subtotal !== undefined 
+        ? Number(sale.subtotal) 
+        : (sale.items 
+            ? sale.items.reduce((sum: number, it: any) => sum + ((Number(it.unitPrice) || (Number(it.total) / (1 + (Number(it.taxPercent) || 0) / 100))) * (Number(it.quantity) || 1)), 0)
+            : Number(sale.total));
+      const taxVal = sale.totalTax !== undefined 
+        ? Number(sale.totalTax) 
+        : Math.max(0, Number(sale.total) - subtotalVal);
+
+      return (
+        <div className="flex justify-end" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ width: '250px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.5rem' }}>
+              <span>Subtotal</span>
+              <span>{formatCurrency(subtotalVal)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.5rem' }}>
+              <span>Tax</span>
+              <span>{formatCurrency(taxVal)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0', marginTop: '0.5rem' }}>
+              <span>Total</span>
+              <span style={{ color: '#059669' }}>{formatCurrency(sale.total)}</span>
+            </div>
+          </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.5rem' }}>
-          <span>Tax (0%)</span>
-          <span>{formatCurrency(0)}</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0', marginTop: '0.5rem' }}>
-          <span>Total</span>
-          <span style={{ color: '#059669' }}>{formatCurrency(sale.total)}</span>
-        </div>
-      </div>
-    </div>
+      );
+    })()}
 
     <div className="mt-16" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '4rem' }}>
       <div style={{ textAlign: 'center' }}>
@@ -3028,6 +3046,8 @@ const Sales = ({ data }: any) => {
       productCategory: '', 
       serialNumber: '', 
       quantity: '1', 
+      unitPrice: 0,
+      taxPercent: '0',
       total: '0',
       buyPrice: 0,
       productName: '',
@@ -3035,6 +3055,14 @@ const Sales = ({ data }: any) => {
     }],
     date: getTodayStr() 
   });
+
+  const calculateItemPriceWithTax = (price: number, qty: any, taxRate: any) => {
+    const q = parseBanglaInt(qty, 1);
+    const tRate = parseBanglaFloat(taxRate, 0);
+    const base = price * q;
+    const withTax = base + (base * (tRate / 100));
+    return Number(withTax.toFixed(2)).toString();
+  };
 
   const handleScan = (decodedText: string): string => {
     const product = data.inventory.find((p: any) => 
@@ -3049,7 +3077,7 @@ const Sales = ({ data }: any) => {
       return 'out_of_stock';
     }
     
-    const existingIndex = newSale.items.findIndex((item: any) => item.productId === product.id);
+    const existingIndex = newSale.items.findIndex((item: any) => String(item.productId) === String(product.id));
     if (existingIndex !== -1) {
       const currentQty = parseInt(newSale.items[existingIndex].quantity) || 0;
       const newQty = currentQty + 1;
@@ -3057,10 +3085,13 @@ const Sales = ({ data }: any) => {
         return 'out_of_stock_exceeded';
       }
       const updatedItems = [...newSale.items];
+      const taxRate = parseBanglaFloat(updatedItems[existingIndex].taxPercent, 0);
+      const withTax = calculateItemPriceWithTax(product.price, newQty, taxRate);
       updatedItems[existingIndex] = {
         ...updatedItems[existingIndex],
         quantity: newQty.toString(),
-        total: (product.price * newQty).toString()
+        unitPrice: product.price,
+        total: withTax
       };
       setNewSale({ ...newSale, items: updatedItems });
       return 'updated';
@@ -3072,6 +3103,8 @@ const Sales = ({ data }: any) => {
         brand: product.brand || '',
         serialNumber: '',
         quantity: '1',
+        unitPrice: product.price,
+        taxPercent: '0',
         buyPrice: product.price,
         total: product.price.toString()
       };
@@ -3098,6 +3131,8 @@ const Sales = ({ data }: any) => {
         productCategory: '', 
         serialNumber: '', 
         quantity: '1', 
+        unitPrice: 0,
+        taxPercent: '0',
         total: '0',
         buyPrice: 0,
         productName: '',
@@ -3124,35 +3159,53 @@ const Sales = ({ data }: any) => {
       item.productName = '';
       item.total = '0';
       item.buyPrice = 0;
+      item.unitPrice = 0;
     } else if (field === 'brand') {
       item.productId = '';
       item.productName = '';
       item.total = '0';
       item.buyPrice = 0;
+      item.unitPrice = 0;
     } else if (field === 'productId') {
-      const product = data.inventory.find((p: any) => p.id === value);
+      const product = data.inventory.find((p: any) => String(p.id) === String(value));
       if (product) {
         item.productName = product.name;
         item.brand = product.brand || '';
         item.productCategory = product.category;
         item.buyPrice = product.price;
-        item.total = (product.price * (parseInt(item.quantity) || 0)).toString();
+        item.unitPrice = product.price;
+        item.total = calculateItemPriceWithTax(product.price, item.quantity, item.taxPercent);
       }
     } else if (field === 'quantity') {
-      const product = data.inventory.find((p: any) => p.id === item.productId);
-      if (product) {
-        // Only auto-update total if it was 0 or matches previous calculation
-        const prevQty = parseInt(newItems[index].quantity) || 0;
-        const prevTotal = parseFloat(newItems[index].total) || 0;
-        if (prevTotal === 0 || prevTotal === product.price * prevQty) {
-          item.total = (product.price * (parseInt(value) || 0)).toString();
-        }
+      const product = data.inventory.find((p: any) => String(p.id) === String(item.productId));
+      const uPrice = Number(item.unitPrice) || (product ? product.price : 0);
+      if (uPrice > 0) {
+        item.total = calculateItemPriceWithTax(uPrice, value, item.taxPercent);
+      }
+    } else if (field === 'taxPercent') {
+      const product = data.inventory.find((p: any) => String(p.id) === String(item.productId));
+      const uPrice = Number(item.unitPrice) || (product ? product.price : 0);
+      if (uPrice > 0) {
+        item.total = calculateItemPriceWithTax(uPrice, item.quantity, value);
       }
     }
 
     newItems[index] = item;
     setNewSale({ ...newSale, items: newItems });
   };
+
+  const calculatedSubtotal = newSale.items.reduce((acc, item) => {
+    const qty = parseBanglaInt(item.quantity, 1);
+    const uPrice = Number(item.unitPrice) || Number(item.buyPrice) || 0;
+    return acc + (uPrice * qty);
+  }, 0);
+
+  const calculatedTax = newSale.items.reduce((acc, item) => {
+    const qty = parseBanglaInt(item.quantity, 1);
+    const uPrice = Number(item.unitPrice) || Number(item.buyPrice) || 0;
+    const taxRate = parseBanglaFloat(item.taxPercent, 0);
+    return acc + (uPrice * qty * (taxRate / 100));
+  }, 0);
 
   const totalAmount = newSale.items.reduce((acc, item) => acc + (parseFloat(item.total) || 0), 0);
 
@@ -3179,12 +3232,24 @@ const Sales = ({ data }: any) => {
       customerPhone: newSale.customerPhone,
       customerEmail: newSale.customerEmail,
       customerAddress: newSale.customerAddress,
-      items: newSale.items.map(item => ({
-        ...item,
-        quantity: parseBanglaInt(item.quantity) || 1,
-        total: parseBanglaFloat(item.total)
-      })),
+      items: newSale.items.map(item => {
+        const qty = parseBanglaInt(item.quantity) || 1;
+        const uPrice = Number(item.unitPrice) || Number(item.buyPrice) || 0;
+        const taxRate = parseBanglaFloat(item.taxPercent) || 0;
+        const base = uPrice * qty;
+        const taxAmt = base * (taxRate / 100);
+        return {
+          ...item,
+          quantity: qty,
+          unitPrice: uPrice,
+          taxPercent: taxRate,
+          taxAmount: Number(taxAmt.toFixed(2)),
+          total: parseBanglaFloat(item.total)
+        };
+      }),
       quantity: newSale.items.reduce((acc, item) => acc + (parseBanglaInt(item.quantity) || 1), 0),
+      subtotal: calculatedSubtotal,
+      totalTax: calculatedTax,
       total: totalAmount,
       date: newSale.date
     });
@@ -3239,6 +3304,8 @@ const Sales = ({ data }: any) => {
         productCategory: '', 
         serialNumber: '', 
         quantity: '1', 
+        unitPrice: 0,
+        taxPercent: '0',
         total: '0',
         buyPrice: 0,
         productName: '',
@@ -3343,7 +3410,7 @@ const Sales = ({ data }: any) => {
         )}
       </Card>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Record New Sale">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={lang === 'bn' ? "নতুন বিক্রয় রেকর্ড করুন" : "Record New Sale"} maxWidth="max-w-4xl">
         <form onSubmit={handleAdd} className="space-y-6 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar">
           {/* Customer Info Section */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
@@ -3404,123 +3471,198 @@ const Sales = ({ data }: any) => {
             </div>
 
             <div className="space-y-4">
-              {newSale.items.map((item, index) => (
-                <div key={index} className="p-4 border border-slate-100 rounded-2xl relative group bg-white shadow-sm">
-                  {newSale.items.length > 1 && (
-                    <button 
-                      type="button"
-                      onClick={() => removeItem(index)}
-                      className="absolute -top-2 -right-2 p-1.5 bg-red-50 text-red-500 rounded-full border border-red-100 hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 z-10"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Category</label>
-                      <select 
-                        required
-                        value={item.productCategory}
-                        onChange={(e) => updateItem(index, 'productCategory', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
+              {newSale.items.map((item, index) => {
+                const qty = parseBanglaInt(item.quantity, 1);
+                const taxRate = parseBanglaFloat(item.taxPercent, 0);
+                const uPrice = Number(item.unitPrice) || Number(item.buyPrice) || 0;
+                const basePrice = uPrice * qty;
+                const taxAmount = basePrice * (taxRate / 100);
+
+                return (
+                  <div key={index} className="p-4 border border-slate-100 rounded-2xl relative group bg-white shadow-sm space-y-3">
+                    {newSale.items.length > 1 && (
+                      <button 
+                        type="button"
+                        onClick={() => removeItem(index)}
+                        className="absolute -top-2 -right-2 p-1.5 bg-red-50 text-red-500 rounded-full border border-red-100 hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 z-10"
                       >
-                        <option value="">Select Category</option>
-                        {categories.filter(c => c !== 'All').map(cat => (
-                          <option key={cat as string} value={cat as string}>{cat as string}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('brandName')}</label>
-                      <select 
-                        value={item.brand}
-                        onChange={(e) => updateItem(index, 'brand', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                      >
-                        <option value="">Select Brand</option>
-                        {Array.from(new Set(data.inventory
-                          .filter((p: any) => !item.productCategory || p.category === item.productCategory)
-                          .map((p: any) => p.brand)
-                          .filter(Boolean)
-                        )).map((brand: any) => (
-                          <option key={brand} value={brand}>{brand}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Product</label>
-                      <input 
-                        list={`product-list-${index}`}
-                        type="text"
-                        required
-                        placeholder="Search product..."
-                        value={item.productName || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateItem(index, 'productName', val);
-                          const product = data.inventory.find((p: any) => p.name === val);
-                          if (product) {
-                            updateItem(index, 'productId', product.id);
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                    
+                    {/* Top Row: Category, Brand, Product */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          {lang === 'bn' ? 'ক্যাটাগরি' : 'Category'}
+                        </label>
+                        <select 
+                          required
+                          value={item.productCategory}
+                          onChange={(e) => updateItem(index, 'productCategory', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                        >
+                          <option value="">{lang === 'bn' ? 'ক্যাটাগরি নির্বাচন করুন' : 'Select Category'}</option>
+                          {categories.filter(c => c !== 'All').map(cat => (
+                            <option key={cat as string} value={cat as string}>{cat as string}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('brandName')}</label>
+                        <select 
+                          value={item.brand}
+                          onChange={(e) => updateItem(index, 'brand', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                        >
+                          <option value="">{lang === 'bn' ? 'ব্র্যান্ড নির্বাচন করুন' : 'Select Brand'}</option>
+                          {Array.from(new Set(data.inventory
+                            .filter((p: any) => !item.productCategory || p.category === item.productCategory)
+                            .map((p: any) => p.brand)
+                            .filter(Boolean)
+                          )).map((brand: any) => (
+                            <option key={brand} value={brand}>{brand}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          {lang === 'bn' ? 'প্রোডাক্ট' : 'Product'}
+                        </label>
+                        <input 
+                          list={`product-list-${index}`}
+                          type="text"
+                          required
+                          placeholder={lang === 'bn' ? 'প্রোডাক্ট খুঁজুন...' : 'Search product...'}
+                          value={item.productName || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateItem(index, 'productName', val);
+                            const product = data.inventory.find((p: any) => p.name === val);
+                            if (product) {
+                              updateItem(index, 'productId', product.id);
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                        />
+                        <datalist id={`product-list-${index}`}>
+                          {data.inventory
+                            .filter((p: any) => (!item.productCategory || p.category === item.productCategory) && (!item.brand || p.brand === item.brand))
+                            .map((p: any) => (
+                              <option key={p.id} value={p.name}>
+                                {p.name} ({formatCurrency(p.price)}) - Stock: {p.quantity}
+                              </option>
+                            ))
                           }
-                        }}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                      />
-                      <datalist id={`product-list-${index}`}>
-                        {data.inventory
-                          .filter((p: any) => (!item.productCategory || p.category === item.productCategory) && (!item.brand || p.brand === item.brand))
-                          .map((p: any) => (
-                            <option key={p.id} value={p.name}>
-                              {p.name} ({formatCurrency(p.price)}) - Stock: {p.quantity}
-                            </option>
-                          ))
-                        }
-                      </datalist>
+                        </datalist>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Quantity</label>
-                      <input 
-                        type="number" required min="1"
-                        value={item.quantity}
-                        onChange={(e) => updateItem(index, 'quantity', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Sales Price (Total)</label>
-                      <input 
-                        type="number" required step="0.01"
-                        value={item.total}
-                        onChange={(e) => updateItem(index, 'total', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-bold text-emerald-600"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Serial Number (Optional)</label>
-                      <input 
-                        type="text"
-                        list="serial-list"
-                        value={item.serialNumber}
-                        onChange={(e) => updateItem(index, 'serialNumber', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                        placeholder="SN-XXXXX"
-                      />
-                      <datalist id="serial-list">
-                        {Array.from(new Set(data.sales.flatMap((s: any) => (s.items || []).map((i: any) => i.serialNumber)).filter(Boolean))).map((sn: any) => (
-                          <option key={sn} value={sn} />
-                        ))}
-                      </datalist>
+
+                    {/* Bottom Row: Quantity, Tax %, Sales Price (Total), Serial Number */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          {lang === 'bn' ? 'পরিমাণ (Quantity)' : 'Quantity'}
+                        </label>
+                        <input 
+                          type="number" required min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(index, 'quantity', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          {lang === 'bn' ? 'ট্যাক্স / ভ্যাট (Tax %)' : 'Tax (%)'}
+                        </label>
+                        <div className="relative">
+                          <input 
+                            type="number" 
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            placeholder="0"
+                            value={item.taxPercent || ''}
+                            onChange={(e) => updateItem(index, 'taxPercent', e.target.value)}
+                            className="w-full pl-3 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-semibold text-slate-700"
+                          />
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                            %
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          {lang === 'bn' ? 'বিক্রয় মূল্য (ট্যাক্স সহ)' : 'Sales Price (Total)'}
+                        </label>
+                        <input 
+                          type="number" required step="0.01"
+                          value={item.total}
+                          onChange={(e) => updateItem(index, 'total', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-bold text-emerald-600"
+                        />
+                        {taxRate > 0 && basePrice > 0 ? (
+                          <div className="text-[10px] text-emerald-700 mt-1 font-medium leading-tight">
+                            {lang === 'bn' 
+                              ? `মূল্য: ${formatCurrency(basePrice)} + ট্যাক্স (${taxRate}%): ${formatCurrency(taxAmount)}`
+                              : `Base: ${formatCurrency(basePrice)} + Tax (${taxRate}%): ${formatCurrency(taxAmount)}`}
+                          </div>
+                        ) : (
+                          uPrice > 0 ? (
+                            <div className="text-[10px] text-slate-400 mt-1 font-medium leading-tight">
+                              {lang === 'bn'
+                                ? `একক মূল্য: ${formatCurrency(uPrice)} × ${qty}`
+                                : `Unit: ${formatCurrency(uPrice)} × ${qty}`}
+                            </div>
+                          ) : null
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          {lang === 'bn' ? 'সিরিয়াল নম্বর (ঐচ্ছিক)' : 'Serial Number (Optional)'}
+                        </label>
+                        <input 
+                          type="text"
+                          list="serial-list"
+                          value={item.serialNumber}
+                          onChange={(e) => updateItem(index, 'serialNumber', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                          placeholder="SN-XXXXX"
+                        />
+                        <datalist id="serial-list">
+                          {Array.from(new Set(data.sales.flatMap((s: any) => (s.items || []).map((i: any) => i.serialNumber)).filter(Boolean))).map((sn: any) => (
+                            <option key={sn} value={sn} />
+                          ))}
+                        </datalist>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           <div className="pt-4 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-6 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-              <span className="font-bold text-emerald-800">Grand Total</span>
-              <span className="text-2xl font-black text-emerald-600">{formatCurrency(totalAmount)}</span>
+            <div className="mb-6 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-2">
+              {calculatedTax > 0 && (
+                <div className="flex items-center justify-between text-xs text-emerald-800 pb-2 border-b border-emerald-200/50">
+                  <span>{lang === 'bn' ? 'সাবটোটাল (ট্যাক্স ছাড়া):' : 'Subtotal (Before Tax):'}</span>
+                  <span className="font-semibold">{formatCurrency(calculatedSubtotal)}</span>
+                </div>
+              )}
+              {calculatedTax > 0 && (
+                <div className="flex items-center justify-between text-xs text-emerald-800 pb-2 border-b border-emerald-200/50">
+                  <span>{lang === 'bn' ? 'মোট ট্যাক্স:' : 'Total Tax:'}</span>
+                  <span className="font-semibold">+{formatCurrency(calculatedTax)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-900">{lang === 'bn' ? 'সর্বমোট (Grand Total)' : 'Grand Total'}</span>
+                <span className="text-2xl font-black text-emerald-600">{formatCurrency(totalAmount)}</span>
+              </div>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
