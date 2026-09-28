@@ -1467,6 +1467,91 @@ const Layout = ({ children, user, logout, subscription }: any) => {
   );
 };
 
+// --- PROFIT & LOSS CALCULATION HELPERS ---
+const computeSaleItemProfitLoss = (item: any, inventory: any[]) => {
+  const qty = parseBanglaInt(item?.quantity, 1) || 1;
+  const product = (inventory || []).find((p: any) => 
+    (item?.productId && String(p.id) === String(item.productId)) ||
+    (item?.productName && p.name && p.name.trim().toLowerCase() === String(item.productName).trim().toLowerCase())
+  );
+
+  // Authentic purchase cost (buyPrice)
+  let unitBuyPrice = parseBanglaFloat(item?.buyPrice, NaN);
+  const uPrice = parseBanglaFloat(item?.unitPrice, 0);
+
+  // If item has no valid buyPrice or buyPrice was previously overwritten to match unitPrice while inventory product has a different cost:
+  if (isNaN(unitBuyPrice) || unitBuyPrice <= 0 || (product && Number(product.price) > 0 && unitBuyPrice === uPrice && Number(product.price) !== uPrice)) {
+    if (product && Number(product.price) > 0) {
+      unitBuyPrice = Number(product.price);
+    } else if (isNaN(unitBuyPrice)) {
+      unitBuyPrice = 0;
+    }
+  }
+
+  const cost = unitBuyPrice * qty;
+  // Selling base revenue without tax:
+  const sellingPricePerUnit = uPrice > 0 
+    ? uPrice 
+    : (qty > 0 ? (parseBanglaFloat(item?.total, 0) - parseBanglaFloat(item?.taxAmount, 0)) / qty : 0);
+  const revenue = sellingPricePerUnit * qty;
+  const diff = revenue - cost;
+
+  return {
+    qty,
+    unitBuyPrice,
+    unitSellingPrice: sellingPricePerUnit,
+    cost,
+    revenue,
+    profit: diff > 0 ? diff : 0,
+    loss: diff < 0 ? Math.abs(diff) : 0,
+    net: diff
+  };
+};
+
+const calculateSalesProfitAndLoss = (salesList: any[], inventoryList: any[]) => {
+  let totalSalesProfit = 0;
+  let totalSalesLoss = 0;
+  let totalSalesGross = 0;
+
+  (salesList || []).forEach((s: any) => {
+    totalSalesGross += (parseBanglaFloat(s?.total, 0) || 0);
+    const items = Array.isArray(s?.items) ? s.items : [];
+    if (items.length > 0) {
+      items.forEach((item: any) => {
+        const res = computeSaleItemProfitLoss(item, inventoryList);
+        totalSalesProfit += res.profit;
+        totalSalesLoss += res.loss;
+      });
+    } else {
+      const qty = parseBanglaInt(s?.quantity, 1) || 1;
+      const product = (inventoryList || []).find((p: any) => 
+        (s?.productId && String(p.id) === String(s.productId)) ||
+        (s?.productName && p.name && p.name.trim().toLowerCase() === String(s.productName).trim().toLowerCase())
+      );
+      let unitBuyPrice = parseBanglaFloat(s?.buyPrice, NaN);
+      const uPrice = parseBanglaFloat(s?.price || s?.unitPrice, 0);
+      if (isNaN(unitBuyPrice) || unitBuyPrice <= 0 || (product && Number(product.price) > 0 && unitBuyPrice === uPrice && Number(product.price) !== uPrice)) {
+        if (product && Number(product.price) > 0) {
+          unitBuyPrice = Number(product.price);
+        } else if (isNaN(unitBuyPrice)) {
+          unitBuyPrice = 0;
+        }
+      }
+      const cost = unitBuyPrice * qty;
+      const revenue = (parseBanglaFloat(s?.total, 0) || 0) - (parseBanglaFloat(s?.totalTax, 0) || 0);
+      const diff = revenue - cost;
+      if (diff > 0) totalSalesProfit += diff;
+      else if (diff < 0) totalSalesLoss += Math.abs(diff);
+    }
+  });
+
+  return { 
+    totalSalesProfit: Number(totalSalesProfit.toFixed(2)), 
+    totalSalesLoss: Number(totalSalesLoss.toFixed(2)), 
+    totalSalesGross: Number(totalSalesGross.toFixed(2)) 
+  };
+};
+
 // --- PAGES ---
 
 const Dashboard = ({ data, user: propUser }: any) => {
@@ -1538,44 +1623,21 @@ const Dashboard = ({ data, user: propUser }: any) => {
   const filteredExpenses = (data.expenses || []).filter((e: any) => isWithinRange(e?.date));
   const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r?.date));
 
-  // 1. Calculate Sales Profit/Loss for the filtered range
-  let totalSalesProfit = 0;
-  let totalSalesLoss = 0;
-  let totalSalesGross = 0;
-
-  filteredSales.forEach((s: any) => {
-    totalSalesGross += (Number(s.total) || 0);
-    const items = Array.isArray(s.items) ? s.items : [];
-    if (items.length > 0) {
-      items.forEach((item: any) => {
-        const cost = (Number(item.buyPrice) || 0) * (Number(item.quantity) || 1);
-        const profit = (Number(item.total) || 0) - cost;
-        if (profit > 0) totalSalesProfit += profit;
-        else if (profit < 0) totalSalesLoss += Math.abs(profit);
-      });
-    } else {
-      const cost = (Number(s.buyPrice) || 0) * (Number(s.quantity) || 1);
-      const profit = (Number(s.total) || 0) - cost;
-      if (profit > 0) totalSalesProfit += profit;
-      else if (profit < 0) totalSalesLoss += Math.abs(profit);
-    }
-  });
+  // 1. Calculate Sales Profit/Loss for the filtered range using authentic product costs
+  const { totalSalesProfit, totalSalesLoss, totalSalesGross } = calculateSalesProfitAndLoss(filteredSales, data.inventory);
 
   // 2. Calculate Expenses and Returns
-  const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
+  const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
   const totalRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
   const totalExtraIncome = filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   
   const totalReturnsNet = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   const netRevenue = totalSalesGross + totalReturnsNet;
 
-  // 3. Net values logic (Net Profit: Sales Profit - Loss - Expenses - Refunds)
+  // 3. Current Profit (Sales Profit + replacement income), Current Loss (Sales Loss), Net Profit (All revenues - all costs)
+  const currentProfitDisplay = totalSalesProfit + totalExtraIncome;
+  const currentLossDisplay = totalSalesLoss;
   const finalNetResult = (totalSalesProfit - totalSalesLoss) + totalExtraIncome - totalExpenses - totalRefunds;
-  
-  const displayProfit = Math.max(0, finalNetResult);
-  const displayLoss = finalNetResult < 0 ? Math.abs(finalNetResult) : 0;
-  
-  const netProfitTotal = finalNetResult;
 
   // Calculate Daily Stats for Chart
   let chartDates = Array.from({ length: 7 }, (_, i) => {
@@ -1609,30 +1671,17 @@ const Dashboard = ({ data, user: propUser }: any) => {
   }
 
   const dailyStats = chartDates.map(date => {
-    let dProfit = 0;
-    let dLoss = 0;
+    const daySales = (data.sales || []).filter((s: any) => (s?.date || '').slice(0, 10) === date);
+    const dayPL = calculateSalesProfitAndLoss(daySales, data.inventory);
+    const dProfit = dayPL.totalSalesProfit;
+    const dLoss = dayPL.totalSalesLoss;
 
-    (data.sales || []).filter((s: any) => s.date === date).forEach((s: any) => {
-      const items = Array.isArray(s.items) ? s.items : [];
-      if (items.length > 0) {
-        items.forEach((item: any) => {
-          const cost = (Number(item.buyPrice) || 0) * (Number(item.quantity) || 1);
-          const profit = (Number(item.total) || 0) - cost;
-          if (profit > 0) dProfit += profit;
-          else if (profit < 0) dLoss += Math.abs(profit);
-        });
-      } else {
-        const cost = (Number(s.buyPrice) || 0) * (Number(s.quantity) || 1);
-        const profit = (Number(s.total) || 0) - cost;
-        if (profit > 0) dProfit += profit;
-        else if (profit < 0) dLoss += Math.abs(profit);
-      }
-    });
-
-    const dExpenses = (data.expenses || []).filter((e: any) => e.date === date).reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
-    const dReturnsList = (data.returns || []).filter((r: any) => r.date === date);
-    const dRefunds = Math.abs(dReturnsList.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
-    const dExtraInc = dReturnsList.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+    const dayExpenses = (data.expenses || []).filter((e: any) => (e?.date || '').slice(0, 10) === date);
+    const dExpenses = dayExpenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
+    
+    const dayReturns = (data.returns || []).filter((r: any) => (r?.date || '').slice(0, 10) === date);
+    const dRefunds = Math.abs(dayReturns.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
+    const dExtraInc = dayReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
 
     // Gross Daily Profit vs Gross Daily Loss
     const dayProfitDisplay = dProfit + dExtraInc;
@@ -1641,20 +1690,25 @@ const Dashboard = ({ data, user: propUser }: any) => {
 
     return {
       date: date.split('-').slice(1).join('/'),
+      fullDate: date,
       profit: parseFloat(dayProfitDisplay.toFixed(2)),
       loss: -parseFloat(dayLossDisplay.toFixed(2)),
+      salesProfit: parseFloat(dProfit.toFixed(2)),
+      salesLoss: parseFloat(dLoss.toFixed(2)),
+      expenses: parseFloat(dExpenses.toFixed(2)),
       net: parseFloat(netDay.toFixed(2)),
     };
   });
 
   const stats = [
-    { key: 'sales', label: t('netRevenue'), value: formatCurrency(netRevenue, 0), icon: DollarSign, color: 'bg-indigo-500' },
-    { key: 'sales', label: t('currentProfit'), value: formatCurrency(displayProfit), icon: TrendingUp, color: 'bg-emerald-500' },
-    { key: 'sales', label: t('currentLoss'), value: formatCurrency(displayLoss), icon: ArrowDownRight, color: 'bg-red-500' },
-    { key: 'expenses', label: t('totalExpenses'), value: formatCurrency(totalExpenses, 0), icon: Receipt, color: 'bg-orange-500' },
-    { key: 'returns', label: t('totalRefunds'), value: formatCurrency(totalRefunds, 0), icon: RotateCcw, color: 'bg-slate-500' },
-    { key: 'returns', label: t('totalReplacements'), value: formatCurrency(totalExtraIncome, 0), icon: RefreshCw, color: 'bg-indigo-400' },
-    { key: 'sales', label: t('totalSales'), value: lang === 'bn' ? toBengaliNumber(filteredSales.length) : filteredSales.length.toString(), icon: ShoppingCart, color: 'bg-blue-500' },
+    { key: 'sales', type: 'revenue', label: t('netRevenue'), value: formatCurrency(netRevenue, 0), icon: DollarSign, color: 'bg-indigo-500' },
+    { key: 'sales', type: 'profit', label: t('currentProfit'), value: formatCurrency(currentProfitDisplay), icon: TrendingUp, color: 'bg-emerald-500' },
+    { key: 'sales', type: 'loss', label: t('currentLoss'), value: formatCurrency(currentLossDisplay), icon: ArrowDownRight, color: 'bg-red-500' },
+    { key: 'sales', type: 'net', label: t('netProfit'), value: (finalNetResult < 0 ? `-${formatCurrency(Math.abs(finalNetResult))}` : formatCurrency(finalNetResult)), icon: CheckCircle2, color: finalNetResult >= 0 ? 'bg-emerald-600' : 'bg-rose-600' },
+    { key: 'expenses', type: 'expense', label: t('totalExpenses'), value: formatCurrency(totalExpenses, 0), icon: Receipt, color: 'bg-orange-500' },
+    { key: 'returns', type: 'refund', label: t('totalRefunds'), value: formatCurrency(totalRefunds, 0), icon: RotateCcw, color: 'bg-slate-500' },
+    { key: 'returns', type: 'replacement', label: t('totalReplacements'), value: formatCurrency(totalExtraIncome, 0), icon: RefreshCw, color: 'bg-indigo-400' },
+    { key: 'sales', type: 'count', label: t('totalSales'), value: lang === 'bn' ? toBengaliNumber(filteredSales.length) : filteredSales.length.toString(), icon: ShoppingCart, color: 'bg-blue-500' },
   ].filter(stat => hasPermission(stat.key as any, 'view'));
 
   const lowStockItems = (data?.inventory || []).filter((item: any) => item.quantity <= (item.minStock || 5));
@@ -1717,8 +1771,8 @@ const Dashboard = ({ data, user: propUser }: any) => {
         pdf.setFontSize(10);
         pdf.setFont('helvetica', 'normal');
         pdf.text(`Net Revenue: $${Number(netRevenue || 0).toFixed(2)}`, 14, 46);
-        pdf.text(`Current Profit: $${Number(displayProfit || 0).toFixed(2)}`, 14, 53);
-        pdf.text(`Current Loss: $${Number(displayLoss || 0).toFixed(2)}`, 14, 60);
+        pdf.text(`Current Profit: $${Number(currentProfitDisplay || 0).toFixed(2)}`, 14, 53);
+        pdf.text(`Current Loss: $${Number(currentLossDisplay || 0).toFixed(2)}`, 14, 60);
         pdf.text(`Total Sales Count: ${filteredSales.length}`, 14, 67);
 
         const fileName = `Dashboard-Report-${timeFilter === 'custom' ? `${startDate || 'Start'}_to_${endDate || 'End'}` : timeFilter}.pdf`;
@@ -1745,7 +1799,7 @@ const Dashboard = ({ data, user: propUser }: any) => {
         fallbackPdf.setFontSize(10);
         fallbackPdf.text(`Generated: ${new Date().toLocaleString()} | Filter: ${timeFilter.toUpperCase()}`, 14, 30);
         fallbackPdf.text(`Net Revenue: $${Number(netRevenue || 0).toFixed(2)}`, 14, 40);
-        fallbackPdf.text(`Profit: $${Number(displayProfit || 0).toFixed(2)}`, 14, 50);
+        fallbackPdf.text(`Profit: $${Number(currentProfitDisplay || 0).toFixed(2)}`, 14, 50);
         fallbackPdf.save(`Dashboard-Report-${timeFilter}.pdf`);
         setTimeout(() => {
           alert("PDF downloaded successfully");
@@ -1850,8 +1904,24 @@ const Dashboard = ({ data, user: propUser }: any) => {
               <div className={cn("p-3 rounded-xl text-white", stat.color)}>
                 <stat.icon size={24} />
               </div>
-              {stat.label === 'Current Profit' && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">Income</span>}
-              {stat.label === 'Current Loss' && <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">Expense</span>}
+              {stat.type === 'profit' && (
+                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                  {lang === 'bn' ? 'বিক্রয় লাভ' : 'Sales Profit'}
+                </span>
+              )}
+              {stat.type === 'loss' && (
+                <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">
+                  {lang === 'bn' ? 'বিক্রয় ক্ষতি' : 'Sales Loss'}
+                </span>
+              )}
+              {stat.type === 'net' && (
+                <span className={cn(
+                  "text-xs font-bold px-2 py-1 rounded-full",
+                  finalNetResult >= 0 ? "text-emerald-700 bg-emerald-50" : "text-rose-700 bg-rose-50"
+                )}>
+                  {lang === 'bn' ? 'চূড়ান্ত নিট' : 'Overall Net'}
+                </span>
+              )}
             </div>
             <p className="text-sm text-slate-500 font-medium">{stat.label}</p>
             <h3 className="text-2xl font-bold text-slate-900 mt-1">{stat.value}</h3>
@@ -1916,12 +1986,12 @@ const Dashboard = ({ data, user: propUser }: any) => {
                       formatter={(value: any, name: any) => {
                         const absValue = Math.abs(Number(value));
                         let displayName = name;
-                        if (name === 'profit') displayName = t('profit') || 'Profit';
-                        else if (name === 'loss') displayName = t('loss') || 'Loss';
-                        else if (name === 'net') displayName = `${t('netProfit')} (${lang === 'bn' ? 'নেট রিভিউ' : 'Net Review'})`;
+                        if (name === 'profit') displayName = t('profit') || (lang === 'bn' ? 'লাভ' : 'Profit');
+                        else if (name === 'loss') displayName = t('loss') || (lang === 'bn' ? 'ক্ষতি' : 'Loss');
+                        else if (name === 'net') displayName = `${t('netProfit')} (${lang === 'bn' ? 'নিট লাভ' : 'Net'})`;
                         
                         if (name === 'net') {
-                          return [value < 0 ? `-${formatCurrency(absValue)}` : formatCurrency(absValue), displayName];
+                          return [Number(value) < 0 ? `-${formatCurrency(absValue)}` : formatCurrency(absValue), displayName];
                         }
                         return [formatCurrency(absValue), displayName];
                       }}
@@ -1932,14 +2002,14 @@ const Dashboard = ({ data, user: propUser }: any) => {
                       fill="#10b981" 
                       stackId="a"
                       radius={[4, 4, 0, 0]}
-                      maxBarSize={24}
+                      maxBarSize={dailyStats.length === 1 ? 56 : 28}
                     />
                     <Bar 
                       dataKey="loss" 
                       fill="#ef4444" 
                       stackId="a"
                       radius={[0, 0, 4, 4]}
-                      maxBarSize={24}
+                      maxBarSize={dailyStats.length === 1 ? 56 : 28}
                     />
                     <Line 
                       type="monotone" 
@@ -1970,7 +2040,20 @@ const Dashboard = ({ data, user: propUser }: any) => {
                         <div className="text-xs text-slate-500">INV-{item.id.slice(-4)}</div>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
-                      <td className="px-6 py-4 font-semibold text-slate-900">{formatCurrency(item.total)}</td>
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-slate-900">{formatCurrency(item.total)}</div>
+                        {(() => {
+                          const sPL = calculateSalesProfitAndLoss([item], data.inventory);
+                          const net = sPL.totalSalesProfit - sPL.totalSalesLoss;
+                          if (net > 0) {
+                            return <div className="text-[11px] font-bold text-emerald-600">+{formatCurrency(net)} {lang === 'bn' ? 'লাভ' : 'Profit'}</div>;
+                          }
+                          if (net < 0) {
+                            return <div className="text-[11px] font-bold text-rose-600">-{formatCurrency(Math.abs(net))} {lang === 'bn' ? 'ক্ষতি' : 'Loss'}</div>;
+                          }
+                          return <div className="text-[11px] font-medium text-slate-400">±{formatCurrency(0)}</div>;
+                        })()}
+                      </td>
                       <td className="px-6 py-4">
                         <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full">Completed</span>
                       </td>
@@ -2651,7 +2734,7 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
           {sale.items ? (
             sale.items.map((item: any, idx: number) => {
               const itemQty = Number(item.quantity) || 1;
-              const unitPrice = itemQty > 0 ? (Number(item.total) / itemQty) : (Number(item.buyPrice) || Number(item.total));
+              const unitPrice = Number(item.unitPrice) > 0 ? Number(item.unitPrice) : (itemQty > 0 ? (Number(item.total) / itemQty) : Number(item.total));
               return (
                 <tr key={idx} style={{ borderBottom: idx !== sale.items.length - 1 ? '1px solid #f8fafc' : 'none' }}>
                   <td style={{ padding: '1rem 0' }}>
@@ -2676,7 +2759,7 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
           ) : (
             (() => {
               const saleQty = Number(sale.quantity) || 1;
-              const unitPrice = saleQty > 0 ? (Number(sale.total) / saleQty) : (Number(sale.buyPrice) || Number(sale.total));
+              const unitPrice = Number(sale.unitPrice) > 0 ? Number(sale.unitPrice) : (saleQty > 0 ? (Number(sale.total) / saleQty) : Number(sale.total));
               return (
                 <tr>
                   <td style={{ padding: '1rem 0' }}>
@@ -3196,8 +3279,10 @@ const Sales = ({ data }: any) => {
     } else if (field === 'unitPrice') {
       const uPrice = parseBanglaFloat(value, 0);
       item.unitPrice = uPrice;
-      item.buyPrice = uPrice;
+      // Authentic buyPrice is preserved from inventory cost, not overwritten with selling price!
       item.total = calculateItemPriceWithTax(uPrice, item.quantity, item.taxPercent);
+    } else if (field === 'buyPrice') {
+      item.buyPrice = parseBanglaFloat(value, 0);
     }
 
     newItems[index] = item;
@@ -3238,7 +3323,7 @@ const Sales = ({ data }: any) => {
       }
     }
 
-    // 1. Add Sale
+    // 1. Add Sale with correct authentic purchase cost and selling price
     data.addSale({
       customerName: newSale.customerName.trim() || (lang === 'bn' ? 'তৎক্ষণাৎ ক্রেতা' : 'Walk-in Customer'),
       customerPhone: newSale.customerPhone,
@@ -3246,14 +3331,19 @@ const Sales = ({ data }: any) => {
       customerAddress: newSale.customerAddress,
       items: newSale.items.map(item => {
         const qty = parseBanglaInt(item.quantity) || 1;
-        const uPrice = Number(item.unitPrice) || Number(item.buyPrice) || 0;
+        const uPrice = Number(item.unitPrice) || 0;
         const taxRate = parseBanglaFloat(item.taxPercent) || 0;
         const base = uPrice * qty;
         const taxAmt = base * (taxRate / 100);
+        const prod = (data.inventory || []).find((p: any) => String(p.id) === String(item.productId));
+        const bPrice = (item.buyPrice !== undefined && item.buyPrice !== null && !isNaN(Number(item.buyPrice)))
+          ? parseBanglaFloat(item.buyPrice, 0)
+          : (prod ? parseBanglaFloat(prod.price, 0) : 0);
         return {
           ...item,
           quantity: qty,
           unitPrice: uPrice,
+          buyPrice: bPrice,
           taxPercent: taxRate,
           taxAmount: Number(taxAmt.toFixed(2)),
           total: parseBanglaFloat(item.total)
@@ -3386,7 +3476,20 @@ const Sales = ({ data }: any) => {
                   )}
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{(item.date || '').split('T')[0]}</td>
-                <td className="px-6 py-4 font-semibold text-slate-900">{formatCurrency(item.total)}</td>
+                <td className="px-6 py-4">
+                  <div className="font-semibold text-slate-900">{formatCurrency(item.total)}</div>
+                  {(() => {
+                    const sPL = calculateSalesProfitAndLoss([item], data.inventory);
+                    const net = sPL.totalSalesProfit - sPL.totalSalesLoss;
+                    if (net > 0) {
+                      return <div className="text-[11px] font-bold text-emerald-600">+{formatCurrency(net)} {lang === 'bn' ? 'লাভ' : 'Profit'}</div>;
+                    }
+                    if (net < 0) {
+                      return <div className="text-[11px] font-bold text-rose-600">-{formatCurrency(Math.abs(net))} {lang === 'bn' ? 'ক্ষতি' : 'Loss'}</div>;
+                    }
+                    return <div className="text-[11px] font-medium text-slate-400">±{formatCurrency(0)}</div>;
+                  })()}
+                </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <button 
@@ -3560,8 +3663,8 @@ const Sales = ({ data }: any) => {
                       </div>
                     </div>
 
-                    {/* Bottom Row: Quantity, Unit Price, Tax %, Serial Number */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Bottom Row: Quantity, Buy Price, Unit Price, Tax %, Serial Number */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
                           {lang === 'bn' ? 'পরিমাণ (Quantity)' : 'Quantity'}
@@ -3576,7 +3679,21 @@ const Sales = ({ data }: any) => {
 
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                          {lang === 'bn' ? 'একক মূল্য (Unit Price)' : 'Unit Price'}
+                          {lang === 'bn' ? 'ক্রয়মূল্য (Buy Cost)' : 'Buy Cost'}
+                        </label>
+                        <input 
+                          type="number" step="0.01" min="0"
+                          placeholder="0.00"
+                          value={item.buyPrice !== undefined && item.buyPrice !== null ? item.buyPrice : ''}
+                          onChange={(e) => updateItem(index, 'buyPrice', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-semibold text-slate-600"
+                          title={lang === 'bn' ? 'পণ্যের প্রতি ইউনিটের ক্রয়মূল্য' : 'Purchase cost per unit'}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          {lang === 'bn' ? 'একক বিক্রয়মূল্য (Unit Price)' : 'Unit Price'}
                         </label>
                         <input 
                           type="number" step="0.01" min="0"
@@ -3645,43 +3762,83 @@ const Sales = ({ data }: any) => {
                       </div>
                     </div>
 
-                    {/* Live Calculated Price with Tax Breakdown */}
-                    {uPrice > 0 && (
-                      <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="space-y-0.5 text-xs text-slate-600">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-slate-700">
-                              {lang === 'bn' ? 'বেস মূল্য:' : 'Base Total:'}
-                            </span>
-                            <span className="font-bold text-slate-900">{formatCurrency(basePrice)}</span>
-                            <span className="text-slate-400 text-[11px]">({formatCurrency(uPrice)} × {qty})</span>
-                          </div>
-                          {taxRate > 0 ? (
-                            <div className="flex items-center gap-2 text-emerald-800">
-                              <span className="font-semibold">
-                                {lang === 'bn' ? `ট্যাক্স (${taxRate}% যোগ):` : `Tax (${taxRate}% added):`}
-                              </span>
-                              <span className="font-bold text-emerald-700">+{formatCurrency(taxAmount)}</span>
-                            </div>
-                          ) : (
-                            <div className="text-[11px] text-slate-400">
-                              {lang === 'bn' ? 'কোন ট্যাক্স প্রযোজ্য নয় (০%)' : 'No tax applied (0%)'}
-                            </div>
-                          )}
-                        </div>
+                    {/* Live Calculated Price with Tax Breakdown & Profit/Loss Indicator */}
+                    {uPrice > 0 && (() => {
+                      const itemBuyPrice = Number(item.buyPrice) || 0;
+                      const itemTotalCost = itemBuyPrice * qty;
+                      const itemProfitDiff = basePrice - itemTotalCost;
+                      const isProfit = itemProfitDiff > 0;
+                      const isLoss = itemProfitDiff < 0;
 
-                        <div className="flex items-center gap-3 bg-white px-3.5 py-1.5 rounded-xl border border-emerald-200 shadow-xs self-start sm:self-auto">
-                          <div className="text-right">
-                            <span className="block text-[9px] font-extrabold text-emerald-800 uppercase tracking-wider">
-                              {lang === 'bn' ? 'ট্যাক্স সহ প্রোডাক্ট প্রাইস' : 'Price with Tax'}
-                            </span>
-                            <span className="text-lg font-black text-emerald-600">
-                              {formatCurrency(parseFloat(item.total) || (basePrice + taxAmount))}
-                            </span>
+                      return (
+                        <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="space-y-1 text-xs text-slate-600">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-slate-700">
+                                  {lang === 'bn' ? 'বেস বিক্রয়মূল্য:' : 'Base Total:'}
+                                </span>
+                                <span className="font-bold text-slate-900">{formatCurrency(basePrice)}</span>
+                                <span className="text-slate-400 text-[11px]">({formatCurrency(uPrice)} × {qty})</span>
+                              </div>
+                              {itemBuyPrice > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-slate-500">
+                                    {lang === 'bn' ? 'ক্রয় খরচ:' : 'Cost:'}
+                                  </span>
+                                  <span className="font-medium text-slate-700">{formatCurrency(itemTotalCost)}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
+                              {/* Live Item Profit or Loss Badge */}
+                              {itemBuyPrice > 0 && (
+                                isProfit ? (
+                                  <div className="flex items-center gap-1 text-emerald-700 font-bold bg-emerald-100/90 px-2 py-0.5 rounded-md text-[11px]">
+                                    <TrendingUp size={12} />
+                                    <span>{lang === 'bn' ? `লাভ: +${formatCurrency(itemProfitDiff)}` : `Profit: +${formatCurrency(itemProfitDiff)}`}</span>
+                                  </div>
+                                ) : isLoss ? (
+                                  <div className="flex items-center gap-1 text-rose-700 font-bold bg-rose-100/90 px-2 py-0.5 rounded-md text-[11px]">
+                                    <ArrowDownRight size={12} />
+                                    <span>{lang === 'bn' ? `ক্ষতি: -${formatCurrency(Math.abs(itemProfitDiff))}` : `Loss: -${formatCurrency(Math.abs(itemProfitDiff))}`}</span>
+                                  </div>
+                                ) : (
+                                  <div className="text-[11px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">
+                                    {lang === 'bn' ? 'ব্রেক-ইভেন (০ লাভ/ক্ষতি)' : 'Break-even (0 P/L)'}
+                                  </div>
+                                )
+                              )}
+
+                              {taxRate > 0 ? (
+                                <div className="flex items-center gap-1 text-emerald-800">
+                                  <span className="font-semibold">
+                                    {lang === 'bn' ? `ট্যাক্স (${taxRate}% যোগ):` : `Tax (${taxRate}% added):`}
+                                  </span>
+                                  <span className="font-bold text-emerald-700">+{formatCurrency(taxAmount)}</span>
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-slate-400">
+                                  {lang === 'bn' ? 'কোন ট্যাক্স প্রযোজ্য নয় (০%)' : 'No tax applied (0%)'}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 bg-white px-3.5 py-1.5 rounded-xl border border-emerald-200 shadow-xs self-start sm:self-auto">
+                            <div className="text-right">
+                              <span className="block text-[9px] font-extrabold text-emerald-800 uppercase tracking-wider">
+                                {lang === 'bn' ? 'ট্যাক্স সহ প্রোডাক্ট প্রাইস' : 'Price with Tax'}
+                              </span>
+                              <span className="text-lg font-black text-emerald-600">
+                                {formatCurrency(parseFloat(item.total) || (basePrice + taxAmount))}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -3690,12 +3847,46 @@ const Sales = ({ data }: any) => {
 
           <div className="pt-4 border-t border-slate-100">
             <div className="mb-6 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-2">
-              {calculatedTax > 0 && (
-                <div className="flex items-center justify-between text-xs text-emerald-800 pb-2 border-b border-emerald-200/50">
-                  <span>{lang === 'bn' ? 'সাবটোটাল (ট্যাক্স ছাড়া):' : 'Subtotal (Before Tax):'}</span>
-                  <span className="font-semibold">{formatCurrency(calculatedSubtotal)}</span>
-                </div>
-              )}
+              <div className="flex items-center justify-between text-xs text-slate-700 pb-2 border-b border-emerald-200/50">
+                <span>{lang === 'bn' ? 'সাবটোটাল (ট্যাক্স ছাড়া):' : 'Subtotal (Before Tax):'}</span>
+                <span className="font-semibold">{formatCurrency(calculatedSubtotal)}</span>
+              </div>
+
+              {/* Estimated Total Profit / Loss for this entire sale */}
+              {(() => {
+                const totalCostVal = newSale.items.reduce((acc, item) => {
+                  const q = parseBanglaInt(item.quantity, 1);
+                  const bPrice = parseBanglaFloat(item.buyPrice, 0);
+                  return acc + (bPrice * q);
+                }, 0);
+                const estimatedDiff = calculatedSubtotal - totalCostVal;
+                if (totalCostVal > 0) {
+                  return (
+                    <div className="flex items-center justify-between text-xs pb-2 border-b border-emerald-200/50">
+                      <span className="font-medium text-slate-700">
+                        {lang === 'bn' ? 'মোট আনুমানিক ফলাফল:' : 'Est. Profit / Loss:'}
+                      </span>
+                      {estimatedDiff > 0 ? (
+                        <span className="font-bold text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <TrendingUp size={12} />
+                          +{formatCurrency(estimatedDiff)} {lang === 'bn' ? '(লাভ)' : '(Profit)'}
+                        </span>
+                      ) : estimatedDiff < 0 ? (
+                        <span className="font-bold text-rose-700 bg-rose-100/90 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <ArrowDownRight size={12} />
+                          -{formatCurrency(Math.abs(estimatedDiff))} {lang === 'bn' ? '(ক্ষতি)' : '(Loss)'}
+                        </span>
+                      ) : (
+                        <span className="font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                          {formatCurrency(0)} (Break-even)
+                        </span>
+                      )}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {calculatedTax > 0 && (
                 <div className="flex items-center justify-between text-xs text-emerald-800 pb-2 border-b border-emerald-200/50">
                   <span>{lang === 'bn' ? 'মোট ট্যাক্স:' : 'Total Tax:'}</span>
@@ -4694,28 +4885,9 @@ const Reports = ({ data, user: propUser }: any) => {
   const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r.date));
 
   // Consistent calculations matching Dashboard
-  let totalSalesProfit = 0;
-  let totalSalesLoss = 0;
-  let totalSalesGross = 0;
+  const { totalSalesProfit, totalSalesLoss, totalSalesGross } = calculateSalesProfitAndLoss(filteredSales, data.inventory);
 
-  filteredSales.forEach((s: any) => {
-    totalSalesGross += (s.total || 0);
-    if (s.items) {
-      s.items.forEach((item: any) => {
-        const cost = (item.buyPrice || 0) * item.quantity;
-        const profit = item.total - cost;
-        if (profit > 0) totalSalesProfit += profit;
-        else if (profit < 0) totalSalesLoss += Math.abs(profit);
-      });
-    } else {
-      const cost = (s.buyPrice || 0) * (s.quantity || 1);
-      const profit = (s.total || 0) - cost;
-      if (profit > 0) totalSalesProfit += profit;
-      else if (profit < 0) totalSalesLoss += Math.abs(profit);
-    }
-  });
-
-  const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
+  const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
   const totalRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
   const totalExtraIncome = filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   
@@ -4725,8 +4897,8 @@ const Reports = ({ data, user: propUser }: any) => {
   // Consistent calculation reflecting Net Profit (Profit - Loss - Expenses - Refunds)
   const finalNet = (totalSalesProfit - totalSalesLoss) + totalExtraIncome - totalExpenses - totalRefunds;
   
-  const currentProfit = Math.max(0, finalNet);
-  const currentLoss = finalNet < 0 ? Math.abs(finalNet) : 0;
+  const currentProfit = totalSalesProfit + totalExtraIncome;
+  const currentLoss = totalSalesLoss;
   const netProfit = finalNet;
 
   // Group sales by date for a simple chart
