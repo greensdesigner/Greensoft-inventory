@@ -1634,10 +1634,14 @@ const Dashboard = ({ data, user: propUser }: any) => {
   const totalReturnsNet = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   const netRevenue = totalSalesGross + totalReturnsNet;
 
-  // 3. Current Profit (Sales Profit + replacement income minus Sales Loss), Current Loss (Sales Loss), Net Profit (All revenues - all costs)
-  const currentProfitDisplay = (totalSalesProfit + totalExtraIncome) - totalSalesLoss;
-  const currentLossDisplay = totalSalesLoss;
-  const finalNetResult = currentProfitDisplay - totalExpenses - totalRefunds;
+  // 3. Current Profit and Current Loss with automatic loss offset
+  // When profit covers the loss, loss automatically shows 0, and profit shows remaining profit after covering loss.
+  // When loss exceeds profit, profit shows 0, and loss shows the remaining uncovered loss.
+  const grossSalesProfit = totalSalesProfit + totalExtraIncome;
+  const grossSalesLoss = totalSalesLoss;
+  const currentProfitDisplay = Math.max(0, grossSalesProfit - grossSalesLoss);
+  const currentLossDisplay = Math.max(0, grossSalesLoss - grossSalesProfit);
+  const finalNetResult = (grossSalesProfit - grossSalesLoss) - totalExpenses - totalRefunds;
 
   // Calculate Daily Stats for Chart
   let chartDates = Array.from({ length: 7 }, (_, i) => {
@@ -1702,8 +1706,8 @@ const Dashboard = ({ data, user: propUser }: any) => {
 
   const stats = [
     { key: 'sales', type: 'revenue', label: t('netRevenue'), value: formatCurrency(netRevenue, 0), icon: DollarSign, color: 'bg-indigo-500' },
-    { key: 'sales', type: 'profit', label: t('currentProfit'), value: currentProfitDisplay < 0 ? `-${formatCurrency(Math.abs(currentProfitDisplay))}` : formatCurrency(currentProfitDisplay), icon: TrendingUp, color: currentProfitDisplay >= 0 ? 'bg-emerald-500' : 'bg-rose-500' },
-    { key: 'sales', type: 'loss', label: t('currentLoss'), value: formatCurrency(currentLossDisplay), icon: ArrowDownRight, color: 'bg-red-500' },
+    { key: 'sales', type: 'profit', label: t('currentProfit'), value: formatCurrency(currentProfitDisplay), icon: TrendingUp, color: 'bg-emerald-500' },
+    { key: 'sales', type: 'loss', label: t('currentLoss'), value: formatCurrency(currentLossDisplay), icon: ArrowDownRight, color: currentLossDisplay > 0 ? 'bg-red-500' : 'bg-slate-500' },
     { key: 'sales', type: 'net', label: t('netProfit'), value: (finalNetResult < 0 ? `-${formatCurrency(Math.abs(finalNetResult))}` : formatCurrency(finalNetResult)), icon: CheckCircle2, color: finalNetResult >= 0 ? 'bg-emerald-600' : 'bg-rose-600' },
     { key: 'expenses', type: 'expense', label: t('totalExpenses'), value: formatCurrency(totalExpenses, 0), icon: Receipt, color: 'bg-orange-500' },
     { key: 'returns', type: 'refund', label: t('totalRefunds'), value: formatCurrency(totalRefunds, 0), icon: RotateCcw, color: 'bg-slate-500' },
@@ -1905,16 +1909,16 @@ const Dashboard = ({ data, user: propUser }: any) => {
                 <stat.icon size={24} />
               </div>
               {stat.type === 'profit' && (
-                <span className={cn(
-                  "text-xs font-bold px-2 py-1 rounded-full",
-                  currentProfitDisplay >= 0 ? "text-emerald-600 bg-emerald-50" : "text-rose-600 bg-rose-50"
-                )}>
-                  {lang === 'bn' ? (currentProfitDisplay >= 0 ? 'বর্তমান লাভ' : 'বর্তমান ক্ষতি') : (currentProfitDisplay >= 0 ? 'Current Profit' : 'Net Loss')}
+                <span className="text-xs font-bold px-2 py-1 rounded-full text-emerald-600 bg-emerald-50">
+                  {lang === 'bn' ? 'বর্তমান লাভ' : 'Current Profit'}
                 </span>
               )}
               {stat.type === 'loss' && (
-                <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">
-                  {lang === 'bn' ? 'বিক্রয় ক্ষতি' : 'Sales Loss'}
+                <span className={cn(
+                  "text-xs font-bold px-2 py-1 rounded-full",
+                  currentLossDisplay > 0 ? "text-red-600 bg-red-50" : "text-emerald-700 bg-emerald-50"
+                )}>
+                  {lang === 'bn' ? (currentLossDisplay > 0 ? 'বিক্রয় ক্ষতি' : 'ক্ষতি কাভার্ড') : (currentLossDisplay > 0 ? 'Sales Loss' : 'Loss Covered')}
                 </span>
               )}
               {stat.type === 'net' && (
@@ -4897,10 +4901,12 @@ const Reports = ({ data, user: propUser }: any) => {
   const totalReturnsNet = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   const totalRevenue = totalSalesGross + totalReturnsNet;
 
-  // Consistent calculation reflecting Net Profit (Profit - Loss - Expenses - Refunds)
-  const currentProfit = (totalSalesProfit + totalExtraIncome) - totalSalesLoss;
-  const currentLoss = totalSalesLoss;
-  const finalNet = currentProfit - totalExpenses - totalRefunds;
+  // Consistent calculation reflecting Profit and Loss with automatic loss coverage offset
+  const grossSalesProfit = totalSalesProfit + totalExtraIncome;
+  const grossSalesLoss = totalSalesLoss;
+  const currentProfit = Math.max(0, grossSalesProfit - grossSalesLoss);
+  const currentLoss = Math.max(0, grossSalesLoss - grossSalesProfit);
+  const finalNet = (grossSalesProfit - grossSalesLoss) - totalExpenses - totalRefunds;
   const netProfit = finalNet;
 
   // Group sales by date for a simple chart
@@ -5305,21 +5311,21 @@ const Reports = ({ data, user: propUser }: any) => {
           </div>
         </Card>
         <Card className="p-6">
-          <p className={cn("text-sm font-medium", currentProfit >= 0 ? "text-emerald-600" : "text-rose-600")}>{t('currentProfit')}</p>
-          <h3 className={cn("text-2xl font-bold mt-1", currentProfit >= 0 ? "text-emerald-600" : "text-rose-600")}>
-            {currentProfit < 0 ? `-${formatCurrency(Math.abs(currentProfit))}` : formatCurrency(currentProfit)}
+          <p className="text-sm font-medium text-emerald-600">{t('currentProfit')}</p>
+          <h3 className="text-2xl font-bold mt-1 text-emerald-600">
+            {formatCurrency(currentProfit)}
           </h3>
           <div className="mt-2 text-xs text-slate-400">
-            {lang === 'bn' ? 'বিক্রয় লাভ (ক্ষতি সমন্বিত)' : 'Profit from Sales (after loss)'}
+            {lang === 'bn' ? 'বর্তমান লাভ (ক্ষতি সমন্বিত)' : 'Current Profit (after loss)'}
           </div>
         </Card>
         <Card className="p-6">
-          <p className="text-sm text-slate-500 font-medium text-red-600">{t('currentLoss')}</p>
-          <h3 className="text-2xl font-bold text-red-600 mt-1">
+          <p className={cn("text-sm font-medium", currentLoss > 0 ? "text-red-600" : "text-slate-500")}>{t('currentLoss')}</p>
+          <h3 className={cn("text-2xl font-bold mt-1", currentLoss > 0 ? "text-red-600" : "text-slate-700")}>
             {formatCurrency(currentLoss)}
           </h3>
           <div className="mt-2 text-xs text-slate-400">
-            Sales Loss + Expenses
+            {lang === 'bn' ? (currentLoss === 0 ? 'ক্ষতি কাভার্ড (০.০০)' : 'অবশিষ্ট ক্ষতি') : (currentLoss === 0 ? 'Loss Covered (0.00)' : 'Remaining Loss')}
           </div>
         </Card>
         <Card className="p-6">
