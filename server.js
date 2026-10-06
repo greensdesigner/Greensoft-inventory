@@ -190,6 +190,8 @@ async function ensureAllTables() {
         await checkAndAddColumn(conn, 'sales', 'customerAddress', 'TEXT');
         await checkAndAddColumn(conn, 'sales', 'invoiceNo', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'sales', 'paid', 'DECIMAL(10,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'sales', 'due', 'DECIMAL(10,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'sales', 'dueDate', 'VARCHAR(50)');
         await checkAndAddColumn(conn, 'sales', 'paymentMethod', 'VARCHAR(50)');
         await checkAndAddColumn(conn, 'sales', 'status', 'VARCHAR(50)');
         
@@ -202,6 +204,7 @@ async function ensureAllTables() {
         await checkAndAddColumn(conn, 'customers', 'address', 'TEXT');
         await checkAndAddColumn(conn, 'customers', 'orders', 'INT DEFAULT 0');
         await checkAndAddColumn(conn, 'customers', 'spent', 'DECIMAL(10,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'customers', 'due', 'DECIMAL(10,2) DEFAULT 0');
         
         await checkAndAddColumn(conn, 'expenses', 'amount', 'DECIMAL(10,2) DEFAULT 0');
         await checkAndAddColumn(conn, 'expenses', 'date', 'VARCHAR(50)');

@@ -895,7 +895,8 @@ const useData = (user: any) => {
       return {
         ...item,
         total: n(item.total),
-        paid: n(item.paid)
+        paid: n(item.paid),
+        due: n(item.due)
       };
     }
     if (key === 'expenses') {
@@ -914,7 +915,8 @@ const useData = (user: any) => {
       return {
         ...item,
         orders: n(item.orders),
-        spent: n(item.spent)
+        spent: n(item.spent),
+        due: n(item.due)
       };
     }
     return item;
@@ -2798,6 +2800,9 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
         ? Number(sale.totalTax) 
         : Math.max(0, Number(sale.total) - subtotalVal);
 
+      const saleDue = sale.due !== undefined ? Number(sale.due) : 0;
+      const salePaid = sale.paid !== undefined ? Number(sale.paid) : (Number(sale.total) - saleDue);
+
       return (
         <div className="flex justify-end" style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <div style={{ width: '250px' }}>
@@ -2813,6 +2818,28 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
               <span>Total</span>
               <span style={{ color: '#059669' }}>{formatCurrency(sale.total)}</span>
             </div>
+            {saleDue > 0 ? (
+              <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669', fontWeight: '600', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                  <span>Paid Amount</span>
+                  <span>{formatCurrency(salePaid)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626', fontWeight: 'bold', fontSize: '1rem' }}>
+                  <span>Due Amount</span>
+                  <span>{formatCurrency(saleDue)}</span>
+                </div>
+                {sale.dueDate && (
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'right', marginTop: '0.25rem' }}>
+                    Due Date: {sale.dueDate}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669', fontSize: '0.875rem', fontWeight: '600', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1' }}>
+                <span>Paid (Full)</span>
+                <span>{formatCurrency(sale.total)}</span>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -3143,8 +3170,13 @@ const Sales = ({ data }: any) => {
       productName: '',
       brand: ''
     }],
+    paidAmount: '',
+    dueAmount: '0',
+    paymentMethod: 'Cash',
+    dueDate: '',
     date: getTodayStr() 
   });
+  const [paymentType, setPaymentType] = useState<'full_paid' | 'partial_due' | 'full_due'>('full_paid');
 
   const calculateItemPriceWithTax = (price: number, qty: any, taxRate: any) => {
     const q = parseBanglaInt(qty, 1);
@@ -3311,6 +3343,82 @@ const Sales = ({ data }: any) => {
 
   const totalAmount = newSale.items.reduce((acc, item) => acc + (parseFloat(item.total) || 0), 0);
 
+  // Dynamic Payment & Due Calculations
+  const effectivePaid = paymentType === 'full_paid'
+    ? totalAmount
+    : paymentType === 'full_due'
+      ? 0
+      : Math.min(totalAmount, Math.max(0, parseFloat(newSale.paidAmount) || 0));
+  const effectiveDue = Math.max(0, totalAmount - effectivePaid);
+
+  const handlePaymentTypeChange = (type: 'full_paid' | 'partial_due' | 'full_due') => {
+    setPaymentType(type);
+    if (type === 'full_paid') {
+      setNewSale(prev => ({
+        ...prev,
+        paidAmount: totalAmount > 0 ? totalAmount.toFixed(2) : '',
+        dueAmount: '0'
+      }));
+    } else if (type === 'full_due') {
+      setNewSale(prev => ({
+        ...prev,
+        paidAmount: '0',
+        dueAmount: totalAmount > 0 ? totalAmount.toFixed(2) : ''
+      }));
+    } else {
+      const currentPaid = parseFloat(newSale.paidAmount) || 0;
+      const initialPaid = currentPaid > 0 && currentPaid < totalAmount 
+        ? currentPaid 
+        : Math.round((totalAmount / 2) * 100) / 100;
+      const initialDue = Math.max(0, totalAmount - initialPaid);
+      setNewSale(prev => ({
+        ...prev,
+        paidAmount: initialPaid > 0 ? initialPaid.toString() : '',
+        dueAmount: initialDue > 0 ? initialDue.toFixed(2) : '0'
+      }));
+    }
+  };
+
+  const handlePaidAmountChange = (val: string) => {
+    const num = parseFloat(val) || 0;
+    const clampedPaid = Math.min(totalAmount, Math.max(0, num));
+    const calculatedDue = Math.max(0, totalAmount - clampedPaid);
+    
+    setNewSale(prev => ({
+      ...prev,
+      paidAmount: val,
+      dueAmount: calculatedDue.toFixed(2)
+    }));
+
+    if (calculatedDue <= 0.001) {
+      setPaymentType('full_paid');
+    } else if (clampedPaid <= 0.001) {
+      setPaymentType('full_due');
+    } else {
+      setPaymentType('partial_due');
+    }
+  };
+
+  const handleDueAmountChange = (val: string) => {
+    const num = parseFloat(val) || 0;
+    const clampedDue = Math.min(totalAmount, Math.max(0, num));
+    const calculatedPaid = Math.max(0, totalAmount - clampedDue);
+
+    setNewSale(prev => ({
+      ...prev,
+      dueAmount: val,
+      paidAmount: calculatedPaid.toFixed(2)
+    }));
+
+    if (clampedDue <= 0.001) {
+      setPaymentType('full_paid');
+    } else if (calculatedPaid <= 0.001) {
+      setPaymentType('full_due');
+    } else {
+      setPaymentType('partial_due');
+    }
+  };
+
   const handleAdd = (e: FormEvent) => {
     e.preventDefault();
     
@@ -3330,7 +3438,11 @@ const Sales = ({ data }: any) => {
       }
     }
 
-    // 1. Add Sale with correct authentic purchase cost and selling price
+    const finalPaid = Number(effectivePaid.toFixed(2));
+    const finalDue = Number(effectiveDue.toFixed(2));
+    const paymentStatus = finalDue <= 0 ? 'Paid' : (finalPaid > 0 ? 'Partial' : 'Due');
+
+    // 1. Add Sale with correct authentic purchase cost, selling price, and Due tracking
     data.addSale({
       customerName: newSale.customerName.trim() || (lang === 'bn' ? 'তৎক্ষণাৎ ক্রেতা' : 'Walk-in Customer'),
       customerPhone: newSale.customerPhone,
@@ -3360,6 +3472,11 @@ const Sales = ({ data }: any) => {
       subtotal: calculatedSubtotal,
       totalTax: calculatedTax,
       total: totalAmount,
+      paid: finalPaid,
+      due: finalDue,
+      paymentMethod: newSale.paymentMethod || 'Cash',
+      paymentStatus: paymentStatus,
+      dueDate: finalDue > 0 ? newSale.dueDate : '',
       date: newSale.date
     });
 
@@ -3373,12 +3490,11 @@ const Sales = ({ data }: any) => {
       }
     });
 
-    // 3. Update/Add Customer (Strong focus on Name for distinctness)
+    // 3. Update/Add Customer (with due balance tracking)
     const custName = newSale.customerName.trim();
     if (custName) {
       const searchName = custName.toLowerCase();
       
-      // Match by Name only to ensure "Sam" and "jean" with same phone stay separate
       const existingCustomer = data.customers.find((c: any) => 
         (c.name || '').trim().toLowerCase() === searchName
       );
@@ -3387,6 +3503,7 @@ const Sales = ({ data }: any) => {
         data.editItem('customers', existingCustomer.id, {
           orders: (Number(existingCustomer.orders) || 0) + 1,
           spent: (Number(existingCustomer.spent) || 0) + totalAmount,
+          due: (Number(existingCustomer.due) || 0) + finalDue,
           phone: newSale.customerPhone || existingCustomer.phone,
           email: newSale.customerEmail || existingCustomer.email,
           address: newSale.customerAddress || existingCustomer.address
@@ -3398,7 +3515,8 @@ const Sales = ({ data }: any) => {
           phone: newSale.customerPhone,
           address: newSale.customerAddress,
           orders: 1,
-          spent: totalAmount
+          spent: totalAmount,
+          due: finalDue
         });
       }
     }
@@ -3420,8 +3538,13 @@ const Sales = ({ data }: any) => {
         productName: '',
         brand: ''
       }],
+      paidAmount: '',
+      dueAmount: '0',
+      paymentMethod: 'Cash',
+      dueDate: '',
       date: getTodayStr() 
     });
+    setPaymentType('full_paid');
     setIsModalOpen(false);
   };
 
@@ -3485,16 +3608,35 @@ const Sales = ({ data }: any) => {
                 <td className="px-6 py-4 text-sm text-slate-600">{(item.date || '').split('T')[0]}</td>
                 <td className="px-6 py-4">
                   <div className="font-semibold text-slate-900">{formatCurrency(item.total)}</div>
+                  {/* Due / Paid Badge */}
+                  {item.due !== undefined && Number(item.due) > 0 ? (
+                    <div className="flex flex-col gap-0.5 mt-1">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200/60 px-2 py-0.5 rounded-md w-fit">
+                        <AlertCircle size={10} />
+                        {lang === 'bn' ? `বকেয়া: ${formatCurrency(item.due)}` : `Due: ${formatCurrency(item.due)}`}
+                      </span>
+                      {Number(item.paid) > 0 && (
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          {lang === 'bn' ? `পরিশোধ: ${formatCurrency(item.paid)}` : `Paid: ${formatCurrency(item.paid)}`}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md mt-1 w-fit">
+                      <CheckCircle2 size={10} />
+                      {lang === 'bn' ? 'পরিশোধিত' : 'Paid in Full'}
+                    </span>
+                  )}
                   {(() => {
                     const sPL = calculateSalesProfitAndLoss([item], data.inventory);
                     const net = sPL.totalSalesProfit - sPL.totalSalesLoss;
                     if (net > 0) {
-                      return <div className="text-[11px] font-bold text-emerald-600">+{formatCurrency(net)} {lang === 'bn' ? 'লাভ' : 'Profit'}</div>;
+                      return <div className="text-[11px] font-bold text-emerald-600 mt-1">+{formatCurrency(net)} {lang === 'bn' ? 'লাভ' : 'Profit'}</div>;
                     }
                     if (net < 0) {
-                      return <div className="text-[11px] font-bold text-rose-600">-{formatCurrency(Math.abs(net))} {lang === 'bn' ? 'ক্ষতি' : 'Loss'}</div>;
+                      return <div className="text-[11px] font-bold text-rose-600 mt-1">-{formatCurrency(Math.abs(net))} {lang === 'bn' ? 'ক্ষতি' : 'Loss'}</div>;
                     }
-                    return <div className="text-[11px] font-medium text-slate-400">±{formatCurrency(0)}</div>;
+                    return null;
                   })()}
                 </td>
                 <td className="px-6 py-4">
@@ -3905,6 +4047,185 @@ const Sales = ({ data }: any) => {
                 <span className="text-2xl font-black text-emerald-600">{formatCurrency(totalAmount)}</span>
               </div>
             </div>
+
+            {/* Payment & Due Amount Section */}
+            <div className="mb-6 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200/90 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                    <CreditCard size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-800">
+                      {lang === 'bn' ? 'পেমেন্ট ও বকেয়া সংক্রান্ত তথ্য' : 'Payment & Due Details'}
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      {lang === 'bn' ? 'নগদ জমা ও বকেয়া (Due) হিসাব পরিচালনা করুন' : 'Manage payment received and credit due'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => handlePaymentTypeChange('full_paid')}
+                    className={cn(
+                      "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
+                      paymentType === 'full_paid' 
+                        ? "bg-white text-emerald-700 shadow-xs" 
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    {lang === 'bn' ? 'সম্পূর্ণ পরিশোধ' : 'Full Paid'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePaymentTypeChange('partial_due')}
+                    className={cn(
+                      "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
+                      paymentType === 'partial_due' 
+                        ? "bg-white text-amber-700 shadow-xs" 
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    {lang === 'bn' ? 'আংশিক বকেয়া' : 'Partial Due'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePaymentTypeChange('full_due')}
+                    className={cn(
+                      "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
+                      paymentType === 'full_due' 
+                        ? "bg-white text-rose-700 shadow-xs" 
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    {lang === 'bn' ? 'সম্পূর্ণ বাকি' : 'Full Due'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+                {/* Payment Method */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    {lang === 'bn' ? 'পেমেন্ট মেথড' : 'Payment Method'}
+                  </label>
+                  <select
+                    value={newSale.paymentMethod}
+                    onChange={e => setNewSale({ ...newSale, paymentMethod: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                  >
+                    <option value="Cash">{lang === 'bn' ? 'নগদ (Cash)' : 'Cash'}</option>
+                    <option value="bKash">{lang === 'bn' ? 'বিকাশ (bKash)' : 'bKash'}</option>
+                    <option value="Nagad">{lang === 'bn' ? 'নগদ (Nagad)' : 'Nagad'}</option>
+                    <option value="Rocket">{lang === 'bn' ? 'রকেট (Rocket)' : 'Rocket'}</option>
+                    <option value="Bank">{lang === 'bn' ? 'ব্যাংক (Bank Transfer)' : 'Bank Transfer'}</option>
+                    <option value="Card">{lang === 'bn' ? 'কার্ড (Card / POS)' : 'Card'}</option>
+                    <option value="Other">{lang === 'bn' ? 'অন্যান্য (Other)' : 'Other'}</option>
+                  </select>
+                </div>
+
+                {/* Paid Amount */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    {lang === 'bn' ? 'পরিশোধিত টাকা (Paid Amount)' : 'Paid Amount'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={totalAmount}
+                      value={paymentType === 'full_paid' ? (totalAmount > 0 ? totalAmount.toFixed(2) : '') : newSale.paidAmount}
+                      onChange={e => handlePaidAmountChange(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full pl-3 pr-7 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-emerald-700 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                      {lang === 'bn' ? '৳' : '$'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Due Amount Form Input */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center justify-between">
+                    <span>{lang === 'bn' ? 'বকেয়া টাকা (Due Amount)' : 'Due Amount'}</span>
+                    {effectiveDue > 0 && (
+                      <span className="text-[10px] text-rose-600 font-black uppercase">
+                        {lang === 'bn' ? 'বাকি' : 'Due'}
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={totalAmount}
+                      value={paymentType === 'full_due' ? (totalAmount > 0 ? totalAmount.toFixed(2) : '') : (paymentType === 'full_paid' ? '0' : (newSale.dueAmount !== undefined ? newSale.dueAmount : effectiveDue.toFixed(2)))}
+                      onChange={e => handleDueAmountChange(e.target.value)}
+                      placeholder="0.00"
+                      className={cn(
+                        "w-full pl-3 pr-7 py-2 bg-white border rounded-xl text-sm font-bold focus:ring-2 outline-none transition-all",
+                        effectiveDue > 0 
+                          ? "border-rose-400 text-rose-700 focus:ring-rose-500/20 bg-rose-50/40" 
+                          : "border-slate-200 text-slate-700 focus:ring-emerald-500/20"
+                      )}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                      {lang === 'bn' ? '৳' : '$'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Due Payment Date (Promise Date) */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    {lang === 'bn' ? 'পরিশোধের তারিখ (Due Date)' : 'Due Date'}
+                  </label>
+                  <input
+                    type="date"
+                    value={newSale.dueDate}
+                    onChange={e => setNewSale({ ...newSale, dueDate: e.target.value })}
+                    disabled={effectiveDue <= 0}
+                    className={cn(
+                      "w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all",
+                      effectiveDue > 0 
+                        ? "bg-white border-slate-200 focus:ring-2 focus:ring-amber-500/20 text-slate-800" 
+                        : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Dynamic Due Banner Notification */}
+              {effectiveDue > 0 && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-rose-800">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle size={17} className="text-rose-600 shrink-0" />
+                    <span>
+                      <strong>{lang === 'bn' ? 'বকেয়া বার্তা:' : 'Due Notice:'}</strong>{' '}
+                      {lang === 'bn' 
+                        ? `এই অর্ডারে ${formatCurrency(effectiveDue)} টাকা বকেয়া থাকবে।`
+                        : `This order has a remaining due amount of ${formatCurrency(effectiveDue)}.`}
+                      {!newSale.customerName && (
+                        <span className="block text-[11px] text-rose-600 font-semibold mt-0.5">
+                          {lang === 'bn' ? '⚠️ বকেয়া হিসাব রাখার জন্য উপরে ক্রেতার নাম বা ফোন নম্বর যুক্ত করুন।' : '⚠️ Please add customer name or phone above to keep track of this due.'}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                    <span className="font-bold bg-rose-200/90 text-rose-900 px-2.5 py-1 rounded-lg text-xs">
+                      {lang === 'bn' ? 'বকেয়া: ' : 'Due: '} {formatCurrency(effectiveDue)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -4154,7 +4475,7 @@ const Customers = ({ data }: any) => {
       />
       <Card>
         {data.customers.length > 0 ? (
-          <Table headers={['Customer Name', 'Contact Info', 'Total Orders', 'Total Spent', 'Actions']}>
+          <Table headers={['Customer Name', 'Contact Info', 'Total Orders', 'Total Spent', 'Due Amount', 'Actions']}>
             {[...data.customers].sort((a: any, b: any) => b.id.localeCompare(a.id)).map((item: any) => (
               <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4">
@@ -4170,6 +4491,16 @@ const Customers = ({ data }: any) => {
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{item.orders}</td>
                 <td className="px-6 py-4 font-semibold text-slate-900">{formatCurrency(item.spent)}</td>
+                <td className="px-6 py-4">
+                  {Number(item.due) > 0 ? (
+                    <span className="inline-flex items-center gap-1 font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md text-xs">
+                      <AlertCircle size={10} />
+                      {formatCurrency(item.due)}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-400 font-medium">{formatCurrency(0)}</span>
+                  )}
+                </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <button 
