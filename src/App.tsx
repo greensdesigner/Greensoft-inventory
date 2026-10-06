@@ -95,7 +95,9 @@ import {
   AlertTriangle,
   UserCheck,
   UserX,
-  Camera
+  Camera,
+  ChevronDown,
+  Globe
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -463,9 +465,164 @@ const parseBanglaFloat = (val: any, fallback = 0): number => {
 
 const f2 = (num: any) => (Number(num) || 0).toFixed(2);
 
-const useCurrency = () => {
+// --- CURRENCY SYSTEM & LOCATION AUTO-DETECTION ---
+export interface CurrencyInfo {
+  code: string;
+  symbol: string;
+  name: string;
+  country: string;
+  flag: string;
+}
+
+export const SUPPORTED_CURRENCIES: CurrencyInfo[] = [
+  { code: 'BDT', symbol: '৳', name: 'টাকা (Taka)', country: 'Bangladesh', flag: '🇧🇩' },
+  { code: 'USD', symbol: '$', name: 'US Dollar', country: 'United States', flag: '🇺🇸' },
+  { code: 'EUR', symbol: '€', name: 'Euro', country: 'European Union', flag: '🇪🇺' },
+  { code: 'GBP', symbol: '£', name: 'British Pound', country: 'United Kingdom', flag: '🇬🇧' },
+  { code: 'INR', symbol: '₹', name: 'Indian Rupee', country: 'India', flag: '🇮🇳' },
+  { code: 'SAR', symbol: '﷼', name: 'Saudi Riyal', country: 'Saudi Arabia', flag: '🇸🇦' },
+  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham', country: 'United Arab Emirates', flag: '🇦🇪' },
+  { code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit', country: 'Malaysia', flag: '🇲🇾' },
+  { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar', country: 'Singapore', flag: '🇸🇬' },
+  { code: 'CAD', symbol: 'CA$', name: 'Canadian Dollar', country: 'Canada', flag: '🇨🇦' },
+  { code: 'AUD', symbol: 'AU$', name: 'Australian Dollar', country: 'Australia', flag: '🇦🇺' },
+  { code: 'JPY', symbol: '¥', name: 'Japanese Yen', country: 'Japan', flag: '🇯🇵' },
+  { code: 'QAR', symbol: 'QR', name: 'Qatari Riyal', country: 'Qatar', flag: '🇶🇦' },
+  { code: 'KWD', symbol: 'KD', name: 'Kuwaiti Dinar', country: 'Kuwait', flag: '🇰🇼' },
+  { code: 'OMR', symbol: 'OMR', name: 'Omani Rial', country: 'Oman', flag: '🇴🇲' },
+  { code: 'PKR', symbol: 'Rs', name: 'Pakistani Rupee', country: 'Pakistan', flag: '🇵🇰' }
+];
+
+const detectCurrencyFromLocation = (): { code: string; country: string } => {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    if (tz) {
+      if (tz.includes('Dhaka')) return { code: 'BDT', country: 'Bangladesh' };
+      if (tz.includes('Kolkata') || tz.includes('Calcutta')) return { code: 'INR', country: 'India' };
+      if (tz.includes('Riyadh')) return { code: 'SAR', country: 'Saudi Arabia' };
+      if (tz.includes('Dubai')) return { code: 'AED', country: 'United Arab Emirates' };
+      if (tz.includes('London')) return { code: 'GBP', country: 'United Kingdom' };
+      if (tz.startsWith('Europe/')) return { code: 'EUR', country: 'Europe' };
+      if (tz.includes('Toronto') || tz.includes('Vancouver') || tz.includes('Montreal')) return { code: 'CAD', country: 'Canada' };
+      if (tz.startsWith('America/')) return { code: 'USD', country: 'United States' };
+      if (tz.startsWith('Australia/')) return { code: 'AUD', country: 'Australia' };
+      if (tz.includes('Tokyo')) return { code: 'JPY', country: 'Japan' };
+      if (tz.includes('Kuala_Lumpur')) return { code: 'MYR', country: 'Malaysia' };
+      if (tz.includes('Singapore')) return { code: 'SGD', country: 'Singapore' };
+      if (tz.includes('Qatar')) return { code: 'QAR', country: 'Qatar' };
+      if (tz.includes('Kuwait')) return { code: 'KWD', country: 'Kuwait' };
+      if (tz.includes('Karachi')) return { code: 'PKR', country: 'Pakistan' };
+      if (tz.includes('Muscat')) return { code: 'OMR', country: 'Oman' };
+    }
+
+    const navLang = (navigator.language || '').toLowerCase();
+    if (navLang.includes('bd') || navLang.startsWith('bn')) return { code: 'BDT', country: 'Bangladesh' };
+    if (navLang.includes('in') || navLang.startsWith('hi')) return { code: 'INR', country: 'India' };
+    if (navLang.includes('sa')) return { code: 'SAR', country: 'Saudi Arabia' };
+    if (navLang.includes('ae')) return { code: 'AED', country: 'United Arab Emirates' };
+    if (navLang.includes('gb')) return { code: 'GBP', country: 'United Kingdom' };
+    if (navLang.includes('us')) return { code: 'USD', country: 'United States' };
+    if (navLang.includes('ca')) return { code: 'CAD', country: 'Canada' };
+    if (navLang.includes('au')) return { code: 'AUD', country: 'Australia' };
+    if (navLang.includes('jp') || navLang.startsWith('ja')) return { code: 'JPY', country: 'Japan' };
+  } catch (e) {
+    // fallback
+  }
+  return { code: 'BDT', country: 'Bangladesh' };
+};
+
+interface CurrencyContextType {
+  currency: CurrencyInfo;
+  currencyCode: string;
+  currencySymbol: string;
+  isAutoLocation: boolean;
+  detectedLocation: string;
+  setCurrencyCode: (code: string) => void;
+  enableAutoLocation: () => void;
+  supportedCurrencies: CurrencyInfo[];
+  formatCurrency: (amount: number | string, decimals?: number) => string;
+  toBengaliNumber: (num: string | number) => string;
+}
+
+const CurrencyContext = React.createContext<CurrencyContextType | null>(null);
+
+const CurrencyProvider = ({ children }: { children: ReactNode }) => {
   const { lang } = useTranslation();
   
+  const [currencyCode, setCurrencyCodeState] = useState<string>(() => {
+    const savedCode = localStorage.getItem('app_currency_code');
+    const isManual = localStorage.getItem('app_currency_manual') === 'true';
+    if (isManual && savedCode && SUPPORTED_CURRENCIES.some(c => c.code === savedCode)) {
+      return savedCode;
+    }
+    const detected = detectCurrencyFromLocation();
+    return detected.code;
+  });
+
+  const [isAutoLocation, setIsAutoLocation] = useState<boolean>(() => {
+    return localStorage.getItem('app_currency_manual') !== 'true';
+  });
+
+  const [detectedLocation, setDetectedLocation] = useState<string>(() => {
+    return detectCurrencyFromLocation().country;
+  });
+
+  // Background IP lookup for precise Geo Location if auto mode is enabled
+  useEffect(() => {
+    if (!isAutoLocation) return;
+
+    let isMounted = true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+
+    fetch('https://ipwho.is/', { signal: controller.signal })
+      .then(res => res.json())
+      .then(data => {
+        clearTimeout(timer);
+        if (!isMounted || !data || !data.success) return;
+        
+        const country = data.country || '';
+        const currencyData = data.currency || {};
+        const code = (currencyData.code || '').toUpperCase();
+
+        if (country) setDetectedLocation(country);
+
+        if (code && SUPPORTED_CURRENCIES.some(c => c.code === code)) {
+          setCurrencyCodeState(code);
+          localStorage.setItem('app_currency_code', code);
+        }
+      })
+      .catch(() => {
+        // Fallback already handled by client timezone
+      });
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [isAutoLocation]);
+
+  const activeCurrency = SUPPORTED_CURRENCIES.find(c => c.code === currencyCode) || SUPPORTED_CURRENCIES[0];
+
+  const setCurrencyCode = (code: string) => {
+    if (SUPPORTED_CURRENCIES.some(c => c.code === code)) {
+      setCurrencyCodeState(code);
+      setIsAutoLocation(false);
+      localStorage.setItem('app_currency_code', code);
+      localStorage.setItem('app_currency_manual', 'true');
+    }
+  };
+
+  const enableAutoLocation = () => {
+    setIsAutoLocation(true);
+    localStorage.removeItem('app_currency_manual');
+    const detected = detectCurrencyFromLocation();
+    setCurrencyCodeState(detected.code);
+    setDetectedLocation(detected.country);
+    localStorage.setItem('app_currency_code', detected.code);
+  };
+
   const toBengaliNumber = (num: string | number): string => {
     const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
     return num.toString().replace(/\d/g, (digit) => bengaliDigits[parseInt(digit)]);
@@ -473,18 +630,231 @@ const useCurrency = () => {
 
   const formatCurrency = (amount: number | string, decimals: number = 2) => {
     const num = Number(amount) || 0;
-    const formatted = num.toLocaleString(lang === 'bn' ? 'bn-BD' : 'en-US', {
+    const isBnNum = lang === 'bn' && activeCurrency.code === 'BDT';
+    const formatted = num.toLocaleString(isBnNum ? 'bn-BD' : 'en-US', {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals
     });
 
-    if (lang === 'bn') {
-      return `৳${toBengaliNumber(formatted)}`;
+    if (isBnNum) {
+      return `${activeCurrency.symbol}${toBengaliNumber(formatted)}`;
     }
-    return `$${formatted}`;
+    return `${activeCurrency.symbol}${formatted}`;
   };
 
-  return { formatCurrency, toBengaliNumber };
+  return (
+    <CurrencyContext.Provider value={{
+      currency: activeCurrency,
+      currencyCode,
+      currencySymbol: activeCurrency.symbol,
+      isAutoLocation,
+      detectedLocation,
+      setCurrencyCode,
+      enableAutoLocation,
+      supportedCurrencies: SUPPORTED_CURRENCIES,
+      formatCurrency,
+      toBengaliNumber
+    }}>
+      {children}
+    </CurrencyContext.Provider>
+  );
+};
+
+const useCurrency = () => {
+  const ctx = React.useContext(CurrencyContext);
+  if (!ctx) {
+    const { lang } = useTranslation();
+    const toBengaliNumber = (num: string | number): string => {
+      const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+      return num.toString().replace(/\d/g, (digit) => bengaliDigits[parseInt(digit)]);
+    };
+    const formatCurrency = (amount: number | string, decimals: number = 2) => {
+      const num = Number(amount) || 0;
+      const formatted = num.toLocaleString(lang === 'bn' ? 'bn-BD' : 'en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
+      return lang === 'bn' ? `৳${toBengaliNumber(formatted)}` : `$${formatted}`;
+    };
+    return {
+      currency: SUPPORTED_CURRENCIES[0],
+      currencyCode: 'BDT',
+      currencySymbol: '৳',
+      isAutoLocation: true,
+      detectedLocation: 'Bangladesh',
+      setCurrencyCode: () => {},
+      enableAutoLocation: () => {},
+      supportedCurrencies: SUPPORTED_CURRENCIES,
+      formatCurrency,
+      toBengaliNumber
+    };
+  }
+  return ctx;
+};
+
+// UI Component for selecting currency with auto location toggle
+const CurrencySelector = ({ compact = false }: { compact?: boolean }) => {
+  const { 
+    currency, 
+    currencyCode, 
+    isAutoLocation, 
+    detectedLocation, 
+    setCurrencyCode, 
+    enableAutoLocation, 
+    supportedCurrencies 
+  } = useCurrency();
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const { lang } = useTranslation();
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const filtered = supportedCurrencies.filter(c => 
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    c.code.toLowerCase().includes(search.toLowerCase()) ||
+    c.country.toLowerCase().includes(search.toLowerCase()) ||
+    c.symbol.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-xs font-bold",
+          isOpen 
+            ? "bg-emerald-50 border-emerald-300 text-emerald-800 ring-2 ring-emerald-500/20" 
+            : "bg-white border-slate-200 hover:border-slate-300 text-slate-700 shadow-xs"
+        )}
+        title={lang === 'bn' ? 'মুদ্রার প্রতীক পরিবর্তন করুন' : 'Change Currency Symbol'}
+      >
+        <span className="text-base leading-none">{currency.flag}</span>
+        <span className="font-black text-emerald-700 text-sm">{currency.symbol}</span>
+        <span className="text-slate-800 font-semibold">{currency.code}</span>
+        {isAutoLocation ? (
+          <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            {lang === 'bn' ? 'স্বয়ংক্রিয়' : 'Auto'}
+          </span>
+        ) : (
+          <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[9px] font-bold">
+            {lang === 'bn' ? 'ম্যানুয়াল' : 'Manual'}
+          </span>
+        )}
+        <ChevronDown size={14} className={cn("text-slate-400 transition-transform duration-200", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200/90 z-50 p-3 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div>
+              <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Globe size={13} className="text-emerald-600" />
+                {lang === 'bn' ? 'মুদ্রার প্রতীক নির্বাচন' : 'Currency Symbol'}
+              </div>
+              <div className="text-[10px] text-slate-500">
+                {isAutoLocation 
+                  ? (lang === 'bn' ? `লোকেশন: ${detectedLocation}` : `Location: ${detectedLocation}`)
+                  : (lang === 'bn' ? 'কাস্টম মুদ্রা সক্রিয়' : 'Custom Currency Active')}
+              </div>
+            </div>
+            
+            {!isAutoLocation && (
+              <button
+                type="button"
+                onClick={() => {
+                  enableAutoLocation();
+                  setIsOpen(false);
+                }}
+                className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
+                title={lang === 'bn' ? 'লোকেশন অনুযায়ী স্বয়ংক্রিয় করুন' : 'Reset to auto location'}
+              >
+                <RefreshCw size={10} />
+                {lang === 'bn' ? 'স্বয়ংক্রিয়' : 'Auto'}
+              </button>
+            )}
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={lang === 'bn' ? 'মুদ্রা বা দেশ খুঁজুন...' : 'Search currency or country...'}
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              autoFocus
+            />
+          </div>
+
+          {/* Currencies List */}
+          <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1 pr-1">
+            {filtered.map(c => {
+              const isSelected = c.code === currencyCode;
+              return (
+                <button
+                  key={c.code}
+                  type="button"
+                  onClick={() => {
+                    setCurrencyCode(c.code);
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center justify-between p-2 rounded-xl text-xs transition-all text-left",
+                    isSelected 
+                      ? "bg-emerald-50 text-emerald-900 font-bold border border-emerald-200/80" 
+                      : "hover:bg-slate-50 text-slate-700 font-medium"
+                  )}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg leading-none">{c.flag}</span>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-emerald-700 text-sm">{c.symbol}</span>
+                        <span className="font-bold text-slate-900">{c.code}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 leading-tight">
+                        {c.country} • {c.name}
+                      </div>
+                    </div>
+                  </div>
+                  {isSelected && (
+                    <span className="text-emerald-600 bg-emerald-100 p-1 rounded-full">
+                      <CheckCircle2 size={13} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {filtered.length === 0 && (
+              <div className="text-center py-4 text-xs text-slate-400">
+                {lang === 'bn' ? 'কোন মুদ্রা পাওয়া যায়নি' : 'No currency found'}
+              </div>
+            )}
+          </div>
+
+          {/* Footer note */}
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+            <span>{lang === 'bn' ? 'লোকেশন অনুযায়ী কারেন্সি স্বয়ংক্রিয়ভাবে সেট হয়' : 'Currency auto-adjusts by location'}</span>
+            <span className="font-mono font-bold text-slate-600">{currency.symbol}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 const getTodayStr = () => {
@@ -1833,6 +2203,7 @@ const Dashboard = ({ data, user: propUser }: any) => {
           <p className="text-sm text-slate-500">{t('businessPerformance')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 no-pdf-export">
+          <CurrencySelector />
           <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit">
             <button 
               onClick={() => setTimeFilter('today')}
@@ -3152,7 +3523,7 @@ const Sales = ({ data }: any) => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const { t, lang } = useTranslation();
-  const { formatCurrency, toBengaliNumber } = useCurrency();
+  const { formatCurrency, toBengaliNumber, currency } = useCurrency();
   const [newSale, setNewSale] = useState({ 
     customerName: '', 
     customerPhone: '',
@@ -4065,44 +4436,48 @@ const Sales = ({ data }: any) => {
                   </div>
                 </div>
 
-                {/* Quick Presets */}
-                <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl self-start sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => handlePaymentTypeChange('full_paid')}
-                    className={cn(
-                      "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
-                      paymentType === 'full_paid' 
-                        ? "bg-white text-emerald-700 shadow-xs" 
-                        : "text-slate-600 hover:text-slate-900"
-                    )}
-                  >
-                    {lang === 'bn' ? 'সম্পূর্ণ পরিশোধ' : 'Full Paid'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePaymentTypeChange('partial_due')}
-                    className={cn(
-                      "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
-                      paymentType === 'partial_due' 
-                        ? "bg-white text-amber-700 shadow-xs" 
-                        : "text-slate-600 hover:text-slate-900"
-                    )}
-                  >
-                    {lang === 'bn' ? 'আংশিক বকেয়া' : 'Partial Due'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePaymentTypeChange('full_due')}
-                    className={cn(
-                      "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
-                      paymentType === 'full_due' 
-                        ? "bg-white text-rose-700 shadow-xs" 
-                        : "text-slate-600 hover:text-slate-900"
-                    )}
-                  >
-                    {lang === 'bn' ? 'সম্পূর্ণ বাকি' : 'Full Due'}
-                  </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <CurrencySelector />
+
+                  {/* Quick Presets */}
+                  <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => handlePaymentTypeChange('full_paid')}
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
+                        paymentType === 'full_paid' 
+                          ? "bg-white text-emerald-700 shadow-xs" 
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      {lang === 'bn' ? 'সম্পূর্ণ পরিশোধ' : 'Full Paid'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePaymentTypeChange('partial_due')}
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
+                        paymentType === 'partial_due' 
+                          ? "bg-white text-amber-700 shadow-xs" 
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      {lang === 'bn' ? 'আংশিক বকেয়া' : 'Partial Due'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePaymentTypeChange('full_due')}
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
+                        paymentType === 'full_due' 
+                          ? "bg-white text-rose-700 shadow-xs" 
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      {lang === 'bn' ? 'সম্পূর্ণ বাকি' : 'Full Due'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -4144,7 +4519,7 @@ const Sales = ({ data }: any) => {
                       className="w-full pl-3 pr-7 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-emerald-700 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                     />
                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
-                      {lang === 'bn' ? '৳' : '$'}
+                      {currency.symbol}
                     </span>
                   </div>
                 </div>
@@ -4176,7 +4551,7 @@ const Sales = ({ data }: any) => {
                       )}
                     />
                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
-                      {lang === 'bn' ? '৳' : '$'}
+                      {currency.symbol}
                     </span>
                   </div>
                 </div>
@@ -8345,7 +8720,9 @@ const MainApp = () => {
 export default function App() {
   return (
     <LanguageProvider>
-      <MainApp />
+      <CurrencyProvider>
+        <MainApp />
+      </CurrencyProvider>
     </LanguageProvider>
   );
 }
