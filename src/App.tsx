@@ -97,7 +97,10 @@ import {
   UserX,
   Camera,
   ChevronDown,
-  Globe
+  Globe,
+  Barcode,
+  ScanLine,
+  Scan
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -2795,36 +2798,441 @@ const QRScanner = ({ onScan, onClose, inventory }: { onScan: (data: string) => s
   );
 };
 
+// Web Audio API Beep Tone for instant barcode scan feedback
+const playBarcodeBeep = () => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(950, ctx.currentTime);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.16);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.16);
+  } catch (e) {
+    // ignore audio restriction
+  }
+};
+
+// --- INVENTORY CAMERA BARCODE SCANNER MODAL ---
+const InventoryCameraScannerModal = ({
+  isOpen,
+  onClose,
+  onScan,
+  inventory,
+  incrementStep = 1
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onScan: (code: string) => void;
+  inventory: any[];
+  incrementStep?: number;
+}) => {
+  const [errorMessage, setErrorMessage] = useState('');
+  const [scanMessage, setScanMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const lastScanRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
+  const { lang } = useTranslation();
+
+  const stopCamera = async () => {
+    if (scannerRef.current) {
+      try {
+        const state = scannerRef.current.getState();
+        if (state === 2 || state === 3) {
+          await scannerRef.current.stop();
+        }
+        scannerRef.current.clear();
+      } catch (e) {
+        console.warn("Error stopping camera:", e);
+      }
+      setIsCameraActive(false);
+    }
+  };
+
+  const handleClose = async () => {
+    await stopCamera();
+    onClose();
+  };
+
+  const startBackCamera = async () => {
+    setIsLoading(true);
+    setErrorMessage('');
+    setScanMessage('');
+
+    try {
+      if (scannerRef.current) {
+        try {
+          const state = scannerRef.current.getState();
+          if (state === 2 || state === 3) {
+            await scannerRef.current.stop();
+          }
+          scannerRef.current.clear();
+        } catch (_) {}
+      }
+
+      const qr = new Html5Qrcode("inventory-camera-reader");
+      scannerRef.current = qr;
+
+      const config = {
+        fps: 20,
+        qrbox: { width: 280, height: 180 },
+        aspectRatio: 1.33
+      };
+
+      const onScanSuccess = (decodedText: string) => {
+        const now = Date.now();
+        if (lastScanRef.current.code === decodedText && now - lastScanRef.current.time < 1200) {
+          return;
+        }
+        lastScanRef.current = { code: decodedText, time: now };
+
+        onScan(decodedText);
+
+        const existing = (inventory || []).find((p: any) => 
+          String(p.barcode || '').trim().toLowerCase() === decodedText.trim().toLowerCase() ||
+          String(p.serialNumber || '').trim().toLowerCase() === decodedText.trim().toLowerCase() ||
+          String(p.modelNumber || '').trim().toLowerCase() === decodedText.trim().toLowerCase() ||
+          String(p.sku || '').trim().toLowerCase() === decodedText.trim().toLowerCase() ||
+          String(p.id || '').trim().toLowerCase() === decodedText.trim().toLowerCase()
+        );
+
+        if (existing) {
+          setScanMessage(lang === 'bn' 
+            ? `শনাক্ত: "${existing.name}" (স্টক +${incrementStep} বৃদ্ধি পেয়েছে)` 
+            : `Identified: "${existing.name}" (Stock +${incrementStep})`);
+        } else {
+          setScanMessage(lang === 'bn' 
+            ? `নতুন বারকোড: "${decodedText}" (ইনভেন্টরিতে অটো যোগ হয়েছে)` 
+            : `New Barcode: "${decodedText}" (Auto-added)`);
+        }
+
+        setTimeout(() => {
+          setScanMessage('');
+        }, 2800);
+      };
+
+      try {
+        await qr.start(
+          { facingMode: "environment" },
+          config,
+          onScanSuccess,
+          () => {}
+        );
+      } catch (errEnvironment) {
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length > 0) {
+          const backCam = cameras.find(c => {
+            const label = (c.label || '').toLowerCase();
+            return label.includes('back') || label.includes('rear') || label.includes('environment');
+          }) || (cameras.length > 1 ? cameras[cameras.length - 1] : cameras[0]);
+
+          await qr.start(
+            backCam.id,
+            config,
+            onScanSuccess,
+            () => {}
+          );
+        } else {
+          throw errEnvironment;
+        }
+      }
+
+      setIsCameraActive(true);
+    } catch (err: any) {
+      console.error("Failed to start camera:", err);
+      const isPermissionErr = err?.name === 'NotAllowedError' || String(err).includes('Permission');
+      setErrorMessage(
+        isPermissionErr
+          ? (lang === 'bn' ? "ক্যামেরা পারমিশন দেওয়া হয়নি। ব্রাউজার সেটিংসে ক্যামেরা পারমিশন এলাউ করুন।" : "Camera permission denied.")
+          : (lang === 'bn' ? "ক্যামেরা চালু করা যায়নি। ক্যামেরা সংযোগ পরীক্ষা করুন।" : "Could not activate camera.")
+      );
+      setIsCameraActive(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      startBackCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden relative shadow-2xl border border-slate-100 flex flex-col">
+        {/* Modal Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+              <Barcode size={22} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                {lang === 'bn' ? 'মোবাইল ক্যামেরা বারকোড স্ক্যানার' : 'Mobile Camera Barcode Scanner'}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {lang === 'bn' ? 'প্রোডাক্টের বারকোড বা কিউআর কোডের সামনে ক্যামেরা ধরুন' : 'Point camera at product Barcode or QR'}
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={handleClose}
+            type="button"
+            className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors cursor-pointer text-slate-600"
+            title="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Video Camera Container */}
+        <div className="p-4 sm:p-5 flex flex-col items-center">
+          <div className="w-full rounded-2xl overflow-hidden border-2 border-emerald-500/40 bg-slate-950 relative min-h-[300px] flex items-center justify-center shadow-inner">
+            <div 
+              id="inventory-camera-reader" 
+              className="w-full"
+              style={{ minHeight: '300px' }}
+            />
+
+            {!isCameraActive && (
+              <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center p-6 text-center z-10 text-white">
+                <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center mb-4 text-emerald-400">
+                  <Camera size={30} />
+                </div>
+                <button
+                  type="button"
+                  onClick={startBackCamera}
+                  disabled={isLoading}
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-75"
+                >
+                  {isLoading ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>{lang === 'bn' ? 'ক্যামেরা চালু হচ্ছে...' : 'Starting Camera...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera size={15} />
+                      <span>{lang === 'bn' ? 'ক্যামেরা চালু করুন' : 'Start Camera'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Feedback Toasts */}
+          {scanMessage && (
+            <div className="w-full mt-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl flex items-center gap-2 text-xs font-bold animate-pulse">
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <span>{scanMessage}</span>
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="w-full mt-3 p-3 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl flex items-center gap-2 text-xs font-semibold">
+              <AlertCircle size={16} className="text-rose-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          <div className="w-full mt-4 flex items-center justify-between text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+            <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              {lang === 'bn' ? `প্রতি স্ক্যানে বৃদ্ধি: +${incrementStep} টি` : `Increment: +${incrementStep}`}
+            </span>
+            <span className="text-[11px] text-slate-400 font-medium">
+              {lang === 'bn' ? 'পরপর একাধিক পণ্য স্ক্যান করুন' : 'Continuous scanning mode'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Inventory = ({ data }: any) => {
   const { hasPermission } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [selectedQRItem, setSelectedQRItem] = useState<any>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [newItem, setNewItem] = useState({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '', brand: '' });
+  const [newItem, setNewItem] = useState({ 
+    name: '', 
+    category: '', 
+    quantity: '', 
+    price: '', 
+    minStock: '5', 
+    modelNumber: '', 
+    brand: '',
+    barcode: '',
+    serialNumber: ''
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
   const { formatCurrency, toBengaliNumber } = useCurrency();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
+
+  // Barcode Station States
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [incrementStep, setIncrementStep] = useState<number>(1);
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  const [autoFocusScanner, setAutoFocusScanner] = useState(true);
+  const [lastScannedItem, setLastScannedItem] = useState<{
+    product: any;
+    oldQty: number;
+    newQty: number;
+    isNew: boolean;
+    time: string;
+  } | null>(null);
+  const [sessionScanCount, setSessionScanCount] = useState<number>(0);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // Core Barcode Processing Logic:
+  // Identifies product by Barcode/Serial/SKU/Model/ID.
+  // If product exists -> increments stock automatically.
+  // If product does not exist -> creates product in inventory automatically with quantity = incrementStep.
+  const processBarcode = (rawCode: string) => {
+    const cleanCode = (rawCode || '').trim();
+    if (!cleanCode) return;
+
+    playBarcodeBeep();
+
+    const query = cleanCode.toLowerCase();
+    const foundIndex = (data.inventory || []).findIndex((p: any) => {
+      const pBarcode = String(p.barcode || '').trim().toLowerCase();
+      const pSerial = String(p.serialNumber || '').trim().toLowerCase();
+      const pModel = String(p.modelNumber || '').trim().toLowerCase();
+      const pSku = String(p.sku || '').trim().toLowerCase();
+      const pId = String(p.id || '').trim().toLowerCase();
+      const pName = String(p.name || '').trim().toLowerCase();
+
+      return (
+        (pBarcode && pBarcode === query) ||
+        (pSerial && pSerial === query) ||
+        (pModel && pModel === query) ||
+        (pSku && pSku === query) ||
+        (pId && pId === query) ||
+        (pId && pId.endsWith(query)) ||
+        (pName === query)
+      );
+    });
+
+    if (foundIndex !== -1) {
+      // Existing Product -> Update Stock Quantity
+      const existing = data.inventory[foundIndex];
+      const oldQty = Number(existing.quantity) || 0;
+      const newQty = oldQty + incrementStep;
+
+      data.editItem('inventory', existing.id, {
+        quantity: newQty
+      }, data.setInventory);
+
+      setLastScannedItem({
+        product: { ...existing, quantity: newQty },
+        oldQty,
+        newQty,
+        isNew: false,
+        time: new Date().toLocaleTimeString()
+      });
+      setSessionScanCount(prev => prev + 1);
+    } else {
+      // New Product -> Automatically Add to Inventory
+      const newId = `${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+      const autoProductName = `Product [${cleanCode}]`;
+      const newProduct = {
+        id: newId,
+        name: autoProductName,
+        barcode: cleanCode,
+        sku: `BC-${cleanCode.slice(-6)}`,
+        serialNumber: cleanCode,
+        modelNumber: cleanCode,
+        category: 'General',
+        quantity: incrementStep,
+        price: 0,
+        minStock: 5,
+        brand: ''
+      };
+
+      data.addInventory(newProduct);
+
+      setLastScannedItem({
+        product: newProduct,
+        oldQty: 0,
+        newQty: incrementStep,
+        isNew: true,
+        time: new Date().toLocaleTimeString()
+      });
+      setSessionScanCount(prev => prev + 1);
+    }
+  };
+
+  const handleBarcodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!barcodeInput.trim()) return;
+    processBarcode(barcodeInput.trim());
+    setBarcodeInput('');
+    if (autoFocusScanner) {
+      setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 50);
+    }
+  };
+
+  const adjustLastScannedQty = (delta: number) => {
+    if (!lastScannedItem) return;
+    const targetId = lastScannedItem.product.id;
+    const currentProd = data.inventory.find((p: any) => String(p.id) === String(targetId));
+    if (!currentProd) return;
+    const updatedQty = Math.max(0, (Number(currentProd.quantity) || 0) + delta);
+    data.editItem('inventory', currentProd.id, { quantity: updatedQty }, data.setInventory);
+    playBarcodeBeep();
+    setLastScannedItem(prev => prev ? {
+      ...prev,
+      oldQty: Number(currentProd.quantity) || 0,
+      newQty: updatedQty,
+      product: { ...currentProd, quantity: updatedQty },
+      time: new Date().toLocaleTimeString()
+    } : null);
+  };
 
   const handleAdd = (e: FormEvent) => {
     e.preventDefault();
+    const cleanBarcode = (newItem.barcode || '').trim();
+    const cleanSerial = (newItem.serialNumber || cleanBarcode).trim();
     if (editingItem) {
       data.editItem('inventory', editingItem.id, {
         ...newItem,
         quantity: parseBanglaInt(newItem.quantity),
         price: parseBanglaFloat(newItem.price),
-        minStock: parseBanglaInt(newItem.minStock)
+        minStock: parseBanglaInt(newItem.minStock),
+        barcode: cleanBarcode,
+        serialNumber: cleanSerial
       }, data.setInventory);
     } else {
       data.addInventory({
         ...newItem,
         quantity: parseBanglaInt(newItem.quantity),
         price: parseBanglaFloat(newItem.price),
-        minStock: parseBanglaInt(newItem.minStock)
+        minStock: parseBanglaInt(newItem.minStock),
+        barcode: cleanBarcode,
+        serialNumber: cleanSerial
       });
     }
-    setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '', brand: '' });
+    setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '', brand: '', barcode: '', serialNumber: '' });
     setEditingItem(null);
     setIsModalOpen(false);
   };
@@ -2838,7 +3246,9 @@ const Inventory = ({ data }: any) => {
       price: (item.price !== undefined && item.price !== null) ? item.price.toString() : '0',
       minStock: (item.minStock !== undefined && item.minStock !== null) ? item.minStock.toString() : '5',
       modelNumber: item.modelNumber || '',
-      brand: item.brand || ''
+      brand: item.brand || '',
+      barcode: item.barcode || item.serialNumber || '',
+      serialNumber: item.serialNumber || item.barcode || ''
     });
     setIsModalOpen(true);
   };
@@ -2853,9 +3263,12 @@ const Inventory = ({ data }: any) => {
   const filteredInventory = (data.inventory || []).filter((item: any) => {
     const name = (item.name || '').toLowerCase();
     const category = (item.category || '').toLowerCase();
+    const barcode = (item.barcode || '').toLowerCase();
+    const sku = (item.sku || '').toLowerCase();
+    const model = (item.modelNumber || '').toLowerCase();
     const query = searchQuery.toLowerCase();
     
-    const matchesSearch = name.includes(query) || category.includes(query);
+    const matchesSearch = name.includes(query) || category.includes(query) || barcode.includes(query) || sku.includes(query) || model.includes(query);
     const matchesCategory = filterCategory === 'All' || item.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
@@ -2866,8 +3279,182 @@ const Inventory = ({ data }: any) => {
         title="Inventory Management" 
         description="Track and manage your stock levels." 
         action={hasPermission('inventory', 'edit') ? "Add Item" : null} 
-        onAction={() => { setEditingItem(null); setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '', brand: '' }); setIsModalOpen(true); }}
+        onAction={() => { setEditingItem(null); setNewItem({ name: '', category: '', quantity: '', price: '', minStock: '5', modelNumber: '', brand: '', barcode: '', serialNumber: '' }); setIsModalOpen(true); }}
       />
+
+      {/* --- BARCODE SCANNING STATION (HARDWARE SCANNER & MOBILE CAMERA) --- */}
+      <div className="bg-gradient-to-r from-emerald-900/5 via-slate-50 to-emerald-900/10 border border-emerald-200/90 rounded-3xl p-4 sm:p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-md shadow-emerald-900/20 shrink-0">
+              <Barcode size={24} />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <span>{lang === 'bn' ? 'বারকোড স্ক্যানিং স্টেশন' : 'Barcode Scanning Station'}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  {lang === 'bn' ? 'অটো স্টক আপডেট' : 'Auto Stock Update'}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                {lang === 'bn' 
+                  ? 'বারকোড মেশিন বা মোবাইল ক্যামেরা দিয়ে স্ক্যান করলেই প্রোডাক্ট শনাক্ত হয়ে স্টক অটো-আপডেট হবে' 
+                  : 'Scan with Barcode Machine or Camera to auto-detect and update stock levels'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {sessionScanCount > 0 && (
+              <span className="px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-200 flex items-center gap-1.5">
+                <CheckCircle2 size={13} className="text-emerald-600" />
+                <span>{lang === 'bn' ? `মোট স্ক্যান: ${sessionScanCount} টি` : `Scans: ${sessionScanCount}`}</span>
+              </span>
+            )}
+            
+            <button
+              type="button"
+              onClick={() => setIsCameraScannerOpen(true)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-900/20 flex items-center gap-2 cursor-pointer"
+            >
+              <Camera size={16} />
+              <span>{lang === 'bn' ? 'মোবাইল ক্যামেরা স্ক্যানার' : 'Mobile Camera'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Machine Barcode Input & Step Controls */}
+        <div className="flex flex-col lg:flex-row gap-3 pt-1">
+          <form onSubmit={handleBarcodeSubmit} className="flex-1 flex gap-2">
+            <div className="relative flex-1">
+              <Barcode size={20} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
+              <input
+                ref={barcodeInputRef}
+                type="text"
+                value={barcodeInput}
+                onChange={e => setBarcodeInput(e.target.value)}
+                placeholder={lang === 'bn' 
+                  ? "বারকোড মেশিন দিয়ে স্ক্যান করুন বা কোড লিখুন (যেমন: Barcode/Serial) ও Enter চাপুন..." 
+                  : "Scan with Barcode Gun or type code (press Enter to auto-add)..."}
+                className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all shadow-xs"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 shrink-0"
+            >
+              <ScanLine size={16} />
+              <span>{lang === 'bn' ? 'স্ক্যান গ্রহণ করুন' : 'Process Code'}</span>
+            </button>
+          </form>
+
+          {/* Increment Step Buttons */}
+          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-2xl border border-slate-200/90 shadow-2xs self-start lg:self-auto shrink-0">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              {lang === 'bn' ? 'প্রতি স্ক্যানে বৃদ্ধি:' : 'Step:'}
+            </span>
+            {[1, 2, 5, 10].map(step => (
+              <button
+                key={step}
+                type="button"
+                onClick={() => setIncrementStep(step)}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-extrabold rounded-lg transition-all",
+                  incrementStep === step 
+                    ? "bg-emerald-600 text-white shadow-xs" 
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                )}
+              >
+                +{step}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Auto Focus Checkbox for Scanner Guns */}
+        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={autoFocusScanner}
+              onChange={e => setAutoFocusScanner(e.target.checked)}
+              className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500"
+            />
+            <span className="font-medium text-slate-600">
+              {lang === 'bn' ? 'অটো-ফোকাস ইনপুট সক্রিয় (হ্যান্ডহেল্ড বারকোড মেশিনের জন্য)' : 'Auto-focus input after scan (for Barcode guns)'}
+            </span>
+          </label>
+          <span className="text-slate-400 hidden sm:inline">
+            {lang === 'bn' ? 'প্রোডাক্ট থাকলে স্টক বাড়বে, না থাকলে অটো তৈরি হবে' : 'Increases stock if exists, auto-creates if new'}
+          </span>
+        </div>
+
+        {/* Last Scanned Item Card */}
+        {lastScannedItem && (
+          <div className="p-3.5 sm:p-4 bg-white border border-emerald-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-in fade-in duration-200">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 shadow-xs",
+                lastScannedItem.isNew ? "bg-indigo-600 text-white" : "bg-emerald-600 text-white"
+              )}>
+                {lastScannedItem.isNew ? <Plus size={20} /> : <CheckCircle2 size={20} />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-mono font-black text-emerald-950 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                    {lastScannedItem.product.barcode || lastScannedItem.product.id}
+                  </span>
+                  <span className="text-sm font-extrabold text-slate-900">
+                    {lastScannedItem.product.name}
+                  </span>
+                  {lastScannedItem.isNew ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200">
+                      {lang === 'bn' ? 'নতুন প্রোডাক্ট' : 'New Product'}
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      {lang === 'bn' ? 'স্টক বৃদ্ধি' : 'Stock Updated'}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
+                  <span>{lang === 'bn' ? 'পূর্বের স্টক:' : 'Previous:'} <strong className="text-slate-800">{lastScannedItem.oldQty}</strong></span>
+                  <span>➔</span>
+                  <span>{lang === 'bn' ? 'বর্তমান স্টক:' : 'New Stock:'} <strong className="text-emerald-700 font-extrabold text-sm">{lastScannedItem.newQty} টি</strong></span>
+                  <span className="text-slate-400 text-[10px]">({lastScannedItem.time})</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => adjustLastScannedQty(1)}
+                className="px-2.5 py-1.5 bg-slate-50 hover:bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-slate-200 hover:border-emerald-300 transition-all flex items-center gap-1 cursor-pointer"
+                title="Add 1 more"
+              >
+                <Plus size={13} />
+                <span>+1</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => adjustLastScannedQty(-1)}
+                className="px-2.5 py-1.5 bg-slate-50 hover:bg-rose-50 text-rose-700 rounded-lg text-xs font-bold border border-slate-200 hover:border-rose-300 transition-all flex items-center gap-1 cursor-pointer"
+                title="Decrease 1"
+              >
+                <span>-1</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openEdit(lastScannedItem.product)}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                {lang === 'bn' ? 'তথ্য সম্পাদনা' : 'Edit Item'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
       <Card>
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="relative w-full sm:w-64">
@@ -2893,22 +3480,40 @@ const Inventory = ({ data }: any) => {
           </div>
         </div>
         {filteredInventory.length > 0 ? (
-          <Table headers={['Item Details', 'Category', 'Stock', 'Buy Price', 'QR Code', 'Actions']}>
+          <Table headers={['Item Details', 'Barcode / SKU', 'Category', 'Stock', 'Buy Price', 'QR Code', 'Actions']}>
             {filteredInventory.map((item: any) => (
               <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4">
-                  <div className="font-medium text-slate-900">{item.name}</div>
-                  <div className="flex flex-col gap-0.5">
+                  <div className="font-semibold text-slate-900">{item.name}</div>
+                  <div className="flex flex-col gap-0.5 mt-0.5">
                     {item.brand && <div className="text-[10px] text-slate-500 font-medium">Brand: {item.brand}</div>}
                     {item.modelNumber && <div className="text-[10px] text-emerald-600 font-bold uppercase">Model: {item.modelNumber}</div>}
-                    <div className="text-xs text-slate-500">SKU-{item.id.slice(-4)}</div>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex flex-col gap-1">
+                    {item.barcode ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/90 px-2 py-0.5 rounded-md w-fit">
+                        <Barcode size={12} className="text-emerald-600" />
+                        {item.barcode}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-mono text-slate-400">
+                        SKU-{item.id.slice(-4)}
+                      </span>
+                    )}
+                    {item.serialNumber && item.serialNumber !== item.barcode && (
+                      <span className="text-[10px] font-mono text-slate-500">
+                        SN: {item.serialNumber}
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{item.category}</td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
                     <span className={cn(
-                      "font-semibold",
+                      "font-bold text-sm",
                       item.quantity <= item.minStock ? "text-orange-600" : "text-slate-900"
                     )}>{item.quantity}</span>
                     <span className="text-xs text-slate-400">units</span>
@@ -2967,6 +3572,21 @@ const Inventory = ({ data }: any) => {
               value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})}
               className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              {lang === 'bn' ? 'বারকোড / সিরিয়াল নম্বর (Barcode)' : 'Barcode / Serial Number'}
+            </label>
+            <div className="relative">
+              <Barcode className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+              <input 
+                type="text" 
+                value={newItem.barcode} 
+                onChange={e => setNewItem({...newItem, barcode: e.target.value, serialNumber: e.target.value})}
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none font-mono text-sm" 
+                placeholder={lang === 'bn' ? 'বারকোড স্ক্যান করুন বা লিখুন (ঐচ্ছিক)' : 'Scan or type barcode'}
+              />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">{t('brandName')}</label>
@@ -3043,6 +3663,15 @@ const Inventory = ({ data }: any) => {
           </div>
         )}
       </Modal>
+
+      {/* Mobile Camera Barcode Scanner Modal */}
+      <InventoryCameraScannerModal
+        isOpen={isCameraScannerOpen}
+        onClose={() => setIsCameraScannerOpen(false)}
+        onScan={processBarcode}
+        inventory={data.inventory}
+        incrementStep={incrementStep}
+      />
     </div>
   );
 };

@@ -179,6 +179,8 @@ async function ensureAllTables() {
         await checkAndAddColumn(conn, 'inventory', 'sku', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'inventory', 'brand', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'inventory', 'modelNumber', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'inventory', 'barcode', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'inventory', 'serialNumber', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'inventory', 'minStock', 'INT DEFAULT 5');
         
         await checkAndAddColumn(conn, 'sales', 'customerName', 'VARCHAR(255)');
