@@ -3717,6 +3717,8 @@ const Inventory = ({ data }: any) => {
 
 const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, contentRef?: any }) => {
   const { formatCurrency } = useCurrency();
+  if (!sale) return null;
+  const invoiceId = String(sale?.id || sale?.invoiceNumber || '000000').slice(-6).toUpperCase();
   return (
     <div 
       ref={contentRef} 
@@ -3746,7 +3748,7 @@ const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, cont
       </div>
       <div className="text-right">
         <h2 className="text-3xl font-black mb-1" style={{ color: '#0f172a', margin: 0 }}>INVOICE</h2>
-        <p className="font-bold text-sm" style={{ color: '#64748b', margin: 0 }}>#INV-{sale.id.slice(-6).toUpperCase()}</p>
+        <p className="font-bold text-sm" style={{ color: '#64748b', margin: 0 }}>#INV-{invoiceId}</p>
       </div>
     </div>
 
@@ -4438,19 +4440,19 @@ const QuotationModal = ({
   if (!quotation) return null;
 
   const getQuotationSummaryText = () => {
-    const qNo = quotation.quotationNo || (quotation.id ? quotation.id.slice(-6).toUpperCase() : '');
+    const qNo = quotation.quotationNo || (quotation.id ? String(quotation.id).slice(-6).toUpperCase() : '');
     const itemsText = (quotation.items || []).map((it: any, i: number) => {
       return `${i + 1}. ${it.productName || 'Product'} (x${it.quantity}) - ${formatCurrency(it.total)}`;
     }).join('\n');
 
-    return `*${lang === 'bn' ? 'কোটেশন' : 'QUOTATION'} #${qNo}*\n` +
-      `${lang === 'bn' ? 'প্রতিষ্ঠান:' : 'Business:'} ${user?.businessName || 'GreensStock'}\n` +
-      `${lang === 'bn' ? 'গ্রাহক:' : 'Customer:'} ${quotation.customerName || 'N/A'}\n` +
-      `${lang === 'bn' ? 'তারিখ:' : 'Date:'} ${(quotation.date || '').split('T')[0]}\n` +
-      (quotation.validUntil ? `${lang === 'bn' ? 'মেয়াদ:' : 'Valid Until:'} ${quotation.validUntil}\n` : '') +
-      `\n*${lang === 'bn' ? 'আইটেম তালিকা:' : 'Items:'}*\n${itemsText}\n\n` +
-      `*${lang === 'bn' ? 'সর্বমোট প্রাক্কলিত মূল্য:' : 'Total Amount:'} ${formatCurrency(quotation.total)}*\n\n` +
-      `${user?.phoneNumber ? `যোগাযোগ: ${user.phoneNumber}` : ''}`;
+    return `*QUOTATION #${qNo}*\n` +
+      `Business: ${user?.businessName || 'GreensStock'}\n` +
+      `Customer: ${quotation.customerName || 'N/A'}\n` +
+      `Date: ${(quotation.date || '').split('T')[0]}\n` +
+      (quotation.validUntil ? `Valid Until: ${quotation.validUntil}\n` : '') +
+      `\n*Items:*\n${itemsText}\n\n` +
+      `*Total Amount: ${formatCurrency(quotation.total)}*\n\n` +
+      `${user?.phoneNumber ? `Contact: ${user.phoneNumber}` : ''}`;
   };
 
   const handleShareWhatsApp = () => {
@@ -4704,9 +4706,7 @@ const Sales = ({ data }: any) => {
   const [quotationStatusFilter, setQuotationStatusFilter] = useState('All');
   const [isQuotationScannerOpen, setIsQuotationScannerOpen] = useState(false);
 
-  const defaultQuotationNotes = lang === 'bn' 
-    ? '১. এই কোটেশনটি উল্লেখিত মেয়াদ পর্যন্ত কার্যকর থাকবে।\n২. অর্ডার নিশ্চিতকরণের পর দ্রুততম সময়ে পণ্য সরবরাহ করা হবে।\n৩. পণ্যের কোয়ালিটি এবং স্ট্যান্ডার্ড ওয়ারেন্টি পলিসি প্রযোজ্য।'
-    : '1. This quotation is valid until the specified validity date.\n2. Delivery will be processed upon order confirmation.\n3. Standard manufacturer warranty and terms apply.';
+  const defaultQuotationNotes = '1. This quotation is valid until the specified validity date.\n2. Delivery will be processed upon order confirmation.\n3. Standard manufacturer warranty and terms apply.';
 
   const [newQuotation, setNewQuotation] = useState({
     quotationNo: '',
@@ -4970,7 +4970,7 @@ const Sales = ({ data }: any) => {
 
     const quotationData = {
       quotationNo: newQuotation.quotationNo || `QT-${Date.now().toString().slice(-6)}`,
-      customerName: newQuotation.customerName.trim() || (lang === 'bn' ? 'সম্মানিত গ্রাহক' : 'Valued Customer'),
+      customerName: newQuotation.customerName.trim() || 'Valued Customer',
       customerPhone: newQuotation.customerPhone,
       customerEmail: newQuotation.customerEmail,
       customerAddress: newQuotation.customerAddress,
@@ -5005,6 +5005,9 @@ const Sales = ({ data }: any) => {
   };
 
   const handleConvertToSale = (quo: any) => {
+    if (!quo) return;
+    const qNo = quo.quotationNo || (quo.id ? String(quo.id).slice(-6).toUpperCase() : '000000');
+
     // 1. Check stock
     const outOfStockItems = (quo.items || []).filter((item: any) => {
       if (!item.productId) return false;
@@ -5014,15 +5017,25 @@ const Sales = ({ data }: any) => {
     });
 
     if (outOfStockItems.length > 0) {
-      const itemNames = outOfStockItems.map((i: any) => i.productName).join(', ');
-      const proceed = window.confirm(
-        `Warning: Insufficient stock for: ${itemNames}. Do you still want to convert to sale?`
-      );
+      const itemNames = outOfStockItems.map((i: any) => i.productName || 'Item').join(', ');
+      let proceed = true;
+      try {
+        proceed = window.confirm(
+          `Warning: Insufficient stock for: ${itemNames}. Do you still want to convert to sale?`
+        );
+      } catch (e) {
+        proceed = true;
+      }
       if (!proceed) return;
     } else {
-      const proceed = window.confirm(
-        `Do you want to convert Quotation #${quo.quotationNo || quo.id.slice(-6)} into a Sale? This will adjust stock and create a new invoice.`
-      );
+      let proceed = true;
+      try {
+        proceed = window.confirm(
+          `Do you want to convert Quotation #${qNo} into a Sale? This will adjust stock and create a new invoice.`
+        );
+      } catch (e) {
+        proceed = true;
+      }
       if (!proceed) return;
     }
 
@@ -5046,8 +5059,13 @@ const Sales = ({ data }: any) => {
       };
     });
 
+    const saleId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+
     const finalSale = {
-      customerName: (quo.customerName || '').trim() || (lang === 'bn' ? 'তৎক্ষণাৎ ক্রেতা' : 'Walk-in Customer'),
+      id: saleId,
+      invoiceNumber: invoiceNumber,
+      customerName: (quo.customerName || '').trim() || (lang === 'bn' ? 'Walk-in Customer' : 'Walk-in Customer'),
       customerPhone: quo.customerPhone || '',
       customerEmail: quo.customerEmail || '',
       customerAddress: quo.customerAddress || '',
@@ -5061,7 +5079,7 @@ const Sales = ({ data }: any) => {
       paymentMethod: 'Cash',
       paymentStatus: 'Paid',
       date: getTodayStr(),
-      notes: `Converted from Quotation #${quo.quotationNo || quo.id.slice(-6)}`
+      notes: `Converted from Quotation #${qNo}`
     };
 
     // 3. Add Sale
@@ -5107,9 +5125,11 @@ const Sales = ({ data }: any) => {
     }
 
     // 6. Mark quotation as Converted
-    data.editItem('quotations', quo.id, {
-      status: 'Converted'
-    }, data.setQuotations);
+    if (quo.id) {
+      data.editItem('quotations', quo.id, {
+        status: 'Converted'
+      }, data.setQuotations);
+    }
 
     // 7. Close preview modal if open and open invoice modal
     setIsQuotationPreviewModalOpen(false);
@@ -5384,7 +5404,7 @@ const Sales = ({ data }: any) => {
 
     // 1. Add Sale with correct authentic purchase cost, selling price, and Due tracking
     data.addSale({
-      customerName: newSale.customerName.trim() || (lang === 'bn' ? 'তৎক্ষণাৎ ক্রেতা' : 'Walk-in Customer'),
+      customerName: newSale.customerName.trim() || 'Walk-in Customer',
       customerPhone: newSale.customerPhone,
       customerEmail: newSale.customerEmail,
       customerAddress: newSale.customerAddress,
@@ -5980,7 +6000,7 @@ const Sales = ({ data }: any) => {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                          {lang === 'bn' ? 'ক্যাটাগরি' : 'Category'}
+                          Category
                         </label>
                         <select 
                           required
@@ -5988,7 +6008,7 @@ const Sales = ({ data }: any) => {
                           onChange={(e) => updateItem(index, 'productCategory', e.target.value)}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
                         >
-                          <option value="">{lang === 'bn' ? 'ক্যাটাগরি নির্বাচন করুন' : 'Select Category'}</option>
+                          <option value="">Select Category</option>
                           {categories.filter(c => c !== 'All').map(cat => (
                             <option key={cat as string} value={cat as string}>{cat as string}</option>
                           ))}
@@ -6001,7 +6021,7 @@ const Sales = ({ data }: any) => {
                           onChange={(e) => updateItem(index, 'brand', e.target.value)}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
                         >
-                          <option value="">{lang === 'bn' ? 'ব্র্যান্ড নির্বাচন করুন' : 'Select Brand'}</option>
+                          <option value="">Select Brand</option>
                           {Array.from(new Set(data.inventory
                             .filter((p: any) => !item.productCategory || p.category === item.productCategory)
                             .map((p: any) => p.brand)
@@ -6013,7 +6033,7 @@ const Sales = ({ data }: any) => {
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                          {lang === 'bn' ? 'প্রোডাক্ট' : 'Product'}
+                          Product
                         </label>
                         <select 
                           required
@@ -6021,12 +6041,12 @@ const Sales = ({ data }: any) => {
                           onChange={(e) => updateItem(index, 'productId', e.target.value)}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-medium text-slate-800"
                         >
-                          <option value="">{lang === 'bn' ? '-- প্রোডাক্ট নির্বাচন করুন --' : '-- Select Product --'}</option>
+                          <option value="">-- Select Product --</option>
                           {data.inventory
                             .filter((p: any) => (!item.productCategory || p.category === item.productCategory) && (!item.brand || p.brand === item.brand))
                             .map((p: any) => (
                               <option key={p.id} value={p.id}>
-                                {p.name} {p.brand ? `[${p.brand}]` : ''} — {formatCurrency(p.price)} ({lang === 'bn' ? `স্টক: ${p.quantity}` : `Stock: ${p.quantity}`})
+                                {p.name} {p.brand ? `[${p.brand}]` : ''} — {formatCurrency(p.price)} (Stock: {p.quantity})
                               </option>
                             ))
                           }
@@ -6038,7 +6058,7 @@ const Sales = ({ data }: any) => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                          {lang === 'bn' ? 'পরিমাণ (Quantity)' : 'Quantity'}
+                          Quantity
                         </label>
                         <input 
                           type="number" required min="1"
@@ -6050,7 +6070,7 @@ const Sales = ({ data }: any) => {
 
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                          {lang === 'bn' ? 'ক্রয়মূল্য (Buy Cost)' : 'Buy Cost'}
+                          Buy Cost
                         </label>
                         <input 
                           type="number" step="0.01" min="0"
@@ -6058,7 +6078,7 @@ const Sales = ({ data }: any) => {
                           value={item.buyPrice !== undefined && item.buyPrice !== null ? item.buyPrice : ''}
                           onChange={(e) => updateItem(index, 'buyPrice', e.target.value)}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-semibold text-slate-600"
-                          title={lang === 'bn' ? 'পণ্যের প্রতি ইউনিটের ক্রয়মূল্য' : 'Purchase cost per unit'}
+                          title="Purchase cost per unit"
                         />
                       </div>
 
@@ -6168,16 +6188,16 @@ const Sales = ({ data }: any) => {
                                 isProfit ? (
                                   <div className="flex items-center gap-1 text-emerald-700 font-bold bg-emerald-100/90 px-2 py-0.5 rounded-md text-[11px]">
                                     <TrendingUp size={12} />
-                                    <span>{lang === 'bn' ? `লাভ: +${formatCurrency(itemProfitDiff)}` : `Profit: +${formatCurrency(itemProfitDiff)}`}</span>
+                                    <span>Profit: +{formatCurrency(itemProfitDiff)}</span>
                                   </div>
                                 ) : isLoss ? (
                                   <div className="flex items-center gap-1 text-rose-700 font-bold bg-rose-100/90 px-2 py-0.5 rounded-md text-[11px]">
                                     <ArrowDownRight size={12} />
-                                    <span>{lang === 'bn' ? `ক্ষতি: -${formatCurrency(Math.abs(itemProfitDiff))}` : `Loss: -${formatCurrency(Math.abs(itemProfitDiff))}`}</span>
+                                    <span>Loss: -{formatCurrency(Math.abs(itemProfitDiff))}</span>
                                   </div>
                                 ) : (
                                   <div className="text-[11px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">
-                                    {lang === 'bn' ? 'ব্রেক-ইভেন (০ লাভ/ক্ষতি)' : 'Break-even (0 P/L)'}
+                                    Break-even (0 P/L)
                                   </div>
                                 )
                               )}
@@ -6185,13 +6205,13 @@ const Sales = ({ data }: any) => {
                               {taxRate > 0 ? (
                                 <div className="flex items-center gap-1 text-emerald-800">
                                   <span className="font-semibold">
-                                    {lang === 'bn' ? `ট্যাক্স (${taxRate}% যোগ):` : `Tax (${taxRate}% added):`}
+                                    Tax ({taxRate}% added):
                                   </span>
                                   <span className="font-bold text-emerald-700">+{formatCurrency(taxAmount)}</span>
                                 </div>
                               ) : (
                                 <div className="text-[11px] text-slate-400">
-                                  {lang === 'bn' ? 'কোন ট্যাক্স প্রযোজ্য নয় (০%)' : 'No tax applied (0%)'}
+                                  No tax applied (0%)
                                 </div>
                               )}
                             </div>
@@ -6200,7 +6220,7 @@ const Sales = ({ data }: any) => {
                           <div className="flex items-center gap-3 bg-white px-3.5 py-1.5 rounded-xl border border-emerald-200 shadow-xs self-start sm:self-auto">
                             <div className="text-right">
                               <span className="block text-[9px] font-extrabold text-emerald-800 uppercase tracking-wider">
-                                {lang === 'bn' ? 'ট্যাক্স সহ প্রোডাক্ট প্রাইস' : 'Price with Tax'}
+                                Price with Tax
                               </span>
                               <span className="text-lg font-black text-emerald-600">
                                 {formatCurrency(parseFloat(item.total) || (basePrice + taxAmount))}
@@ -6219,7 +6239,7 @@ const Sales = ({ data }: any) => {
           <div className="pt-4 border-t border-slate-100">
             <div className="mb-6 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-700 pb-2 border-b border-emerald-200/50">
-                <span>{lang === 'bn' ? 'সাবটোটাল (ট্যাক্স ছাড়া):' : 'Subtotal (Before Tax):'}</span>
+                <span>Subtotal (Before Tax):</span>
                 <span className="font-semibold">{formatCurrency(calculatedSubtotal)}</span>
               </div>
 
