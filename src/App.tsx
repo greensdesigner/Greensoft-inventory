@@ -258,7 +258,7 @@ const translations: any = {
   bn: {
     dashboard: "ড্যাশবোর্ড",
     inventory: "ইনভেন্টরি",
-    sales: "বিক্রয়",
+    sales: "Sales Invoices",
     returns: "রিটার্ন",
     suppliers: "সরবরাহকারী",
     customers: "গ্রাহক",
@@ -274,23 +274,23 @@ const translations: any = {
     profit: "লাভ",
     loss: "ক্ষতি",
     revenue7Days: "রাজস্ব (শেষ ৭ দিন)",
-    noSalesData: "রিপোর্টের জন্য কোন বিক্রয়ের তথ্য নেই।",
+    noSalesData: "No sales data for reporting.",
     inventoryStatus: "ইনভেন্টরি অবস্থা",
     stockHealth: "স্টক হেলথ",
     totalExpenses: "মোট খরচ",
     totalRefunds: "মোট ফেরত",
     totalReplacements: "মোট পরিবর্তন",
-    totalSales: "মোট বিক্রয়",
+    totalSales: "Total Sales",
     today: "আজ",
     last7Days: "৭ দিন",
     last30Days: "৩০ দিন",
     logout: "লগআউট",
     search: "যেকোন কিছু খুঁজুন...",
-    searchInvoice: "ইনভয়েস খুঁজুন",
-    newSale: "নতুন বিক্রয়",
+    searchInvoice: "Search Invoice",
+    newSale: "New Sale",
     addItem: "পণ্য যোগ করুন",
     lowStock: "স্বল্প স্টকের পণ্য",
-    recentSales: "সাম্প্রতিক বিক্রয়",
+    recentSales: "Recent Sales",
     recentRecords: "সাম্প্রতিক রেকর্ড",
     daysLeft: "দিন বাকি",
     expired: "মেয়াদ শেষ",
@@ -350,16 +350,16 @@ const translations: any = {
     customDate: "কাস্টম ডেট",
     startDate: "শুরুর তারিখ",
     endDate: "শেষের তারিখ",
-    downloadPDF: "পিডিএফ ডাউনলোড করুন",
-    quotations: "কোটেশন সমূহ",
-    quotation: "কোটেশন",
-    newQuotation: "নতুন কোটেশন",
-    createQuotation: "কোটেশন তৈরি করুন",
-    quotationHistory: "কোটেশন তালিকা",
-    validUntil: "মেয়াদ / ভ্যালিডিটি",
-    convertToSale: "বিক্রয়ে রূপান্তর",
-    convertedToSale: "বিক্রয়ে রূপান্তরিত",
-    shareQuotation: "কোটেশন শেয়ার করুন",
+    downloadPDF: "Download PDF",
+    quotations: "Quotations",
+    quotation: "Quotation",
+    newQuotation: "New Quotation",
+    createQuotation: "Create Quotation",
+    quotationHistory: "Quotations List",
+    validUntil: "Valid Until",
+    convertToSale: "Convert to Sale",
+    convertedToSale: "Converted to Sale",
+    shareQuotation: "Share Quotation",
   },
   es: {
     dashboard: "Tablero",
@@ -650,21 +650,15 @@ const CurrencyProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const toBengaliNumber = (num: string | number): string => {
-    const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-    return num.toString().replace(/\d/g, (digit) => bengaliDigits[parseInt(digit)]);
+    return String(num ?? '');
   };
 
   const formatCurrency = (amount: number | string, decimals: number = 2) => {
     const num = Number(amount) || 0;
-    const isBnNum = lang === 'bn' && activeCurrency.code === 'BDT';
-    const formatted = num.toLocaleString(isBnNum ? 'bn-BD' : 'en-US', {
+    const formatted = num.toLocaleString('en-US', {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals
     });
-
-    if (isBnNum) {
-      return `${activeCurrency.symbol}${toBengaliNumber(formatted)}`;
-    }
     return `${activeCurrency.symbol}${formatted}`;
   };
 
@@ -689,18 +683,16 @@ const CurrencyProvider = ({ children }: { children: ReactNode }) => {
 const useCurrency = () => {
   const ctx = React.useContext(CurrencyContext);
   if (!ctx) {
-    const { lang } = useTranslation();
     const toBengaliNumber = (num: string | number): string => {
-      const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-      return num.toString().replace(/\d/g, (digit) => bengaliDigits[parseInt(digit)]);
+      return String(num ?? '');
     };
     const formatCurrency = (amount: number | string, decimals: number = 2) => {
       const num = Number(amount) || 0;
-      const formatted = num.toLocaleString(lang === 'bn' ? 'bn-BD' : 'en-US', {
+      const formatted = num.toLocaleString('en-US', {
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals
       });
-      return lang === 'bn' ? `৳${toBengaliNumber(formatted)}` : `$${formatted}`;
+      return `৳${formatted}`;
     };
     return {
       currency: SUPPORTED_CURRENCIES[0],
@@ -2341,7 +2333,7 @@ const Dashboard = ({ data, user: propUser }: any) => {
                   "text-xs font-bold px-2 py-1 rounded-full",
                   currentLossDisplay > 0 ? "text-red-600 bg-red-50" : "text-emerald-700 bg-emerald-50"
                 )}>
-                  {lang === 'bn' ? (currentLossDisplay > 0 ? 'বিক্রয় ক্ষতি' : 'ক্ষতি কাভার্ড') : (currentLossDisplay > 0 ? 'Sales Loss' : 'Loss Covered')}
+                  {currentLossDisplay > 0 ? 'Sales Loss' : 'Loss Covered'}
                 </span>
               )}
               {stat.type === 'net' && (
@@ -4207,13 +4199,13 @@ const QuotationContent = ({ quotation, user, contentRef }: { quotation: any, use
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Accepted':
-        return { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0', label: lang === 'bn' ? 'গৃহীত (Accepted)' : 'Accepted' };
+        return { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0', label: 'Accepted' };
       case 'Sent':
-        return { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe', label: lang === 'bn' ? 'প্রেরিত (Sent)' : 'Sent' };
+        return { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe', label: 'Sent' };
       case 'Converted':
-        return { bg: '#f5f3ff', text: '#6d28d9', border: '#ddd6fe', label: lang === 'bn' ? 'বিক্রিত (Converted)' : 'Converted' };
+        return { bg: '#f5f3ff', text: '#6d28d9', border: '#ddd6fe', label: 'Converted' };
       default:
-        return { bg: '#fffbeb', text: '#b45309', border: '#fde68a', label: lang === 'bn' ? 'খসড়া (Draft)' : 'Draft' };
+        return { bg: '#fffbeb', text: '#b45309', border: '#fde68a', label: 'Draft' };
     }
   };
 
@@ -4254,7 +4246,7 @@ const QuotationContent = ({ quotation, user, contentRef }: { quotation: any, use
             {statusBadge.label}
           </div>
           <h2 className="text-3xl font-black mb-1" style={{ color: '#4338ca', margin: 0 }}>
-            {lang === 'bn' ? 'কোটেশন' : 'QUOTATION'}
+            QUOTATION
           </h2>
           <p className="font-bold text-sm" style={{ color: '#64748b', margin: 0 }}>
             #{quotation.quotationNo || (quotation.id ? `QT-${quotation.id.slice(-6).toUpperCase()}` : 'QT-0000')}
@@ -4266,10 +4258,10 @@ const QuotationContent = ({ quotation, user, contentRef }: { quotation: any, use
       <div className="grid grid-cols-2 gap-8 mb-8" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
         <div>
           <h4 className="text-[10px] font-bold uppercase tracking-widest mb-2 border-b border-slate-100 pb-1 w-fit" style={{ color: '#94a3b8' }}>
-            {lang === 'bn' ? 'গ্রাহকের বিবরণ (Quotation For):' : 'Quotation For:'}
+            Quotation For:
           </h4>
           <div className="font-black text-slate-900" style={{ fontSize: '1.3rem', marginBottom: '0.35rem' }}>
-            {quotation.customerName || (lang === 'bn' ? 'সম্মানিত গ্রাহক' : 'Valued Customer')}
+            {quotation.customerName || 'Valued Customer'}
           </div>
           <div className="text-[13px] font-semibold text-slate-600 space-y-1">
             {quotation.customerPhone && (
@@ -4294,14 +4286,14 @@ const QuotationContent = ({ quotation, user, contentRef }: { quotation: any, use
           <div className="space-y-2">
             <div className="flex flex-col items-end">
               <span className="text-[10px] font-bold uppercase text-slate-400">
-                {lang === 'bn' ? 'কোটেশনের তারিখ' : 'Quotation Date'}
+                Quotation Date
               </span>
               <span className="font-bold text-slate-800 text-sm">{(quotation.date || '').split('T')[0]}</span>
             </div>
             {quotation.validUntil && (
               <div className="flex flex-col items-end">
                 <span className="text-[10px] font-bold uppercase text-slate-400">
-                  {lang === 'bn' ? 'মেয়াদ / ভ্যালিডিটি' : 'Valid Until'}
+                  Valid Until
                 </span>
                 <span className="font-bold text-amber-700 text-sm bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                   {quotation.validUntil}
@@ -4318,10 +4310,10 @@ const QuotationContent = ({ quotation, user, contentRef }: { quotation: any, use
           <thead>
             <tr className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
               <th style={{ paddingBottom: '0.75rem', textAlign: 'left' }}>#</th>
-              <th style={{ paddingBottom: '0.75rem', textAlign: 'left' }}>{lang === 'bn' ? 'পণ্য ও বিবরণ' : 'Description'}</th>
-              <th style={{ paddingBottom: '0.75rem', textAlign: 'center' }}>{lang === 'bn' ? 'পরিমাণ' : 'Qty'}</th>
-              <th style={{ paddingBottom: '0.75rem', textAlign: 'right' }}>{lang === 'bn' ? 'একক মূল্য' : 'Unit Price'}</th>
-              <th style={{ paddingBottom: '0.75rem', textAlign: 'right' }}>{lang === 'bn' ? 'মোট' : 'Total'}</th>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'left' }}>Description</th>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'center' }}>Qty</th>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'right' }}>Unit Price</th>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'right' }}>Total</th>
             </tr>
           </thead>
           <tbody>
@@ -4358,23 +4350,23 @@ const QuotationContent = ({ quotation, user, contentRef }: { quotation: any, use
       <div className="flex justify-end mb-8" style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <div style={{ width: '280px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.4rem', fontSize: '0.875rem' }}>
-            <span>{lang === 'bn' ? 'সাবটোটাল (Subtotal)' : 'Subtotal'}</span>
+            <span>Subtotal</span>
             <span>{formatCurrency(subtotal)}</span>
           </div>
           {discountAmt > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ea580c', marginBottom: '0.4rem', fontSize: '0.875rem' }}>
-              <span>{lang === 'bn' ? 'ডিসকাউন্ট (Discount)' : 'Discount'}</span>
+              <span>Discount</span>
               <span>-{formatCurrency(discountAmt)}</span>
             </div>
           )}
           {taxAmt > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.4rem', fontSize: '0.875rem' }}>
-              <span>{lang === 'bn' ? 'ট্যাক্স / ভ্যাট (Tax/VAT)' : 'Tax / VAT'}</span>
+              <span>Tax / VAT</span>
               <span>+{formatCurrency(taxAmt)}</span>
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', paddingTop: '0.6rem', borderTop: '2px solid #e2e8f0', marginTop: '0.4rem' }}>
-            <span>{lang === 'bn' ? 'সর্বমোট প্রাক্কলিত মূল্য' : 'Total Estimated'}</span>
+            <span>Total Estimated</span>
             <span style={{ color: '#4338ca' }}>{formatCurrency(total)}</span>
           </div>
         </div>
@@ -4384,7 +4376,7 @@ const QuotationContent = ({ quotation, user, contentRef }: { quotation: any, use
       {quotation.notes && (
         <div className="mb-8 p-4 bg-slate-50 border border-slate-200/60 rounded-xl" style={{ backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '0.75rem', marginBottom: '2rem' }}>
           <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2" style={{ margin: '0 0 0.5rem 0', fontSize: '0.75rem', fontWeight: 'bold', color: '#64748b' }}>
-            {lang === 'bn' ? 'শর্তাবলী ও নোট (Terms & Notes):' : 'Terms & Conditions:'}
+            Terms & Conditions:
           </h5>
           <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed" style={{ margin: 0, fontSize: '0.8rem', lineHeight: '1.5', whiteSpace: 'pre-line' }}>
             {quotation.notes}
@@ -4397,13 +4389,13 @@ const QuotationContent = ({ quotation, user, contentRef }: { quotation: any, use
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: '180px', borderBottom: '1px solid #cbd5e1', marginBottom: '0.5rem' }}></div>
           <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem', margin: 0 }}>
-            {lang === 'bn' ? 'গ্রাহকের স্বাক্ষর' : 'Customer Acceptance'}
+            Customer Acceptance
           </p>
         </div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: '180px', borderBottom: '1px solid #cbd5e1', marginBottom: '0.5rem' }}></div>
           <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem', margin: 0 }}>
-            {lang === 'bn' ? 'কর্তৃপক্ষের স্বাক্ষর' : 'Authorized Signature'}
+            Authorized Signature
           </p>
         </div>
       </div>
@@ -4412,7 +4404,7 @@ const QuotationContent = ({ quotation, user, contentRef }: { quotation: any, use
       <div className="mt-10 text-center" style={{ marginTop: '2.5rem', textAlign: 'center' }}>
         <div style={{ display: 'inline-block', padding: '0.75rem 2rem', backgroundColor: '#f8fafc', borderRadius: '1rem' }}>
           <p className="font-medium text-xs" style={{ color: '#475569', margin: 0 }}>
-            {lang === 'bn' ? 'আমাদের সেবা গ্রহণের আগ্রহের জন্য ধন্যবাদ!' : 'Thank you for your business inquiry!'}
+            Thank you for your business inquiry!
           </p>
           <p className="text-[10px] uppercase tracking-tighter" style={{ color: '#94a3b8', fontSize: '0.625rem', marginTop: '0.25rem', margin: 0 }}>
             Generated by {user?.businessName || 'GreensStock'}
@@ -4585,7 +4577,7 @@ const QuotationModal = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={lang === 'bn' ? "কোটেশন প্রিভিউ" : "Quotation Preview"} maxWidth="max-w-4xl">
+    <Modal isOpen={isOpen} onClose={onClose} title="Quotation Preview" maxWidth="max-w-4xl">
       <div className="space-y-6">
         {error && (
           <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center">
@@ -4601,7 +4593,7 @@ const QuotationModal = ({
               className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-indigo-100 cursor-pointer"
             >
               <Printer size={16} />
-              <span>{lang === 'bn' ? 'প্রিন্ট / ডাউনলোড' : 'Print / Download'}</span>
+              <span>Print / Download</span>
             </button>
 
             <button 
@@ -4637,7 +4629,7 @@ const QuotationModal = ({
               title="Copy details"
             >
               {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
-              <span>{copied ? (lang === 'bn' ? 'কপি হয়েছে' : 'Copied!') : (lang === 'bn' ? 'কপি' : 'Copy')}</span>
+              <span>{copied ? 'Copied!' : 'Copy'}</span>
             </button>
           </div>
 
@@ -4647,7 +4639,7 @@ const QuotationModal = ({
               {quotation.status === 'Converted' ? (
                 <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold">
                   <CheckCircle2 size={16} />
-                  <span>{lang === 'bn' ? 'বিক্রয়ে রূপান্তরিত হয়েছে' : 'Converted to Sale'}</span>
+                  <span>Converted to Sale</span>
                 </span>
               ) : (
                 <button
@@ -4655,7 +4647,7 @@ const QuotationModal = ({
                   className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-100 transition-all cursor-pointer"
                 >
                   <TrendingUp size={16} />
-                  <span>{lang === 'bn' ? 'সরাসরি বিক্রয়ে রূপান্তর করুন' : 'Convert to Sale'}</span>
+                  <span>Convert to Sale</span>
                 </button>
               )}
             </div>
@@ -5024,16 +5016,12 @@ const Sales = ({ data }: any) => {
     if (outOfStockItems.length > 0) {
       const itemNames = outOfStockItems.map((i: any) => i.productName).join(', ');
       const proceed = window.confirm(
-        lang === 'bn'
-          ? `সতর্কতা: নিম্নের পণ্যগুলোর পর্যাপ্ত স্টক নেই: ${itemNames}। আপনি কি তবুও এটি বিক্রয়ে রূপান্তর করতে চান?`
-          : `Warning: Insufficient stock for: ${itemNames}. Do you still want to convert to sale?`
+        `Warning: Insufficient stock for: ${itemNames}. Do you still want to convert to sale?`
       );
       if (!proceed) return;
     } else {
       const proceed = window.confirm(
-        lang === 'bn'
-          ? `আপনি কি কোটেশন #${quo.quotationNo || quo.id.slice(-6)} কে সরাসরি বিক্রয়ে রূপান্তর করতে চান? এটি ইনভেন্টরি স্টক আপডেট করবে এবং নতুন ইনভয়েস তৈরি করবে।`
-          : `Do you want to convert Quotation #${quo.quotationNo || quo.id.slice(-6)} into a Sale? This will adjust stock and create a new invoice.`
+        `Do you want to convert Quotation #${quo.quotationNo || quo.id.slice(-6)} into a Sale? This will adjust stock and create a new invoice.`
       );
       if (!proceed) return;
     }
@@ -5528,11 +5516,11 @@ const Sales = ({ data }: any) => {
             }`}
           >
             <ShoppingCart size={16} />
-            <span>{lang === 'bn' ? 'বিক্রয় তালিকা (Sales)' : 'Sales Invoices'}</span>
+            <span>Sales Invoices</span>
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
               activeSalesTab === 'sales' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
             }`}>
-              {toBengaliNumber(data.sales.length)}
+              {data.sales.length}
             </span>
           </button>
 
@@ -5546,11 +5534,11 @@ const Sales = ({ data }: any) => {
             }`}
           >
             <FileText size={16} />
-            <span>{lang === 'bn' ? 'কোটেশন সমূহ (Quotations)' : 'Quotations'}</span>
+            <span>Quotations</span>
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
               activeSalesTab === 'quotations' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-600'
             }`}>
-              {toBengaliNumber((data.quotations || []).length)}
+              {(data.quotations || []).length}
             </span>
           </button>
         </div>
@@ -5565,7 +5553,7 @@ const Sales = ({ data }: any) => {
                 className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-sm font-bold transition-all shadow-sm shadow-indigo-100 cursor-pointer"
               >
                 <Plus size={16} />
-                <span>{lang === 'bn' ? 'নতুন কোটেশন' : 'New Quotation'}</span>
+                <span>New Quotation</span>
               </button>
 
               <button
@@ -5574,7 +5562,7 @@ const Sales = ({ data }: any) => {
                 className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-sm font-bold transition-all shadow-sm shadow-emerald-100 cursor-pointer"
               >
                 <Plus size={16} />
-                <span>{lang === 'bn' ? 'নতুন বিক্রয়' : 'New Sale'}</span>
+                <span>New Sale</span>
               </button>
             </>
           )}
@@ -5582,15 +5570,15 @@ const Sales = ({ data }: any) => {
       </div>
 
       <PageHeader 
-        title={activeSalesTab === 'sales' ? (lang === 'bn' ? "বিক্রয় তালিকা" : "Sales History") : (lang === 'bn' ? "কোটেশন ম্যানেজমেন্ট" : "Quotations Management")} 
-        description={activeSalesTab === 'sales' ? (lang === 'bn' ? "আপনার ব্যবসার বিক্রয় লেনদেন ও ইনভয়েস পরিচালনা করুন।" : "View and manage your business transactions and invoices.") : (lang === 'bn' ? "গ্রাহকদের জন্য কোটেশন তৈরি, প্রিন্ট, ডাউনলোড, শেয়ার ও বিক্রয়ে রূপান্তর করুন।" : "Create, preview, print, download, share, and convert quotations into sales.")} 
+        title={activeSalesTab === 'sales' ? "Sales Invoices" : "Quotations"} 
+        description={activeSalesTab === 'sales' ? "View and manage your business sales transactions and invoices." : "Create, preview, print, download, share, and convert quotations into sales."} 
         action={null}
       />
 
       {activeSalesTab === 'sales' ? (
         <Card>
           {data.sales.length > 0 ? (
-            <Table headers={['Invoice', 'Customer', 'Items', 'Date', 'Total Amount', 'Actions']}>
+            <Table headers={['Invoice #', 'Customer', 'Items', 'Date', 'Total Amount', 'Actions']}>
               {[...data.sales].sort((a: any, b: any) => b.id.localeCompare(a.id)).map((item: any) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-medium text-slate-900">#INV-{item.id.slice(-4)}</td>
@@ -5602,9 +5590,7 @@ const Sales = ({ data }: any) => {
                     {item.items ? (
                       (() => {
                         const totalQty = item.items.reduce((sum: number, i: any) => sum + (Number(i.quantity) || 1), 0);
-                        const qtyLabel = lang === 'bn' 
-                          ? `${toBengaliNumber(totalQty)} টি পণ্য` 
-                          : `${totalQty} ${totalQty === 1 ? 'Product' : 'Products'}`;
+                        const qtyLabel = `${totalQty} ${totalQty === 1 ? 'Product' : 'Products'}`;
                         const detailText = item.items.map((i: any) => {
                           const name = i.brand ? `${i.brand} ${i.productName}` : i.productName;
                           const q = Number(i.quantity) || 1;
@@ -5622,9 +5608,7 @@ const Sales = ({ data }: any) => {
                     ) : (
                       (() => {
                         const totalQty = Number(item.quantity) || 1;
-                        const qtyLabel = lang === 'bn' 
-                          ? `${toBengaliNumber(totalQty)} টি পণ্য` 
-                          : `${totalQty} ${totalQty === 1 ? 'Product' : 'Products'}`;
+                        const qtyLabel = `${totalQty} ${totalQty === 1 ? 'Product' : 'Products'}`;
                         const name = item.brand ? `${item.brand} ${item.productName}` : item.productName;
                         return (
                           <div className="flex flex-col gap-1">
@@ -5645,28 +5629,28 @@ const Sales = ({ data }: any) => {
                       <div className="flex flex-col gap-0.5 mt-1">
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200/60 px-2 py-0.5 rounded-md w-fit">
                           <AlertCircle size={10} />
-                          {lang === 'bn' ? `বকেয়া: ${formatCurrency(item.due)}` : `Due: ${formatCurrency(item.due)}`}
+                          {`Due: ${formatCurrency(item.due)}`}
                         </span>
                         {Number(item.paid) > 0 && (
                           <span className="text-[10px] text-slate-500 font-medium">
-                            {lang === 'bn' ? `পরিশোধ: ${formatCurrency(item.paid)}` : `Paid: ${formatCurrency(item.paid)}`}
+                            {`Paid: ${formatCurrency(item.paid)}`}
                           </span>
                         )}
                       </div>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md mt-1 w-fit">
                         <CheckCircle2 size={10} />
-                        {lang === 'bn' ? 'পরিশোধিত' : 'Paid in Full'}
+                        Paid in Full
                       </span>
                     )}
                     {(() => {
                       const sPL = calculateSalesProfitAndLoss([item], data.inventory);
                       const net = sPL.totalSalesProfit - sPL.totalSalesLoss;
                       if (net > 0) {
-                        return <div className="text-[11px] font-bold text-emerald-600 mt-1">+{formatCurrency(net)} {lang === 'bn' ? 'লাভ' : 'Profit'}</div>;
+                        return <div className="text-[11px] font-bold text-emerald-600 mt-1">+{formatCurrency(net)} Profit</div>;
                       }
                       if (net < 0) {
-                        return <div className="text-[11px] font-bold text-rose-600 mt-1">-{formatCurrency(Math.abs(net))} {lang === 'bn' ? 'ক্ষতি' : 'Loss'}</div>;
+                        return <div className="text-[11px] font-bold text-rose-600 mt-1">-{formatCurrency(Math.abs(net))} Loss</div>;
                       }
                       return null;
                     })()}
@@ -5716,13 +5700,13 @@ const Sales = ({ data }: any) => {
                 type="text"
                 value={quotationSearch}
                 onChange={e => setQuotationSearch(e.target.value)}
-                placeholder={lang === 'bn' ? "কোটেশন নং, গ্রাহকের নাম বা ফোন দিয়ে খুঁজুন..." : "Search quotation #, customer or phone..."}
+                placeholder="Search quotation #, customer or phone..."
                 className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{lang === 'bn' ? 'স্ট্যাটাস:' : 'Status:'}</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status:</span>
               <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                 {['All', 'Draft', 'Sent', 'Accepted', 'Converted'].map((st) => (
                   <button
@@ -5735,11 +5719,7 @@ const Sales = ({ data }: any) => {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    {st === 'All' ? (lang === 'bn' ? 'সকল' : 'All') :
-                     st === 'Draft' ? (lang === 'bn' ? 'খসড়া' : 'Draft') :
-                     st === 'Sent' ? (lang === 'bn' ? 'প্রেরিত' : 'Sent') :
-                     st === 'Accepted' ? (lang === 'bn' ? 'গৃহীত' : 'Accepted') :
-                     (lang === 'bn' ? 'বিক্রিত' : 'Converted')}
+                    {st}
                   </button>
                 ))}
               </div>
@@ -5749,13 +5729,13 @@ const Sales = ({ data }: any) => {
           <Card>
             {filteredQuotations.length > 0 ? (
               <Table headers={[
-                lang === 'bn' ? 'কোটেশন নং' : 'Quotation #',
-                lang === 'bn' ? 'গ্রাহক' : 'Customer',
-                lang === 'bn' ? 'আইটেম সমূহ' : 'Items',
-                lang === 'bn' ? 'তারিখ ও মেয়াদ' : 'Date & Validity',
-                lang === 'bn' ? 'মোট মূল্য' : 'Total Amount',
-                lang === 'bn' ? 'স্ট্যাটাস' : 'Status',
-                lang === 'bn' ? 'অ্যাকশন' : 'Actions'
+                'Quotation #',
+                'Customer',
+                'Items',
+                'Date & Validity',
+                'Total Amount',
+                'Status',
+                'Actions'
               ]}>
                 {filteredQuotations.map((quo: any) => {
                   const totalQty = (quo.items || []).reduce((sum: number, it: any) => sum + (Number(it.quantity) || 1), 0);
@@ -5780,7 +5760,7 @@ const Sales = ({ data }: any) => {
                       <td className="px-6 py-4 text-sm text-slate-600">
                         <div className="flex flex-col gap-0.5">
                           <span className="font-bold text-indigo-600 text-xs">
-                            {lang === 'bn' ? `${toBengaliNumber(totalQty)} টি পণ্য` : `${totalQty} Items`}
+                            {`${totalQty} Items`}
                           </span>
                           <span className="text-[11px] text-slate-400 truncate max-w-[200px]" title={itemsSummary}>
                             {itemsSummary}
@@ -5799,8 +5779,8 @@ const Sales = ({ data }: any) => {
                                 : 'bg-amber-50 text-amber-700 border border-amber-200'
                             }`}>
                               <Clock size={10} />
-                              {lang === 'bn' ? `মেয়াদ: ${quo.validUntil}` : `Valid: ${quo.validUntil}`}
-                              {isExpired && (lang === 'bn' ? ' (উত্তীর্ণ)' : ' (Expired)')}
+                              {`Valid: ${quo.validUntil}`}
+                              {isExpired && ' (Expired)'}
                             </span>
                           )}
                         </div>
@@ -5809,7 +5789,7 @@ const Sales = ({ data }: any) => {
                         <div className="font-bold text-slate-900">{formatCurrency(quo.total)}</div>
                         {Number(quo.discountAmount) > 0 && (
                           <div className="text-[10px] text-amber-600 font-medium">
-                            {lang === 'bn' ? `ছাড়: ${formatCurrency(quo.discountAmount)}` : `Disc: ${formatCurrency(quo.discountAmount)}`}
+                            {`Disc: ${formatCurrency(quo.discountAmount)}`}
                           </div>
                         )}
                       </td>
@@ -5839,7 +5819,7 @@ const Sales = ({ data }: any) => {
                               setIsQuotationPreviewModalOpen(true);
                             }}
                             className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                            title={lang === 'bn' ? 'প্রিভিউ ও প্রিন্ট' : 'Preview & Print'}
+                            title="Preview & Print"
                           >
                             <Eye size={16} />
                           </button>
@@ -5852,7 +5832,7 @@ const Sales = ({ data }: any) => {
                               setIsQuotationPreviewModalOpen(true);
                             }}
                             className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
-                            title={lang === 'bn' ? 'শেয়ার করুন' : 'Share'}
+                            title="Share Quotation"
                           >
                             <Share2 size={16} />
                           </button>
@@ -5863,10 +5843,10 @@ const Sales = ({ data }: any) => {
                               type="button"
                               onClick={() => handleConvertToSale(quo)}
                               className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-emerald-100 active:scale-95 cursor-pointer"
-                              title={lang === 'bn' ? 'সরাসরি বিক্রয়ে রূপান্তর' : 'Convert to Sale'}
+                              title="Convert to Sale"
                             >
                               <TrendingUp size={12} />
-                              <span>{lang === 'bn' ? 'বিক্রয়ে রূপান্তর' : 'Convert'}</span>
+                              <span>Convert</span>
                             </button>
                           )}
 
@@ -5876,7 +5856,7 @@ const Sales = ({ data }: any) => {
                               type="button"
                               onClick={() => handleEditQuotation(quo)}
                               className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                              title={lang === 'bn' ? 'এডিট করুন' : 'Edit'}
+                              title="Edit"
                             >
                               <Edit size={16} />
                             </button>
@@ -5887,12 +5867,12 @@ const Sales = ({ data }: any) => {
                             <button
                               type="button"
                               onClick={() => {
-                                if (window.confirm(lang === 'bn' ? 'আপনি কি নিশ্চিত এই কোটেশনটি মুছে ফেলতে চান?' : 'Are you sure you want to delete this quotation?')) {
+                                if (window.confirm('Are you sure you want to delete this quotation?')) {
                                   data.deleteItem('quotations', quo.id, data.setQuotations);
                                 }
                               }}
                               className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                              title={lang === 'bn' ? 'মুছে ফেলুন' : 'Delete'}
+                              title="Delete"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -5906,9 +5886,9 @@ const Sales = ({ data }: any) => {
             ) : (
               <EmptyState 
                 icon={FileText} 
-                title={lang === 'bn' ? "কোনো কোটেশন পাওয়া যায়নি" : "No quotations found"} 
-                description={lang === 'bn' ? "গ্রাহকদের মূল্য প্রস্তাবনা প্রদানের জন্য নতুন কোটেশন তৈরি করুন।" : "Create quotations to give customized price proposals to your customers."}
-                action={lang === 'bn' ? "নতুন কোটেশন তৈরি করুন" : "Create New Quotation"}
+                title="No quotations found" 
+                description="Create quotations to give customized price proposals to your customers."
+                action="Create New Quotation"
                 onAction={handleOpenNewQuotation}
               />
             )}
@@ -5916,7 +5896,7 @@ const Sales = ({ data }: any) => {
         </div>
       )}
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={lang === 'bn' ? "নতুন বিক্রয় রেকর্ড করুন" : "Record New Sale"} maxWidth="max-w-4xl">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Record New Sale (Sales Invoice)" maxWidth="max-w-4xl">
         <form onSubmit={handleAdd} className="space-y-6 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar">
           {/* Customer Info Section */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
@@ -5924,13 +5904,13 @@ const Sales = ({ data }: any) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
-                  {lang === 'bn' ? 'ক্রেতার নাম (ঐচ্ছিক)' : 'Customer Name (Optional)'}
+                  Customer Name (Optional)
                 </label>
                 <input 
                   type="text" 
                   value={newSale.customerName} onChange={e => setNewSale({...newSale, customerName: e.target.value})}
                   className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-                  placeholder={lang === 'bn' ? 'তৎক্ষণাৎ ক্রেতা' : 'Walk-in Customer'}
+                  placeholder="Walk-in Customer"
                 />
               </div>
               <div>
@@ -6084,7 +6064,7 @@ const Sales = ({ data }: any) => {
 
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                          {lang === 'bn' ? 'একক বিক্রয়মূল্য (Unit Price)' : 'Unit Price'}
+                          Unit Price
                         </label>
                         <input 
                           type="number" step="0.01" min="0"
@@ -6097,7 +6077,7 @@ const Sales = ({ data }: any) => {
 
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                          {lang === 'bn' ? 'ট্যাক্স / ভ্যাট (Tax %)' : 'Tax (%)'}
+                          Tax (%)
                         </label>
                         <div className="relative">
                           <input 
@@ -6135,7 +6115,7 @@ const Sales = ({ data }: any) => {
 
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                          {lang === 'bn' ? 'সিরিয়াল নম্বর (ঐচ্ছিক)' : 'Serial Number (Optional)'}
+                          Serial Number (Optional)
                         </label>
                         <input 
                           type="text"
@@ -6167,7 +6147,7 @@ const Sales = ({ data }: any) => {
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                               <div className="flex items-center gap-1.5">
                                 <span className="font-semibold text-slate-700">
-                                  {lang === 'bn' ? 'বেস বিক্রয়মূল্য:' : 'Base Total:'}
+                                  Base Total:
                                 </span>
                                 <span className="font-bold text-slate-900">{formatCurrency(basePrice)}</span>
                                 <span className="text-slate-400 text-[11px]">({formatCurrency(uPrice)} × {qty})</span>
@@ -6175,7 +6155,7 @@ const Sales = ({ data }: any) => {
                               {itemBuyPrice > 0 && (
                                 <div className="flex items-center gap-1.5">
                                   <span className="font-semibold text-slate-500">
-                                    {lang === 'bn' ? 'ক্রয় খরচ:' : 'Cost:'}
+                                    Cost:
                                   </span>
                                   <span className="font-medium text-slate-700">{formatCurrency(itemTotalCost)}</span>
                                 </div>
@@ -6255,17 +6235,17 @@ const Sales = ({ data }: any) => {
                   return (
                     <div className="flex items-center justify-between text-xs pb-2 border-b border-emerald-200/50">
                       <span className="font-medium text-slate-700">
-                        {lang === 'bn' ? 'মোট আনুমানিক ফলাফল:' : 'Est. Profit / Loss:'}
+                        Est. Profit / Loss:
                       </span>
                       {estimatedDiff > 0 ? (
                         <span className="font-bold text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-md flex items-center gap-1">
                           <TrendingUp size={12} />
-                          +{formatCurrency(estimatedDiff)} {lang === 'bn' ? '(লাভ)' : '(Profit)'}
+                          +{formatCurrency(estimatedDiff)} (Profit)
                         </span>
                       ) : estimatedDiff < 0 ? (
                         <span className="font-bold text-rose-700 bg-rose-100/90 px-2 py-0.5 rounded-md flex items-center gap-1">
                           <ArrowDownRight size={12} />
-                          -{formatCurrency(Math.abs(estimatedDiff))} {lang === 'bn' ? '(ক্ষতি)' : '(Loss)'}
+                          -{formatCurrency(Math.abs(estimatedDiff))} (Loss)
                         </span>
                       ) : (
                         <span className="font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
@@ -6280,12 +6260,12 @@ const Sales = ({ data }: any) => {
 
               {calculatedTax > 0 && (
                 <div className="flex items-center justify-between text-xs text-emerald-800 pb-2 border-b border-emerald-200/50">
-                  <span>{lang === 'bn' ? 'মোট ট্যাক্স:' : 'Total Tax:'}</span>
+                  <span>Total Tax:</span>
                   <span className="font-semibold">+{formatCurrency(calculatedTax)}</span>
                 </div>
               )}
               <div className="flex items-center justify-between">
-                <span className="font-bold text-emerald-900">{lang === 'bn' ? 'সর্বমোট (Grand Total)' : 'Grand Total'}</span>
+                <span className="font-bold text-emerald-900">Grand Total</span>
                 <span className="text-2xl font-black text-emerald-600">{formatCurrency(totalAmount)}</span>
               </div>
             </div>
@@ -6299,10 +6279,10 @@ const Sales = ({ data }: any) => {
                   </div>
                   <div>
                     <h4 className="text-sm font-bold text-slate-800">
-                      {lang === 'bn' ? 'পেমেন্ট ও বকেয়া সংক্রান্ত তথ্য' : 'Payment & Due Details'}
+                      Payment & Due Details
                     </h4>
                     <p className="text-[11px] text-slate-500">
-                      {lang === 'bn' ? 'নগদ জমা ও বকেয়া (Due) হিসাব পরিচালনা করুন' : 'Manage payment received and credit due'}
+                      Manage payment received and credit due
                     </p>
                   </div>
                 </div>
@@ -6322,7 +6302,7 @@ const Sales = ({ data }: any) => {
                           : "text-slate-600 hover:text-slate-900"
                       )}
                     >
-                      {lang === 'bn' ? 'সম্পূর্ণ পরিশোধ' : 'Full Paid'}
+                      Full Paid
                     </button>
                     <button
                       type="button"
@@ -6334,7 +6314,7 @@ const Sales = ({ data }: any) => {
                           : "text-slate-600 hover:text-slate-900"
                       )}
                     >
-                      {lang === 'bn' ? 'আংশিক বকেয়া' : 'Partial Due'}
+                      Partial Due
                     </button>
                     <button
                       type="button"
@@ -6346,7 +6326,7 @@ const Sales = ({ data }: any) => {
                           : "text-slate-600 hover:text-slate-900"
                       )}
                     >
-                      {lang === 'bn' ? 'সম্পূর্ণ বাকি' : 'Full Due'}
+                      Full Due
                     </button>
                   </div>
                 </div>
@@ -6356,27 +6336,27 @@ const Sales = ({ data }: any) => {
                 {/* Payment Method */}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">
-                    {lang === 'bn' ? 'পেমেন্ট মেথড' : 'Payment Method'}
+                    Payment Method
                   </label>
                   <select
                     value={newSale.paymentMethod}
                     onChange={e => setNewSale({ ...newSale, paymentMethod: e.target.value })}
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 outline-none"
                   >
-                    <option value="Cash">{lang === 'bn' ? 'নগদ (Cash)' : 'Cash'}</option>
-                    <option value="bKash">{lang === 'bn' ? 'বিকাশ (bKash)' : 'bKash'}</option>
-                    <option value="Nagad">{lang === 'bn' ? 'নগদ (Nagad)' : 'Nagad'}</option>
-                    <option value="Rocket">{lang === 'bn' ? 'রকেট (Rocket)' : 'Rocket'}</option>
-                    <option value="Bank">{lang === 'bn' ? 'ব্যাংক (Bank Transfer)' : 'Bank Transfer'}</option>
-                    <option value="Card">{lang === 'bn' ? 'কার্ড (Card / POS)' : 'Card'}</option>
-                    <option value="Other">{lang === 'bn' ? 'অন্যান্য (Other)' : 'Other'}</option>
+                    <option value="Cash">Cash</option>
+                    <option value="bKash">bKash</option>
+                    <option value="Nagad">Nagad</option>
+                    <option value="Rocket">Rocket</option>
+                    <option value="Bank">Bank Transfer</option>
+                    <option value="Card">Card</option>
+                    <option value="Other">Other</option>
                   </select>
                 </div>
 
                 {/* Paid Amount */}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">
-                    {lang === 'bn' ? 'পরিশোধিত টাকা (Paid Amount)' : 'Paid Amount'}
+                    Paid Amount
                   </label>
                   <div className="relative">
                     <input
@@ -6398,10 +6378,10 @@ const Sales = ({ data }: any) => {
                 {/* Due Amount Form Input */}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center justify-between">
-                    <span>{lang === 'bn' ? 'বকেয়া টাকা (Due Amount)' : 'Due Amount'}</span>
+                    <span>Due Amount</span>
                     {effectiveDue > 0 && (
                       <span className="text-[10px] text-rose-600 font-black uppercase">
-                        {lang === 'bn' ? 'বাকি' : 'Due'}
+                        Due
                       </span>
                     )}
                   </label>
@@ -6430,7 +6410,7 @@ const Sales = ({ data }: any) => {
                 {/* Due Payment Date (Promise Date) */}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">
-                    {lang === 'bn' ? 'পরিশোধের তারিখ (Due Date)' : 'Due Date'}
+                    Due Date
                   </label>
                   <input
                     type="date"
@@ -6453,20 +6433,18 @@ const Sales = ({ data }: any) => {
                   <div className="flex items-center gap-2">
                     <AlertCircle size={17} className="text-rose-600 shrink-0" />
                     <span>
-                      <strong>{lang === 'bn' ? 'বকেয়া বার্তা:' : 'Due Notice:'}</strong>{' '}
-                      {lang === 'bn' 
-                        ? `এই অর্ডারে ${formatCurrency(effectiveDue)} টাকা বকেয়া থাকবে।`
-                        : `This order has a remaining due amount of ${formatCurrency(effectiveDue)}.`}
+                      <strong>Due Notice:</strong>{' '}
+                      {`This order has a remaining due amount of ${formatCurrency(effectiveDue)}.`}
                       {!newSale.customerName && (
                         <span className="block text-[11px] text-rose-600 font-semibold mt-0.5">
-                          {lang === 'bn' ? '⚠️ বকেয়া হিসাব রাখার জন্য উপরে ক্রেতার নাম বা ফোন নম্বর যুক্ত করুন।' : '⚠️ Please add customer name or phone above to keep track of this due.'}
+                          ⚠️ Please add customer name or phone above to keep track of this due.
                         </span>
                       )}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
                     <span className="font-bold bg-rose-200/90 text-rose-900 px-2.5 py-1 rounded-lg text-xs">
-                      {lang === 'bn' ? 'বকেয়া: ' : 'Due: '} {formatCurrency(effectiveDue)}
+                      Due: {formatCurrency(effectiveDue)}
                     </span>
                   </div>
                 </div>
@@ -6476,7 +6454,7 @@ const Sales = ({ data }: any) => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
-                  {lang === 'bn' ? 'তারিখ (Date)' : 'Date'}
+                  Date
                 </label>
                 <input 
                   type="date" required 
@@ -6487,7 +6465,7 @@ const Sales = ({ data }: any) => {
               <div className="flex items-end">
                 <button type="submit" className="w-full py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10 flex items-center justify-center gap-2">
                   <CheckCircle2 size={16} />
-                  {lang === 'bn' ? 'বিক্রয় নিশ্চিত করুন (Confirm)' : 'Confirm Sale'}
+                  Confirm Sale / Generate Invoice
                 </button>
               </div>
             </div>
@@ -6499,7 +6477,7 @@ const Sales = ({ data }: any) => {
       <Modal 
         isOpen={isQuotationModalOpen} 
         onClose={() => setIsQuotationModalOpen(false)} 
-        title={editingQuotationId ? (lang === 'bn' ? "কোটেশন সম্পাদনা করুন" : "Edit Quotation") : (lang === 'bn' ? "নতুন কোটেশন তৈরি করুন" : "Create New Quotation")} 
+        title={editingQuotationId ? "Edit Quotation" : "Create New Quotation"} 
         maxWidth="max-w-4xl"
       >
         <form onSubmit={handleSaveQuotation} className="space-y-6 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar">
@@ -6507,11 +6485,11 @@ const Sales = ({ data }: any) => {
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                {lang === 'bn' ? 'গ্রাহকের তথ্য (Customer Details)' : 'Customer Information'}
+                Customer Information
               </h4>
               {data.customers && data.customers.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-slate-500 font-medium">{lang === 'bn' ? 'সংরক্ষিত গ্রাহক:' : 'Existing Customer:'}</span>
+                  <span className="text-[11px] text-slate-500 font-medium">Existing Customer:</span>
                   <select
                     className="text-xs px-2.5 py-1 bg-white border border-slate-200 rounded-lg outline-none text-slate-700"
                     onChange={(e) => {
@@ -6528,7 +6506,7 @@ const Sales = ({ data }: any) => {
                     }}
                     defaultValue=""
                   >
-                    <option value="">{lang === 'bn' ? '-- গ্রাহক নির্বাচন করুন --' : '-- Select Customer --'}</option>
+                    <option value="">-- Select Customer --</option>
                     {data.customers.map((c: any) => (
                       <option key={c.id} value={c.id}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>
                     ))}
@@ -6540,7 +6518,7 @@ const Sales = ({ data }: any) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
-                  {lang === 'bn' ? 'গ্রাহকের নাম (Customer Name)' : 'Customer Name'} *
+                  Customer Name *
                 </label>
                 <input 
                   type="text" 
@@ -6548,12 +6526,12 @@ const Sales = ({ data }: any) => {
                   value={newQuotation.customerName} 
                   onChange={e => setNewQuotation({...newQuotation, customerName: e.target.value})}
                   className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
-                  placeholder={lang === 'bn' ? 'গ্রাহকের নাম লিখুন' : 'Enter customer name'}
+                  placeholder="Enter customer name"
                 />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
-                  {lang === 'bn' ? 'ফোন নম্বর (Phone)' : 'Phone Number'}
+                  Phone Number
                 </label>
                 <input 
                   type="tel" 
@@ -6565,7 +6543,7 @@ const Sales = ({ data }: any) => {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
-                  {lang === 'bn' ? 'ইমেইল (Email)' : 'Email'}
+                  Email
                 </label>
                 <input 
                   type="email" 
@@ -6577,7 +6555,7 @@ const Sales = ({ data }: any) => {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
-                  {lang === 'bn' ? 'ঠিকানা (Address)' : 'Address'}
+                  Address
                 </label>
                 <input 
                   type="text" 
@@ -6593,12 +6571,12 @@ const Sales = ({ data }: any) => {
           {/* Quotation Metadata: Quo No, Date, Validity, Status */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              {lang === 'bn' ? 'কোটেশনের বিবরণ (Quotation Info)' : 'Quotation Info'}
+              Quotation Info
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
-                  {lang === 'bn' ? 'কোটেশন নং' : 'Quotation #'}
+                  Quotation #
                 </label>
                 <input 
                   type="text" 
@@ -6610,7 +6588,7 @@ const Sales = ({ data }: any) => {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
-                  {lang === 'bn' ? 'তারিখ (Date)' : 'Date'}
+                  Date
                 </label>
                 <input 
                   type="date" 
@@ -6622,7 +6600,7 @@ const Sales = ({ data }: any) => {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
-                  {lang === 'bn' ? 'মেয়াদ / ভ্যালিডিটি' : 'Valid Until'}
+                  Valid Until
                 </label>
                 <input 
                   type="date" 
@@ -6650,16 +6628,16 @@ const Sales = ({ data }: any) => {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
-                  {lang === 'bn' ? 'কোটেশন স্ট্যাটাস' : 'Status'}
+                  Status
                 </label>
                 <select
                   value={newQuotation.status}
                   onChange={e => setNewQuotation({...newQuotation, status: e.target.value as any})}
                   className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-semibold"
                 >
-                  <option value="Draft">{lang === 'bn' ? 'খসড়া (Draft)' : 'Draft'}</option>
-                  <option value="Sent">{lang === 'bn' ? 'প্রেরিত (Sent)' : 'Sent'}</option>
-                  <option value="Accepted">{lang === 'bn' ? 'গৃহীত (Accepted)' : 'Accepted'}</option>
+                  <option value="Draft">Draft</option>
+                  <option value="Sent">Sent</option>
+                  <option value="Accepted">Accepted</option>
                 </select>
               </div>
             </div>
@@ -6669,7 +6647,7 @@ const Sales = ({ data }: any) => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                {lang === 'bn' ? 'পণ্যের তালিকা (Quotation Items)' : 'Quotation Items'}
+                Quotation Items
               </h4>
               <div className="flex items-center gap-2">
                 <button 
@@ -6677,14 +6655,14 @@ const Sales = ({ data }: any) => {
                   onClick={() => setIsQuotationScannerOpen(true)}
                   className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
-                  <QrCode size={14} /> {lang === 'bn' ? 'বারকোড স্ক্যান' : 'Scan QR/Barcode'}
+                  <QrCode size={14} /> Scan QR/Barcode
                 </button>
                 <button 
                   type="button" 
                   onClick={addQuotationItem}
                   className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
-                  <PlusCircle size={14} /> {lang === 'bn' ? 'পণ্য যোগ করুন' : 'Add Item'}
+                  <PlusCircle size={14} /> Add Item
                 </button>
               </div>
             </div>
@@ -6715,7 +6693,7 @@ const Sales = ({ data }: any) => {
                       {/* Product Selection */}
                       <div className="sm:col-span-5 space-y-2">
                         <label className="block text-xs font-medium text-slate-500">
-                          {lang === 'bn' ? 'পণ্য নির্বাচন অথবা নাম লিখুন' : 'Product Select / Name'}
+                          Product Select / Name
                         </label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <select 
@@ -6723,10 +6701,10 @@ const Sales = ({ data }: any) => {
                             onChange={e => updateQuotationItem(index, 'productId', e.target.value)}
                             className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20"
                           >
-                            <option value="">{lang === 'bn' ? '-- স্টক থেকে নির্বাচন --' : '-- From Inventory --'}</option>
+                            <option value="">-- From Inventory --</option>
                             {data.inventory.map((p: any) => (
                               <option key={p.id} value={p.id}>
-                                {p.name} {p.brand ? `[${p.brand}]` : ''} - {formatCurrency(p.price)} (মজুদ: {p.quantity})
+                                {p.name} {p.brand ? `[${p.brand}]` : ''} - {formatCurrency(p.price)} (Stock: {p.quantity})
                               </option>
                             ))}
                           </select>
@@ -6734,7 +6712,7 @@ const Sales = ({ data }: any) => {
                             type="text" 
                             value={item.productName} 
                             onChange={e => updateQuotationItem(index, 'productName', e.target.value)}
-                            placeholder={lang === 'bn' ? 'পণ্যের নাম' : 'Custom Product Name'}
+                            placeholder="Custom Product Name"
                             className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 font-medium"
                           />
                         </div>
@@ -6743,7 +6721,7 @@ const Sales = ({ data }: any) => {
                       {/* Quantity */}
                       <div className="sm:col-span-2">
                         <label className="block text-xs font-medium text-slate-500 mb-1">
-                          {lang === 'bn' ? 'পরিমাণ (Qty)' : 'Quantity'}
+                          Quantity
                         </label>
                         <input 
                           type="number" 
@@ -6757,7 +6735,7 @@ const Sales = ({ data }: any) => {
                       {/* Unit Price */}
                       <div className="sm:col-span-2">
                         <label className="block text-xs font-medium text-slate-500 mb-1">
-                          {lang === 'bn' ? 'একক মূল্য' : 'Unit Price'}
+                          Unit Price
                         </label>
                         <input 
                           type="number" 
@@ -6783,7 +6761,7 @@ const Sales = ({ data }: any) => {
 
                       {/* Item Total */}
                       <div className="sm:col-span-2 text-right">
-                        <div className="text-[10px] text-slate-400 font-bold uppercase">{lang === 'bn' ? 'মোট মূল্য' : 'Total'}</div>
+                        <div className="text-[10px] text-slate-400 font-bold uppercase">Total</div>
                         <div className="text-sm font-black text-indigo-700 mt-1">
                           {formatCurrency(lineTotal)}
                         </div>
@@ -6798,13 +6776,13 @@ const Sales = ({ data }: any) => {
           {/* Discount & Calculation Breakdown */}
           <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 space-y-4">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              {lang === 'bn' ? 'মূল্য হিসাব ও ছাড় (Discounts & Calculation)' : 'Summary & Discount'}
+              Summary & Discount
             </h4>
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  {lang === 'bn' ? 'ছাড়ের ধরণ (Discount Type)' : 'Discount Type'}
+                  Discount Type
                 </label>
                 <div className="flex items-center gap-2">
                   <button
@@ -6816,7 +6794,7 @@ const Sales = ({ data }: any) => {
                         : 'bg-white text-slate-600 border-slate-200'
                     }`}
                   >
-                    শতাংশ (%)
+                    Percentage (%)
                   </button>
                   <button
                     type="button"
@@ -6827,14 +6805,14 @@ const Sales = ({ data }: any) => {
                         : 'bg-white text-slate-600 border-slate-200'
                     }`}
                   >
-                    নির্দিষ্ট টাকা (Flat)
+                    Flat Amount
                   </button>
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  {lang === 'bn' ? 'ছাড়ের পরিমাণ (Discount Value)' : 'Discount Value'}
+                  Discount Value
                 </label>
                 <input 
                   type="number" 
@@ -6848,7 +6826,7 @@ const Sales = ({ data }: any) => {
 
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  {lang === 'bn' ? 'অতিরিক্ত ট্যাক্স/ভ্যাট % (Tax %)' : 'Global Tax %'}
+                  Global Tax %
                 </label>
                 <input 
                   type="number" 
@@ -6871,19 +6849,19 @@ const Sales = ({ data }: any) => {
               return (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-200">
                   <div className="bg-white p-3 rounded-xl border border-slate-100">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">{lang === 'bn' ? 'সাবটোটাল' : 'Subtotal'}</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Subtotal</span>
                     <span className="text-sm font-bold text-slate-800">{formatCurrency(subtotal)}</span>
                   </div>
                   <div className="bg-white p-3 rounded-xl border border-slate-100">
-                    <span className="text-[10px] text-amber-500 font-bold uppercase block">{lang === 'bn' ? 'ছাড় (Discount)' : 'Discount'}</span>
+                    <span className="text-[10px] text-amber-500 font-bold uppercase block">Discount</span>
                     <span className="text-sm font-bold text-amber-600">-{formatCurrency(discountAmt)}</span>
                   </div>
                   <div className="bg-white p-3 rounded-xl border border-slate-100">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">{lang === 'bn' ? 'মোট ট্যাক্স/ভ্যাট' : 'Tax/VAT'}</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Tax/VAT</span>
                     <span className="text-sm font-bold text-slate-800">+{formatCurrency(taxAmt)}</span>
                   </div>
                   <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-200/80">
-                    <span className="text-[10px] text-indigo-700 font-bold uppercase block">{lang === 'bn' ? 'সর্বমোট প্রাক্কলিত মূল্য' : 'Total Amount'}</span>
+                    <span className="text-[10px] text-indigo-700 font-bold uppercase block">Total Amount</span>
                     <span className="text-base font-black text-indigo-700">{formatCurrency(grandTotal)}</span>
                   </div>
                 </div>
@@ -6894,7 +6872,7 @@ const Sales = ({ data }: any) => {
           {/* Terms & Conditions / Notes */}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
-              {lang === 'bn' ? 'শর্তাবলী ও অন্যান্য নোট (Terms & Conditions / Notes)' : 'Terms & Conditions / Notes'}
+              Terms & Conditions / Notes
             </label>
             <textarea 
               rows={3} 
@@ -6912,14 +6890,14 @@ const Sales = ({ data }: any) => {
               onClick={() => setIsQuotationModalOpen(false)}
               className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all cursor-pointer"
             >
-              {lang === 'bn' ? 'বাতিল' : 'Cancel'}
+              Cancel
             </button>
             <button 
               type="submit" 
               className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-100 active:scale-95 transition-all cursor-pointer"
             >
               <CheckCircle2 size={16} />
-              <span>{editingQuotationId ? (lang === 'bn' ? 'কোটেশন আপডেট করুন' : 'Update Quotation') : (lang === 'bn' ? 'কোটেশন সংরক্ষণ করুন' : 'Save Quotation')}</span>
+              <span>{editingQuotationId ? 'Update Quotation' : 'Save Quotation'}</span>
             </button>
           </div>
         </form>
