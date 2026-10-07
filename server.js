@@ -150,6 +150,7 @@ async function ensureAllTables() {
         await conn.query(`CREATE TABLE IF NOT EXISTS \`customers\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`name\` VARCHAR(255), \`phone\` VARCHAR(20))`);
         await conn.query(`CREATE TABLE IF NOT EXISTS \`expenses\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`category\` VARCHAR(255), \`amount\` DECIMAL(10,2) DEFAULT 0, \`date\` VARCHAR(50))`);
         await conn.query(`CREATE TABLE IF NOT EXISTS \`returns\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`invoiceNo\` VARCHAR(255), \`customerName\` VARCHAR(255), \`totalAmount\` DECIMAL(10,2) DEFAULT 0, \`reason\` TEXT, \`type\` VARCHAR(50), \`date\` VARCHAR(50))`);
+        await conn.query(`CREATE TABLE IF NOT EXISTS \`quotations\` (id VARCHAR(255) PRIMARY KEY, \`userId\` INT, \`quotationNo\` VARCHAR(255), \`customerName\` VARCHAR(255), \`customerPhone\` VARCHAR(255), \`customerEmail\` VARCHAR(255), \`customerAddress\` TEXT, \`items\` JSON, \`subtotal\` DECIMAL(10,2) DEFAULT 0, \`discountPercent\` DECIMAL(5,2) DEFAULT 0, \`discountAmount\` DECIMAL(10,2) DEFAULT 0, \`taxPercent\` DECIMAL(5,2) DEFAULT 0, \`taxAmount\` DECIMAL(10,2) DEFAULT 0, \`total\` DECIMAL(10,2) DEFAULT 0, \`validUntil\` VARCHAR(50), \`status\` VARCHAR(50) DEFAULT 'Draft', \`notes\` TEXT, \`date\` VARCHAR(50))`);
         
         // --- NEW: SUBSCRIPTION SYSTEM TABLES ---
         await conn.query(`CREATE TABLE IF NOT EXISTS \`activation_codes\` (id INT AUTO_INCREMENT PRIMARY KEY, \`code\` VARCHAR(255) UNIQUE, \`isUsed\` TINYINT(1) DEFAULT 0, \`usedAt\` VARCHAR(50), \`usedByUserId\` INT)`);
@@ -213,6 +214,24 @@ async function ensureAllTables() {
         await checkAndAddColumn(conn, 'expenses', 'description', 'TEXT');
         await checkAndAddColumn(conn, 'expenses', 'employeeName', 'VARCHAR(255)');
         await checkAndAddColumn(conn, 'expenses', 'employeePhone', 'VARCHAR(20)');
+
+        await checkAndAddColumn(conn, 'quotations', 'userId', 'INT');
+        await checkAndAddColumn(conn, 'quotations', 'quotationNo', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'quotations', 'customerName', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'quotations', 'customerPhone', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'quotations', 'customerEmail', 'VARCHAR(255)');
+        await checkAndAddColumn(conn, 'quotations', 'customerAddress', 'TEXT');
+        await checkAndAddColumn(conn, 'quotations', 'items', 'JSON');
+        await checkAndAddColumn(conn, 'quotations', 'subtotal', 'DECIMAL(10,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'quotations', 'discountPercent', 'DECIMAL(5,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'quotations', 'discountAmount', 'DECIMAL(10,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'quotations', 'taxPercent', 'DECIMAL(5,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'quotations', 'taxAmount', 'DECIMAL(10,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'quotations', 'total', 'DECIMAL(10,2) DEFAULT 0');
+        await checkAndAddColumn(conn, 'quotations', 'validUntil', 'VARCHAR(50)');
+        await checkAndAddColumn(conn, 'quotations', 'status', 'VARCHAR(50)');
+        await checkAndAddColumn(conn, 'quotations', 'notes', 'TEXT');
+        await checkAndAddColumn(conn, 'quotations', 'date', 'VARCHAR(50)');
 
         try {
             const [rows] = await conn.query("SHOW COLUMNS FROM `inventory`");
@@ -1573,7 +1592,7 @@ app.delete('/api/managers/:id', async (req, res) => {
 });
 
 // Entity API
-const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses', 'returns'];
+const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses', 'returns', 'quotations'];
 entities.forEach(entity => {
     app.get(`/api/${entity}`, async (req, res) => {
         try {

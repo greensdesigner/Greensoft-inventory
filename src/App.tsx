@@ -100,7 +100,12 @@ import {
   Globe,
   Barcode,
   ScanLine,
-  Scan
+  Scan,
+  Share2,
+  Send,
+  Check,
+  ExternalLink,
+  Edit
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -240,6 +245,15 @@ const translations: any = {
     startDate: "Start Date",
     endDate: "End Date",
     downloadPDF: "Download PDF",
+    quotations: "Quotations",
+    quotation: "Quotation",
+    newQuotation: "New Quotation",
+    createQuotation: "Create Quotation",
+    quotationHistory: "Quotations List",
+    validUntil: "Valid Until",
+    convertToSale: "Convert to Sale",
+    convertedToSale: "Converted to Sale",
+    shareQuotation: "Share Quotation",
   },
   bn: {
     dashboard: "ড্যাশবোর্ড",
@@ -337,6 +351,15 @@ const translations: any = {
     startDate: "শুরুর তারিখ",
     endDate: "শেষের তারিখ",
     downloadPDF: "পিডিএফ ডাউনলোড করুন",
+    quotations: "কোটেশন সমূহ",
+    quotation: "কোটেশন",
+    newQuotation: "নতুন কোটেশন",
+    createQuotation: "কোটেশন তৈরি করুন",
+    quotationHistory: "কোটেশন তালিকা",
+    validUntil: "মেয়াদ / ভ্যালিডিটি",
+    convertToSale: "বিক্রয়ে রূপান্তর",
+    convertedToSale: "বিক্রয়ে রূপান্তরিত",
+    shareQuotation: "কোটেশন শেয়ার করুন",
   },
   es: {
     dashboard: "Tablero",
@@ -1250,6 +1273,7 @@ const useData = (user: any) => {
   const [customers, setCustomers] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [returns, setReturns] = useState<any[]>([]);
+  const [quotations, setQuotations] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Sanitization helper
@@ -1270,6 +1294,17 @@ const useData = (user: any) => {
         total: n(item.total),
         paid: n(item.paid),
         due: n(item.due)
+      };
+    }
+    if (key === 'quotations') {
+      return {
+        ...item,
+        subtotal: n(item.subtotal),
+        discountPercent: n(item.discountPercent),
+        discountAmount: n(item.discountAmount),
+        taxPercent: n(item.taxPercent),
+        taxAmount: n(item.taxAmount),
+        total: n(item.total)
       };
     }
     if (key === 'expenses') {
@@ -1301,14 +1336,15 @@ const useData = (user: any) => {
       return;
     }
     try {
-      const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses', 'returns'];
+      const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses', 'returns', 'quotations'];
       const setters: any = {
         inventory: setInventory,
         sales: setSales,
         suppliers: setSuppliers,
         customers: setCustomers,
         expenses: setExpenses,
-        returns: setReturns
+        returns: setReturns,
+        quotations: setQuotations
       };
 
       for (const entity of entities) {
@@ -1328,6 +1364,15 @@ const useData = (user: any) => {
                   return { ...s, items: Array.isArray(items) ? items : [] };
                 });
                 setSales(formattedSales);
+              } else if (entity === 'quotations') {
+                const formattedQuotations = sanitizedData.map((q: any) => {
+                  let items = [];
+                  try {
+                    items = typeof q.items === 'string' ? JSON.parse(q.items) : (q.items || []);
+                  } catch (e) { items = []; }
+                  return { ...q, items: Array.isArray(items) ? items : [] };
+                });
+                setQuotations(formattedQuotations);
               } else {
                 setters[entity](sanitizedData);
               }
@@ -1425,12 +1470,14 @@ const useData = (user: any) => {
     customers, setCustomers: (d: any) => { setCustomers(d); saveData('customers', d); },
     expenses, setExpenses: (d: any) => { setExpenses(d); saveData('expenses', d); },
     returns, setReturns: (d: any) => { setReturns(d); saveData('returns', d); },
+    quotations, setQuotations: (d: any) => { setQuotations(d); saveData('quotations', d); },
     addInventory: (item: any) => addItem('inventory', item, setInventory),
     addSale: (item: any) => addItem('sales', item, setSales),
     addSupplier: (item: any) => addItem('suppliers', item, setSuppliers),
     addCustomer: (item: any) => addItem('customers', item, setCustomers),
     addExpense: (item: any) => addItem('expenses', item, setExpenses),
     addReturn: (item: any) => addItem('returns', item, setReturns),
+    addQuotation: (item: any) => addItem('quotations', item, setQuotations),
     deleteItem,
     editItem,
     isLoaded,
@@ -4145,6 +4192,483 @@ const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () 
   );
 };
 
+// --- QUOTATION PREVIEW & PRINT DOCUMENT COMPONENT ---
+const QuotationContent = ({ quotation, user, contentRef }: { quotation: any, user: any, contentRef?: any }) => {
+  const { formatCurrency } = useCurrency();
+  const { lang } = useTranslation();
+
+  if (!quotation) return null;
+
+  const subtotal = Number(quotation.subtotal) || 0;
+  const discountAmt = Number(quotation.discountAmount) || 0;
+  const taxAmt = Number(quotation.taxAmount) || 0;
+  const total = Number(quotation.total) || 0;
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Accepted':
+        return { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0', label: lang === 'bn' ? 'গৃহীত (Accepted)' : 'Accepted' };
+      case 'Sent':
+        return { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe', label: lang === 'bn' ? 'প্রেরিত (Sent)' : 'Sent' };
+      case 'Converted':
+        return { bg: '#f5f3ff', text: '#6d28d9', border: '#ddd6fe', label: lang === 'bn' ? 'বিক্রিত (Converted)' : 'Converted' };
+      default:
+        return { bg: '#fffbeb', text: '#b45309', border: '#fde68a', label: lang === 'bn' ? 'খসড়া (Draft)' : 'Draft' };
+    }
+  };
+
+  const statusBadge = getStatusBadge(quotation.status || 'Draft');
+
+  return (
+    <div 
+      ref={contentRef} 
+      className="p-8 bg-white border border-slate-200 rounded-xl shadow-sm quotation-content" 
+      style={{ 
+        backgroundColor: '#ffffff', 
+        color: '#0f172a',
+        fontFamily: 'Inter, sans-serif',
+        width: '100%',
+        maxWidth: '800px',
+        margin: '0 auto'
+      }}
+    >
+      {/* Top Header */}
+      <div className="flex justify-between items-start mb-8 border-b-2 border-slate-100 pb-6">
+        <div className="flex items-center gap-4">
+          {user?.logo && <img src={user.logo} alt="Logo" className="w-16 h-16 object-contain" />}
+          <div>
+            <h3 className="text-2xl font-black" style={{ color: '#0f172a', margin: 0, letterSpacing: '-0.025em' }}>
+              {user?.businessName || 'GreensStock'}
+            </h3>
+            <div className="text-[12px] font-semibold text-slate-600 mt-2 uppercase tracking-tight leading-relaxed">
+              {user?.address && <div><span className="text-slate-400 font-bold">Address:</span> {user.address}</div>}
+              <div className="flex flex-wrap gap-x-4">
+                {user?.email && <span><span className="text-slate-400 font-bold">Email:</span> {user.email}</span>}
+                {user?.phoneNumber && <span><span className="text-slate-400 font-bold">Phone:</span> {user.phoneNumber}</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase mb-2" style={{ backgroundColor: statusBadge.bg, color: statusBadge.text, border: `1px solid ${statusBadge.border}` }}>
+            {statusBadge.label}
+          </div>
+          <h2 className="text-3xl font-black mb-1" style={{ color: '#4338ca', margin: 0 }}>
+            {lang === 'bn' ? 'কোটেশন' : 'QUOTATION'}
+          </h2>
+          <p className="font-bold text-sm" style={{ color: '#64748b', margin: 0 }}>
+            #{quotation.quotationNo || (quotation.id ? `QT-${quotation.id.slice(-6).toUpperCase()}` : 'QT-0000')}
+          </p>
+        </div>
+      </div>
+
+      {/* Bill To & Quotation Dates Grid */}
+      <div className="grid grid-cols-2 gap-8 mb-8" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+        <div>
+          <h4 className="text-[10px] font-bold uppercase tracking-widest mb-2 border-b border-slate-100 pb-1 w-fit" style={{ color: '#94a3b8' }}>
+            {lang === 'bn' ? 'গ্রাহকের বিবরণ (Quotation For):' : 'Quotation For:'}
+          </h4>
+          <div className="font-black text-slate-900" style={{ fontSize: '1.3rem', marginBottom: '0.35rem' }}>
+            {quotation.customerName || (lang === 'bn' ? 'সম্মানিত গ্রাহক' : 'Valued Customer')}
+          </div>
+          <div className="text-[13px] font-semibold text-slate-600 space-y-1">
+            {quotation.customerPhone && (
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-bold">Phone:</span> {quotation.customerPhone}
+              </div>
+            )}
+            {quotation.customerEmail && (
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-bold">Email:</span> {quotation.customerEmail}
+              </div>
+            )}
+            {quotation.customerAddress && (
+              <div className="flex items-start gap-1 pt-1 leading-snug max-w-[280px]">
+                <span className="text-slate-400 font-bold">Address:</span> {quotation.customerAddress}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="text-right flex flex-col items-end justify-center">
+          <div className="space-y-2">
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] font-bold uppercase text-slate-400">
+                {lang === 'bn' ? 'কোটেশনের তারিখ' : 'Quotation Date'}
+              </span>
+              <span className="font-bold text-slate-800 text-sm">{(quotation.date || '').split('T')[0]}</span>
+            </div>
+            {quotation.validUntil && (
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] font-bold uppercase text-slate-400">
+                  {lang === 'bn' ? 'মেয়াদ / ভ্যালিডিটি' : 'Valid Until'}
+                </span>
+                <span className="font-bold text-amber-700 text-sm bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  {quotation.validUntil}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Line Items Table */}
+      <div className="py-4 mb-6" style={{ borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+        <table className="w-full text-left" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'left' }}>#</th>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'left' }}>{lang === 'bn' ? 'পণ্য ও বিবরণ' : 'Description'}</th>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'center' }}>{lang === 'bn' ? 'পরিমাণ' : 'Qty'}</th>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'right' }}>{lang === 'bn' ? 'একক মূল্য' : 'Unit Price'}</th>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'right' }}>{lang === 'bn' ? 'মোট' : 'Total'}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(quotation.items || []).map((item: any, idx: number) => {
+              const itemQty = Number(item.quantity) || 1;
+              const unitPrice = Number(item.unitPrice) || 0;
+              return (
+                <tr key={idx} style={{ borderBottom: idx !== (quotation.items.length - 1) ? '1px solid #f8fafc' : 'none' }}>
+                  <td style={{ padding: '0.75rem 0', color: '#94a3b8', fontSize: '0.8rem', width: '24px' }}>{idx + 1}</td>
+                  <td style={{ padding: '0.75rem 0' }}>
+                    <div className="font-bold" style={{ color: '#0f172a' }}>
+                      {item.brand && <span className="text-[10px] text-slate-400 font-medium block leading-none mb-0.5">{item.brand}</span>}
+                      {item.productName || 'Product'}
+                    </div>
+                    {item.productCategory && <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {item.productCategory}</div>}
+                    {item.serialNumber && <div className="text-xs font-mono" style={{ color: '#4338ca', fontSize: '0.75rem' }}>SN/Model: {item.serialNumber}</div>}
+                    {Number(item.taxPercent) > 0 && (
+                      <div className="text-[11px] font-semibold" style={{ color: '#059669', fontSize: '0.75rem' }}>
+                        Tax: {item.taxPercent}%
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.75rem 0', textAlign: 'center', color: '#334155', fontWeight: 'bold' }}>{itemQty}</td>
+                  <td style={{ padding: '0.75rem 0', textAlign: 'right', color: '#334155' }}>{formatCurrency(unitPrice)}</td>
+                  <td style={{ padding: '0.75rem 0', textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>{formatCurrency(item.total)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Totals Summary */}
+      <div className="flex justify-end mb-8" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ width: '280px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.4rem', fontSize: '0.875rem' }}>
+            <span>{lang === 'bn' ? 'সাবটোটাল (Subtotal)' : 'Subtotal'}</span>
+            <span>{formatCurrency(subtotal)}</span>
+          </div>
+          {discountAmt > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ea580c', marginBottom: '0.4rem', fontSize: '0.875rem' }}>
+              <span>{lang === 'bn' ? 'ডিসকাউন্ট (Discount)' : 'Discount'}</span>
+              <span>-{formatCurrency(discountAmt)}</span>
+            </div>
+          )}
+          {taxAmt > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.4rem', fontSize: '0.875rem' }}>
+              <span>{lang === 'bn' ? 'ট্যাক্স / ভ্যাট (Tax/VAT)' : 'Tax / VAT'}</span>
+              <span>+{formatCurrency(taxAmt)}</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', paddingTop: '0.6rem', borderTop: '2px solid #e2e8f0', marginTop: '0.4rem' }}>
+            <span>{lang === 'bn' ? 'সর্বমোট প্রাক্কলিত মূল্য' : 'Total Estimated'}</span>
+            <span style={{ color: '#4338ca' }}>{formatCurrency(total)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Notes & Terms & Conditions */}
+      {quotation.notes && (
+        <div className="mb-8 p-4 bg-slate-50 border border-slate-200/60 rounded-xl" style={{ backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '0.75rem', marginBottom: '2rem' }}>
+          <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2" style={{ margin: '0 0 0.5rem 0', fontSize: '0.75rem', fontWeight: 'bold', color: '#64748b' }}>
+            {lang === 'bn' ? 'শর্তাবলী ও নোট (Terms & Notes):' : 'Terms & Conditions:'}
+          </h5>
+          <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed" style={{ margin: 0, fontSize: '0.8rem', lineHeight: '1.5', whiteSpace: 'pre-line' }}>
+            {quotation.notes}
+          </p>
+        </div>
+      )}
+
+      {/* Signatures */}
+      <div className="mt-14" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '3.5rem' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: '180px', borderBottom: '1px solid #cbd5e1', marginBottom: '0.5rem' }}></div>
+          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem', margin: 0 }}>
+            {lang === 'bn' ? 'গ্রাহকের স্বাক্ষর' : 'Customer Acceptance'}
+          </p>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: '180px', borderBottom: '1px solid #cbd5e1', marginBottom: '0.5rem' }}></div>
+          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem', margin: 0 }}>
+            {lang === 'bn' ? 'কর্তৃপক্ষের স্বাক্ষর' : 'Authorized Signature'}
+          </p>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="mt-10 text-center" style={{ marginTop: '2.5rem', textAlign: 'center' }}>
+        <div style={{ display: 'inline-block', padding: '0.75rem 2rem', backgroundColor: '#f8fafc', borderRadius: '1rem' }}>
+          <p className="font-medium text-xs" style={{ color: '#475569', margin: 0 }}>
+            {lang === 'bn' ? 'আমাদের সেবা গ্রহণের আগ্রহের জন্য ধন্যবাদ!' : 'Thank you for your business inquiry!'}
+          </p>
+          <p className="text-[10px] uppercase tracking-tighter" style={{ color: '#94a3b8', fontSize: '0.625rem', marginTop: '0.25rem', margin: 0 }}>
+            Generated by {user?.businessName || 'GreensStock'}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- QUOTATION MODAL WITH PRINT, PDF, SHARE & CONVERT ---
+const QuotationModal = ({
+  isOpen, 
+  onClose, 
+  quotation, 
+  onConvertToSale 
+}: { 
+  isOpen: boolean, 
+  onClose: () => void, 
+  quotation: any, 
+  onConvertToSale?: (quo: any) => void 
+}) => {
+  const { user } = useAuth();
+  const componentRef = useRef<HTMLDivElement>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { lang } = useTranslation();
+  const { formatCurrency } = useCurrency();
+
+  if (!quotation) return null;
+
+  const getQuotationSummaryText = () => {
+    const qNo = quotation.quotationNo || (quotation.id ? quotation.id.slice(-6).toUpperCase() : '');
+    const itemsText = (quotation.items || []).map((it: any, i: number) => {
+      return `${i + 1}. ${it.productName || 'Product'} (x${it.quantity}) - ${formatCurrency(it.total)}`;
+    }).join('\n');
+
+    return `*${lang === 'bn' ? 'কোটেশন' : 'QUOTATION'} #${qNo}*\n` +
+      `${lang === 'bn' ? 'প্রতিষ্ঠান:' : 'Business:'} ${user?.businessName || 'GreensStock'}\n` +
+      `${lang === 'bn' ? 'গ্রাহক:' : 'Customer:'} ${quotation.customerName || 'N/A'}\n` +
+      `${lang === 'bn' ? 'তারিখ:' : 'Date:'} ${(quotation.date || '').split('T')[0]}\n` +
+      (quotation.validUntil ? `${lang === 'bn' ? 'মেয়াদ:' : 'Valid Until:'} ${quotation.validUntil}\n` : '') +
+      `\n*${lang === 'bn' ? 'আইটেম তালিকা:' : 'Items:'}*\n${itemsText}\n\n` +
+      `*${lang === 'bn' ? 'সর্বমোট প্রাক্কলিত মূল্য:' : 'Total Amount:'} ${formatCurrency(quotation.total)}*\n\n` +
+      `${user?.phoneNumber ? `যোগাযোগ: ${user.phoneNumber}` : ''}`;
+  };
+
+  const handleShareWhatsApp = () => {
+    const text = getQuotationSummaryText();
+    const phone = (quotation.customerPhone || '').replace(/[^0-9]/g, '');
+    const url = phone.length >= 10
+      ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleShareEmail = () => {
+    const text = getQuotationSummaryText();
+    const subject = `Quotation #${quotation.quotationNo || ''} from ${user?.businessName || 'GreensStock'}`;
+    const mailto = `mailto:${quotation.customerEmail || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    window.location.href = mailto;
+  };
+
+  const handleCopyText = async () => {
+    try {
+      const text = getQuotationSummaryText();
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (_) {
+      alert('Failed to copy');
+    }
+  };
+
+  const downloadPDF = async () => {
+    if (!componentRef.current || isGenerating) return;
+    try {
+      setIsGenerating(true);
+      setError(null);
+      const element = componentRef.current;
+      // @ts-ignore
+      const h2pdf = window.html2pdf || html2pdf;
+      if (!h2pdf) throw new Error("PDF library not loaded");
+
+      const opt = {
+        margin: 10,
+        filename: `Quotation-${quotation?.quotationNo || quotation?.id?.slice(-4) || '0000'}.pdf`,
+        image: { type: 'jpeg', quality: 1.0 },
+        html2canvas: { 
+          scale: 3, 
+          useCORS: true, 
+          logging: false,
+          backgroundColor: '#ffffff'
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await h2pdf().from(element).set(opt).save();
+    } catch (err: any) {
+      console.error('PDF error:', err);
+      setError('PDF download issue. Please use the Print option.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const openInNewTab = () => {
+    if (!componentRef.current) return;
+    const content = componentRef.current.innerHTML;
+    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(style => style.outerHTML)
+      .join('\n');
+
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(`
+        <html>
+          <head>
+            <title>Quotation-${quotation?.quotationNo || quotation?.id?.slice(-4) || '0000'}</title>
+            ${styles}
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+            <style>
+              body { background: white !important; margin: 0; padding: 40px; color: #0f172a !important; font-family: sans-serif; }
+              .no-print-window { display: none !important; }
+              .quotation-content { border: none !important; box-shadow: none !important; width: 100% !important; max-width: 800px !important; margin: 0 auto !important; }
+              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              @media print {
+                body { padding: 0; }
+                .quotation-content { max-width: none !important; }
+                .no-print-window-ui { display: none !important; }
+              }
+              .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-right: 10px; transition: opacity 0.2s; }
+              .btn:hover { opacity: 0.9; }
+              .btn-print { background: #4f46e5; color: white; }
+              .btn-pdf { background: #0284c7; color: white; }
+              .btn-close { background: #64748b; color: white; }
+            </style>
+          </head>
+          <body>
+            <div class="no-print-window-ui" style="margin-bottom: 30px; text-align: center; padding: 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 100;">
+              <button onclick="window.print()" class="btn btn-print">Print Quotation</button>
+              <button id="download-pdf-btn" class="btn btn-pdf">Download PDF</button>
+              <button onclick="window.close()" class="btn btn-close">Close Tab</button>
+            </div>
+            <div id="quotation-to-download">
+              ${content}
+            </div>
+            <script>
+              document.getElementById('download-pdf-btn').onclick = function() {
+                const element = document.getElementById('quotation-to-download');
+                const opt = {
+                  margin: 10,
+                  filename: 'Quotation-${quotation?.quotationNo || quotation?.id?.slice(-4) || '0000'}.pdf',
+                  image: { type: 'jpeg', quality: 1.0 },
+                  html2canvas: { scale: 3, useCORS: true, backgroundColor: '#ffffff' },
+                  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().from(element).set(opt).save();
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+    } else {
+      alert("Pop-up blocked. Please allow pop-ups in your browser.");
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={lang === 'bn' ? "কোটেশন প্রিভিউ" : "Quotation Preview"} maxWidth="max-w-4xl">
+      <div className="space-y-6">
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center">
+            {error}
+          </div>
+        )}
+
+        {/* Top Action Bar with Print, Download, Share, and Convert */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-slate-50 border border-slate-200/80 rounded-2xl no-print">
+          <div className="flex flex-wrap items-center gap-2">
+            <button 
+              onClick={openInNewTab}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-indigo-100 cursor-pointer"
+            >
+              <Printer size={16} />
+              <span>{lang === 'bn' ? 'প্রিন্ট / ডাউনলোড' : 'Print / Download'}</span>
+            </button>
+
+            <button 
+              onClick={downloadPDF}
+              disabled={isGenerating}
+              className="flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-sky-100 cursor-pointer disabled:opacity-60"
+            >
+              <Download size={16} />
+              <span>{isGenerating ? 'Generating...' : 'PDF'}</span>
+            </button>
+
+            <button 
+              onClick={handleShareWhatsApp}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-emerald-100 cursor-pointer"
+              title="Share via WhatsApp"
+            >
+              <Send size={16} />
+              <span>WhatsApp</span>
+            </button>
+
+            <button 
+              onClick={handleShareEmail}
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              title="Share via Email"
+            >
+              <Mail size={16} />
+              <span>Email</span>
+            </button>
+
+            <button 
+              onClick={handleCopyText}
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              title="Copy details"
+            >
+              {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
+              <span>{copied ? (lang === 'bn' ? 'কপি হয়েছে' : 'Copied!') : (lang === 'bn' ? 'কপি' : 'Copy')}</span>
+            </button>
+          </div>
+
+          {/* Direct Convert to Sale action button */}
+          {onConvertToSale && (
+            <div>
+              {quotation.status === 'Converted' ? (
+                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold">
+                  <CheckCircle2 size={16} />
+                  <span>{lang === 'bn' ? 'বিক্রয়ে রূপান্তরিত হয়েছে' : 'Converted to Sale'}</span>
+                </span>
+              ) : (
+                <button
+                  onClick={() => onConvertToSale(quotation)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-100 transition-all cursor-pointer"
+                >
+                  <TrendingUp size={16} />
+                  <span>{lang === 'bn' ? 'সরাসরি বিক্রয়ে রূপান্তর করুন' : 'Convert to Sale'}</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Renderable Printable Quotation Document */}
+        <QuotationContent quotation={quotation} user={user} contentRef={componentRef} />
+      </div>
+    </Modal>
+  );
+};
+
 const Sales = ({ data }: any) => {
   const { hasPermission } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -4177,6 +4701,434 @@ const Sales = ({ data }: any) => {
     date: getTodayStr() 
   });
   const [paymentType, setPaymentType] = useState<'full_paid' | 'partial_due' | 'full_due'>('full_paid');
+
+  // --- QUOTATION STATES ---
+  const [activeSalesTab, setActiveSalesTab] = useState<'sales' | 'quotations'>('sales');
+  const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
+  const [isQuotationPreviewModalOpen, setIsQuotationPreviewModalOpen] = useState(false);
+  const [selectedQuotation, setSelectedQuotation] = useState<any>(null);
+  const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
+  const [quotationSearch, setQuotationSearch] = useState('');
+  const [quotationStatusFilter, setQuotationStatusFilter] = useState('All');
+  const [isQuotationScannerOpen, setIsQuotationScannerOpen] = useState(false);
+
+  const defaultQuotationNotes = lang === 'bn' 
+    ? '১. এই কোটেশনটি উল্লেখিত মেয়াদ পর্যন্ত কার্যকর থাকবে।\n২. অর্ডার নিশ্চিতকরণের পর দ্রুততম সময়ে পণ্য সরবরাহ করা হবে।\n৩. পণ্যের কোয়ালিটি এবং স্ট্যান্ডার্ড ওয়ারেন্টি পলিসি প্রযোজ্য।'
+    : '1. This quotation is valid until the specified validity date.\n2. Delivery will be processed upon order confirmation.\n3. Standard manufacturer warranty and terms apply.';
+
+  const [newQuotation, setNewQuotation] = useState({
+    quotationNo: '',
+    customerName: '',
+    customerPhone: '',
+    customerEmail: '',
+    customerAddress: '',
+    items: [{
+      productId: '',
+      productCategory: '',
+      productName: '',
+      brand: '',
+      serialNumber: '',
+      quantity: '1',
+      unitPrice: 0,
+      taxPercent: '0',
+      total: '0'
+    }],
+    discountType: 'percentage' as 'percentage' | 'flat',
+    discountValue: '0',
+    taxPercent: '0',
+    date: getTodayStr(),
+    validUntil: '',
+    validDays: '15',
+    status: 'Draft' as 'Draft' | 'Sent' | 'Accepted' | 'Converted',
+    notes: defaultQuotationNotes
+  });
+
+  const calculateQuotationSubtotal = (items: any[]) => {
+    return items.reduce((sum, item) => {
+      const q = parseBanglaInt(item.quantity, 1);
+      const p = parseBanglaFloat(item.unitPrice, 0);
+      return sum + (q * p);
+    }, 0);
+  };
+
+  const calculateQuotationTax = (items: any[], globalTaxPercent: string) => {
+    const itemTax = items.reduce((sum, item) => {
+      const q = parseBanglaInt(item.quantity, 1);
+      const p = parseBanglaFloat(item.unitPrice, 0);
+      const tRate = parseBanglaFloat(item.taxPercent, 0);
+      return sum + (q * p * (tRate / 100));
+    }, 0);
+    const gTax = parseBanglaFloat(globalTaxPercent, 0);
+    const sub = calculateQuotationSubtotal(items);
+    return itemTax + (gTax > 0 ? (sub * (gTax / 100)) : 0);
+  };
+
+  const calculateQuotationDiscount = (subtotal: number, discType: 'percentage' | 'flat', discVal: string) => {
+    const val = parseBanglaFloat(discVal, 0);
+    if (discType === 'percentage') {
+      return (subtotal * Math.min(100, Math.max(0, val))) / 100;
+    }
+    return Math.min(subtotal, Math.max(0, val));
+  };
+
+  const handleOpenNewQuotation = () => {
+    const today = getTodayStr();
+    const d = new Date();
+    d.setDate(d.getDate() + 15);
+    const validUntilDefault = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
+    setEditingQuotationId(null);
+    setNewQuotation({
+      quotationNo: `QT-${Date.now().toString().slice(-6)}`,
+      customerName: '',
+      customerPhone: '',
+      customerEmail: '',
+      customerAddress: '',
+      items: [{
+        productId: '',
+        productCategory: '',
+        productName: '',
+        brand: '',
+        serialNumber: '',
+        quantity: '1',
+        unitPrice: 0,
+        taxPercent: '0',
+        total: '0'
+      }],
+      discountType: 'percentage',
+      discountValue: '0',
+      taxPercent: '0',
+      date: today,
+      validUntil: validUntilDefault,
+      validDays: '15',
+      status: 'Draft',
+      notes: defaultQuotationNotes
+    });
+    setIsQuotationModalOpen(true);
+  };
+
+  const handleEditQuotation = (quo: any) => {
+    setEditingQuotationId(quo.id);
+    setNewQuotation({
+      quotationNo: quo.quotationNo || `QT-${quo.id.slice(-6)}`,
+      customerName: quo.customerName || '',
+      customerPhone: quo.customerPhone || '',
+      customerEmail: quo.customerEmail || '',
+      customerAddress: quo.customerAddress || '',
+      items: (quo.items && quo.items.length > 0) ? quo.items.map((i: any) => ({
+        ...i,
+        quantity: String(i.quantity || '1'),
+        unitPrice: Number(i.unitPrice) || 0,
+        taxPercent: String(i.taxPercent || '0'),
+        total: String(i.total || '0')
+      })) : [{
+        productId: '',
+        productCategory: '',
+        productName: '',
+        brand: '',
+        serialNumber: '',
+        quantity: '1',
+        unitPrice: 0,
+        taxPercent: '0',
+        total: '0'
+      }],
+      discountType: quo.discountType || 'percentage',
+      discountValue: String(quo.discountPercent || quo.discountAmount || '0'),
+      taxPercent: String(quo.taxPercent || '0'),
+      date: (quo.date || '').split('T')[0] || getTodayStr(),
+      validUntil: quo.validUntil || '',
+      validDays: '15',
+      status: quo.status || 'Draft',
+      notes: quo.notes || defaultQuotationNotes
+    });
+    setIsQuotationModalOpen(true);
+  };
+
+  const addQuotationItem = () => {
+    setNewQuotation(prev => ({
+      ...prev,
+      items: [...prev.items, {
+        productId: '',
+        productCategory: '',
+        productName: '',
+        brand: '',
+        serialNumber: '',
+        quantity: '1',
+        unitPrice: 0,
+        taxPercent: '0',
+        total: '0'
+      }]
+    }));
+  };
+
+  const removeQuotationItem = (index: number) => {
+    if (newQuotation.items.length > 1) {
+      const items = [...newQuotation.items];
+      items.splice(index, 1);
+      setNewQuotation(prev => ({ ...prev, items }));
+    }
+  };
+
+  const updateQuotationItem = (index: number, field: string, value: any) => {
+    const items = [...newQuotation.items];
+    const item = { ...items[index], [field]: value };
+
+    if (field === 'productId') {
+      const product = data.inventory.find((p: any) => String(p.id) === String(value));
+      if (product) {
+        item.productId = product.id;
+        item.productName = product.name;
+        item.brand = product.brand || '';
+        item.productCategory = product.category || '';
+        item.unitPrice = product.price;
+        item.total = calculateItemPriceWithTax(product.price, item.quantity, item.taxPercent);
+      } else {
+        item.productId = '';
+        item.productName = '';
+        item.unitPrice = 0;
+        item.total = '0';
+      }
+    } else if (field === 'quantity') {
+      const uPrice = Number(item.unitPrice) || 0;
+      if (uPrice > 0) {
+        item.total = calculateItemPriceWithTax(uPrice, value, item.taxPercent);
+      }
+    } else if (field === 'unitPrice') {
+      const uPrice = parseBanglaFloat(value, 0);
+      item.unitPrice = uPrice;
+      item.total = calculateItemPriceWithTax(uPrice, item.quantity, item.taxPercent);
+    } else if (field === 'taxPercent') {
+      const uPrice = Number(item.unitPrice) || 0;
+      if (uPrice > 0) {
+        item.total = calculateItemPriceWithTax(uPrice, item.quantity, value);
+      }
+    }
+
+    items[index] = item;
+    setNewQuotation(prev => ({ ...prev, items }));
+  };
+
+  const handleQuotationScan = (decodedText: string): string => {
+    const product = data.inventory.find((p: any) => 
+      String(p.id) === String(decodedText) || 
+      p.serialNumber === decodedText || 
+      p.modelNumber === decodedText ||
+      p.barcode === decodedText ||
+      p.sku === decodedText
+    );
+    if (!product) return 'not_found';
+
+    const existingIndex = newQuotation.items.findIndex((item: any) => String(item.productId) === String(product.id));
+    if (existingIndex !== -1) {
+      const currentQty = parseInt(newQuotation.items[existingIndex].quantity) || 0;
+      const newQty = currentQty + 1;
+      const updatedItems = [...newQuotation.items];
+      const taxRate = parseBanglaFloat(updatedItems[existingIndex].taxPercent, 0);
+      const withTax = calculateItemPriceWithTax(product.price, newQty, taxRate);
+      updatedItems[existingIndex] = {
+        ...updatedItems[existingIndex],
+        quantity: newQty.toString(),
+        unitPrice: product.price,
+        total: withTax
+      };
+      setNewQuotation({ ...newQuotation, items: updatedItems });
+      return 'updated';
+    } else {
+      const newItemEntry = {
+        productId: product.id,
+        productCategory: product.category,
+        productName: product.name,
+        brand: product.brand || '',
+        serialNumber: product.serialNumber || '',
+        quantity: '1',
+        unitPrice: product.price,
+        taxPercent: '0',
+        total: product.price.toString()
+      };
+      const lastItem = newQuotation.items[newQuotation.items.length - 1];
+      if (!lastItem.productId && !lastItem.productName) {
+        const newItems = [...newQuotation.items];
+        newItems[newQuotation.items.length - 1] = newItemEntry;
+        setNewQuotation({ ...newQuotation, items: newItems });
+      } else {
+        setNewQuotation({ ...newQuotation, items: [...newQuotation.items, newItemEntry] });
+      }
+      return 'added';
+    }
+  };
+
+  const handleSaveQuotation = (e: FormEvent) => {
+    e.preventDefault();
+    const validItems = newQuotation.items.filter(i => i.productName || i.productId);
+    if (validItems.length === 0) {
+      alert(lang === 'bn' ? 'অনুগ্রহ করে অন্তত একটি পণ্য নির্বাচন বা নাম লিখুন' : 'Please select or name at least one product');
+      return;
+    }
+
+    const subtotal = calculateQuotationSubtotal(validItems);
+    const discountAmt = calculateQuotationDiscount(subtotal, newQuotation.discountType, newQuotation.discountValue);
+    const taxAmt = calculateQuotationTax(validItems, newQuotation.taxPercent);
+    const total = Math.max(0, subtotal - discountAmt + taxAmt);
+
+    const validUntilDate = newQuotation.validUntil || (() => {
+      const d = new Date(newQuotation.date || getTodayStr());
+      d.setDate(d.getDate() + (parseInt(newQuotation.validDays) || 15));
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
+
+    const quotationData = {
+      quotationNo: newQuotation.quotationNo || `QT-${Date.now().toString().slice(-6)}`,
+      customerName: newQuotation.customerName.trim() || (lang === 'bn' ? 'সম্মানিত গ্রাহক' : 'Valued Customer'),
+      customerPhone: newQuotation.customerPhone,
+      customerEmail: newQuotation.customerEmail,
+      customerAddress: newQuotation.customerAddress,
+      items: validItems.map(i => ({
+        ...i,
+        quantity: parseBanglaInt(i.quantity, 1),
+        unitPrice: parseBanglaFloat(i.unitPrice, 0),
+        taxPercent: parseBanglaFloat(i.taxPercent, 0),
+        total: parseBanglaFloat(i.total, 0)
+      })),
+      subtotal: Number(subtotal.toFixed(2)),
+      discountType: newQuotation.discountType,
+      discountPercent: newQuotation.discountType === 'percentage' ? parseBanglaFloat(newQuotation.discountValue, 0) : 0,
+      discountAmount: Number(discountAmt.toFixed(2)),
+      taxPercent: parseBanglaFloat(newQuotation.taxPercent, 0),
+      taxAmount: Number(taxAmt.toFixed(2)),
+      total: Number(total.toFixed(2)),
+      date: newQuotation.date || getTodayStr(),
+      validUntil: validUntilDate,
+      status: newQuotation.status || 'Draft',
+      notes: newQuotation.notes
+    };
+
+    if (editingQuotationId) {
+      data.editItem('quotations', editingQuotationId, quotationData, data.setQuotations);
+    } else {
+      data.addQuotation(quotationData);
+    }
+
+    setIsQuotationModalOpen(false);
+    setEditingQuotationId(null);
+  };
+
+  const handleConvertToSale = (quo: any) => {
+    // 1. Check stock
+    const outOfStockItems = (quo.items || []).filter((item: any) => {
+      if (!item.productId) return false;
+      const prod = data.inventory.find((p: any) => String(p.id) === String(item.productId));
+      const reqQty = parseBanglaInt(item.quantity, 1);
+      return prod && reqQty > (Number(prod.quantity) || 0);
+    });
+
+    if (outOfStockItems.length > 0) {
+      const itemNames = outOfStockItems.map((i: any) => i.productName).join(', ');
+      const proceed = window.confirm(
+        lang === 'bn'
+          ? `সতর্কতা: নিম্নের পণ্যগুলোর পর্যাপ্ত স্টক নেই: ${itemNames}। আপনি কি তবুও এটি বিক্রয়ে রূপান্তর করতে চান?`
+          : `Warning: Insufficient stock for: ${itemNames}. Do you still want to convert to sale?`
+      );
+      if (!proceed) return;
+    } else {
+      const proceed = window.confirm(
+        lang === 'bn'
+          ? `আপনি কি কোটেশন #${quo.quotationNo || quo.id.slice(-6)} কে সরাসরি বিক্রয়ে রূপান্তর করতে চান? এটি ইনভেন্টরি স্টক আপডেট করবে এবং নতুন ইনভয়েস তৈরি করবে।`
+          : `Do you want to convert Quotation #${quo.quotationNo || quo.id.slice(-6)} into a Sale? This will adjust stock and create a new invoice.`
+      );
+      if (!proceed) return;
+    }
+
+    // 2. Build Sale
+    const saleItems = (quo.items || []).map((item: any) => {
+      const qty = parseBanglaInt(item.quantity, 1);
+      const uPrice = Number(item.unitPrice) || 0;
+      const taxRate = parseBanglaFloat(item.taxPercent, 0);
+      const base = uPrice * qty;
+      const taxAmt = base * (taxRate / 100);
+      const prod = (data.inventory || []).find((p: any) => String(p.id) === String(item.productId));
+      const bPrice = prod ? parseBanglaFloat(prod.price, 0) : 0;
+      return {
+        ...item,
+        quantity: qty,
+        unitPrice: uPrice,
+        buyPrice: bPrice,
+        taxPercent: taxRate,
+        taxAmount: Number(taxAmt.toFixed(2)),
+        total: parseBanglaFloat(item.total, 0)
+      };
+    });
+
+    const finalSale = {
+      customerName: (quo.customerName || '').trim() || (lang === 'bn' ? 'তৎক্ষণাৎ ক্রেতা' : 'Walk-in Customer'),
+      customerPhone: quo.customerPhone || '',
+      customerEmail: quo.customerEmail || '',
+      customerAddress: quo.customerAddress || '',
+      items: saleItems,
+      quantity: saleItems.reduce((acc: number, item: any) => acc + (parseBanglaInt(item.quantity, 1)), 0),
+      subtotal: Number(quo.subtotal) || 0,
+      totalTax: Number(quo.taxAmount) || 0,
+      total: Number(quo.total) || 0,
+      paid: Number(quo.total) || 0,
+      due: 0,
+      paymentMethod: 'Cash',
+      paymentStatus: 'Paid',
+      date: getTodayStr(),
+      notes: `Converted from Quotation #${quo.quotationNo || quo.id.slice(-6)}`
+    };
+
+    // 3. Add Sale
+    data.addSale(finalSale);
+
+    // 4. Update Inventory
+    saleItems.forEach((item: any) => {
+      if (item.productId) {
+        const prod = data.inventory.find((p: any) => String(p.id) === String(item.productId));
+        if (prod) {
+          data.editItem('inventory', item.productId, {
+            quantity: Math.max(0, (Number(prod.quantity) || 0) - (parseBanglaInt(item.quantity, 1)))
+          }, data.setInventory);
+        }
+      }
+    });
+
+    // 5. Update Customer
+    const custName = (quo.customerName || '').trim();
+    if (custName) {
+      const existingCustomer = data.customers.find((c: any) => 
+        (c.name || '').trim().toLowerCase() === custName.toLowerCase()
+      );
+      if (existingCustomer) {
+        data.editItem('customers', existingCustomer.id, {
+          orders: (Number(existingCustomer.orders) || 0) + 1,
+          spent: (Number(existingCustomer.spent) || 0) + Number(quo.total),
+          phone: quo.customerPhone || existingCustomer.phone,
+          email: quo.customerEmail || existingCustomer.email,
+          address: quo.customerAddress || existingCustomer.address
+        }, data.setCustomers);
+      } else {
+        data.addCustomer({
+          name: custName,
+          email: quo.customerEmail || '',
+          phone: quo.customerPhone || '',
+          address: quo.customerAddress || '',
+          orders: 1,
+          spent: Number(quo.total),
+          due: 0
+        });
+      }
+    }
+
+    // 6. Mark quotation as Converted
+    data.editItem('quotations', quo.id, {
+      status: 'Converted'
+    }, data.setQuotations);
+
+    // 7. Close preview modal if open and open invoice modal
+    setIsQuotationPreviewModalOpen(false);
+    setSelectedSale(finalSale);
+    setIsInvoiceModalOpen(true);
+    setActiveSalesTab('sales');
+  };
 
   const calculateItemPriceWithTax = (price: number, qty: any, taxRate: any) => {
     const q = parseBanglaInt(qty, 1);
@@ -4548,131 +5500,421 @@ const Sales = ({ data }: any) => {
     setIsModalOpen(false);
   };
 
+  const filteredQuotations = (data.quotations || []).filter((quo: any) => {
+    const qSearch = quotationSearch.toLowerCase().trim();
+    const matchSearch = !qSearch || 
+      (quo.quotationNo && String(quo.quotationNo).toLowerCase().includes(qSearch)) ||
+      (quo.id && String(quo.id).toLowerCase().includes(qSearch)) ||
+      (quo.customerName && String(quo.customerName).toLowerCase().includes(qSearch)) ||
+      (quo.customerPhone && String(quo.customerPhone).toLowerCase().includes(qSearch));
+    
+    const matchStatus = quotationStatusFilter === 'All' || (quo.status || 'Draft') === quotationStatusFilter;
+    return matchSearch && matchStatus;
+  }).sort((a: any, b: any) => (b.id || '').localeCompare(a.id || ''));
+
   return (
     <div className="space-y-6">
+      {/* Top Nav Switcher & Action Buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {/* Navigation Tabs between Sales & Quotations */}
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl w-fit border border-slate-200/60">
+          <button
+            type="button"
+            onClick={() => setActiveSalesTab('sales')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+              activeSalesTab === 'sales'
+                ? 'bg-white text-emerald-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ShoppingCart size={16} />
+            <span>{lang === 'bn' ? 'বিক্রয় তালিকা (Sales)' : 'Sales Invoices'}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+              activeSalesTab === 'sales' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+            }`}>
+              {toBengaliNumber(data.sales.length)}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSalesTab('quotations')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+              activeSalesTab === 'quotations'
+                ? 'bg-white text-indigo-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <FileText size={16} />
+            <span>{lang === 'bn' ? 'কোটেশন সমূহ (Quotations)' : 'Quotations'}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+              activeSalesTab === 'quotations' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-600'
+            }`}>
+              {toBengaliNumber((data.quotations || []).length)}
+            </span>
+          </button>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          {hasPermission('sales', 'edit') && (
+            <>
+              <button
+                type="button"
+                onClick={handleOpenNewQuotation}
+                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-sm font-bold transition-all shadow-sm shadow-indigo-100 cursor-pointer"
+              >
+                <Plus size={16} />
+                <span>{lang === 'bn' ? 'নতুন কোটেশন' : 'New Quotation'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-sm font-bold transition-all shadow-sm shadow-emerald-100 cursor-pointer"
+              >
+                <Plus size={16} />
+                <span>{lang === 'bn' ? 'নতুন বিক্রয়' : 'New Sale'}</span>
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
       <PageHeader 
-        title="Sales History" 
-        description="View and manage your business transactions." 
-        action={hasPermission('sales', 'edit') ? "New Sale" : null} 
-        onAction={() => setIsModalOpen(true)}
+        title={activeSalesTab === 'sales' ? (lang === 'bn' ? "বিক্রয় তালিকা" : "Sales History") : (lang === 'bn' ? "কোটেশন ম্যানেজমেন্ট" : "Quotations Management")} 
+        description={activeSalesTab === 'sales' ? (lang === 'bn' ? "আপনার ব্যবসার বিক্রয় লেনদেন ও ইনভয়েস পরিচালনা করুন।" : "View and manage your business transactions and invoices.") : (lang === 'bn' ? "গ্রাহকদের জন্য কোটেশন তৈরি, প্রিন্ট, ডাউনলোড, শেয়ার ও বিক্রয়ে রূপান্তর করুন।" : "Create, preview, print, download, share, and convert quotations into sales.")} 
+        action={null}
       />
-      <Card>
-        {data.sales.length > 0 ? (
-          <Table headers={['Invoice', 'Customer', 'Items', 'Date', 'Total Amount', 'Actions']}>
-            {[...data.sales].sort((a: any, b: any) => b.id.localeCompare(a.id)).map((item: any) => (
-              <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4 font-medium text-slate-900">#INV-{item.id.slice(-4)}</td>
-                <td className="px-6 py-4 text-sm text-slate-600">
-                  <div className="font-medium">{item.customerName}</div>
-                  {item.customerPhone && <div className="text-xs text-slate-400">{item.customerPhone}</div>}
-                </td>
-                <td className="px-6 py-4 text-sm text-slate-600">
-                  {item.items ? (
-                    (() => {
-                      const totalQty = item.items.reduce((sum: number, i: any) => sum + (Number(i.quantity) || 1), 0);
-                      const qtyLabel = lang === 'bn' 
-                        ? `${toBengaliNumber(totalQty)} টি পণ্য` 
-                        : `${totalQty} ${totalQty === 1 ? 'Product' : 'Products'}`;
-                      const detailText = item.items.map((i: any) => {
-                        const name = i.brand ? `${i.brand} ${i.productName}` : i.productName;
-                        const q = Number(i.quantity) || 1;
-                        return `${name}${q > 1 ? ` (x${q})` : ''}`;
-                      }).join(', ');
-                      return (
-                        <div className="flex flex-col gap-1">
-                          <span className="font-bold text-emerald-600">{qtyLabel}</span>
-                          <span className="text-[10px] text-slate-400 truncate max-w-[200px]" title={detailText}>
-                            {detailText}
-                          </span>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    (() => {
-                      const totalQty = Number(item.quantity) || 1;
-                      const qtyLabel = lang === 'bn' 
-                        ? `${toBengaliNumber(totalQty)} টি পণ্য` 
-                        : `${totalQty} ${totalQty === 1 ? 'Product' : 'Products'}`;
-                      const name = item.brand ? `${item.brand} ${item.productName}` : item.productName;
-                      return (
-                        <div className="flex flex-col gap-1">
-                          <span className="font-bold text-emerald-600">{qtyLabel}</span>
-                          <span className="text-[10px] text-slate-400">
-                            {name}{totalQty > 1 ? ` (x${totalQty})` : ''}
-                          </span>
-                        </div>
-                      );
-                    })()
-                  )}
-                </td>
-                <td className="px-6 py-4 text-sm text-slate-600">{(item.date || '').split('T')[0]}</td>
-                <td className="px-6 py-4">
-                  <div className="font-semibold text-slate-900">{formatCurrency(item.total)}</div>
-                  {/* Due / Paid Badge */}
-                  {item.due !== undefined && Number(item.due) > 0 ? (
-                    <div className="flex flex-col gap-0.5 mt-1">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200/60 px-2 py-0.5 rounded-md w-fit">
-                        <AlertCircle size={10} />
-                        {lang === 'bn' ? `বকেয়া: ${formatCurrency(item.due)}` : `Due: ${formatCurrency(item.due)}`}
-                      </span>
-                      {Number(item.paid) > 0 && (
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          {lang === 'bn' ? `পরিশোধ: ${formatCurrency(item.paid)}` : `Paid: ${formatCurrency(item.paid)}`}
+
+      {activeSalesTab === 'sales' ? (
+        <Card>
+          {data.sales.length > 0 ? (
+            <Table headers={['Invoice', 'Customer', 'Items', 'Date', 'Total Amount', 'Actions']}>
+              {[...data.sales].sort((a: any, b: any) => b.id.localeCompare(a.id)).map((item: any) => (
+                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-slate-900">#INV-{item.id.slice(-4)}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    <div className="font-medium">{item.customerName}</div>
+                    {item.customerPhone && <div className="text-xs text-slate-400">{item.customerPhone}</div>}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    {item.items ? (
+                      (() => {
+                        const totalQty = item.items.reduce((sum: number, i: any) => sum + (Number(i.quantity) || 1), 0);
+                        const qtyLabel = lang === 'bn' 
+                          ? `${toBengaliNumber(totalQty)} টি পণ্য` 
+                          : `${totalQty} ${totalQty === 1 ? 'Product' : 'Products'}`;
+                        const detailText = item.items.map((i: any) => {
+                          const name = i.brand ? `${i.brand} ${i.productName}` : i.productName;
+                          const q = Number(i.quantity) || 1;
+                          return `${name}${q > 1 ? ` (x${q})` : ''}`;
+                        }).join(', ');
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <span className="font-bold text-emerald-600">{qtyLabel}</span>
+                            <span className="text-[10px] text-slate-400 truncate max-w-[200px]" title={detailText}>
+                              {detailText}
+                            </span>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      (() => {
+                        const totalQty = Number(item.quantity) || 1;
+                        const qtyLabel = lang === 'bn' 
+                          ? `${toBengaliNumber(totalQty)} টি পণ্য` 
+                          : `${totalQty} ${totalQty === 1 ? 'Product' : 'Products'}`;
+                        const name = item.brand ? `${item.brand} ${item.productName}` : item.productName;
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <span className="font-bold text-emerald-600">{qtyLabel}</span>
+                            <span className="text-[10px] text-slate-400">
+                              {name}{totalQty > 1 ? ` (x${totalQty})` : ''}
+                            </span>
+                          </div>
+                        );
+                      })()
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{(item.date || '').split('T')[0]}</td>
+                  <td className="px-6 py-4">
+                    <div className="font-semibold text-slate-900">{formatCurrency(item.total)}</div>
+                    {/* Due / Paid Badge */}
+                    {item.due !== undefined && Number(item.due) > 0 ? (
+                      <div className="flex flex-col gap-0.5 mt-1">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200/60 px-2 py-0.5 rounded-md w-fit">
+                          <AlertCircle size={10} />
+                          {lang === 'bn' ? `বকেয়া: ${formatCurrency(item.due)}` : `Due: ${formatCurrency(item.due)}`}
                         </span>
+                        {Number(item.paid) > 0 && (
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            {lang === 'bn' ? `পরিশোধ: ${formatCurrency(item.paid)}` : `Paid: ${formatCurrency(item.paid)}`}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md mt-1 w-fit">
+                        <CheckCircle2 size={10} />
+                        {lang === 'bn' ? 'পরিশোধিত' : 'Paid in Full'}
+                      </span>
+                    )}
+                    {(() => {
+                      const sPL = calculateSalesProfitAndLoss([item], data.inventory);
+                      const net = sPL.totalSalesProfit - sPL.totalSalesLoss;
+                      if (net > 0) {
+                        return <div className="text-[11px] font-bold text-emerald-600 mt-1">+{formatCurrency(net)} {lang === 'bn' ? 'লাভ' : 'Profit'}</div>;
+                      }
+                      if (net < 0) {
+                        return <div className="text-[11px] font-bold text-rose-600 mt-1">-{formatCurrency(Math.abs(net))} {lang === 'bn' ? 'ক্ষতি' : 'Loss'}</div>;
+                      }
+                      return null;
+                    })()}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => {
+                          setSelectedSale(item);
+                          setIsInvoiceModalOpen(true);
+                        }}
+                        className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-1 cursor-pointer"
+                      >
+                        <FileText size={14} /> Invoice
+                      </button>
+                      {hasPermission('sales', 'delete') && (
+                        <button 
+                          onClick={() => data.deleteItem('sales', item.id, data.setSales)}
+                          className="text-red-600 hover:text-red-700 font-medium text-sm cursor-pointer"
+                        >
+                          Delete
+                        </button>
                       )}
                     </div>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md mt-1 w-fit">
-                      <CheckCircle2 size={10} />
-                      {lang === 'bn' ? 'পরিশোধিত' : 'Paid in Full'}
-                    </span>
-                  )}
-                  {(() => {
-                    const sPL = calculateSalesProfitAndLoss([item], data.inventory);
-                    const net = sPL.totalSalesProfit - sPL.totalSalesLoss;
-                    if (net > 0) {
-                      return <div className="text-[11px] font-bold text-emerald-600 mt-1">+{formatCurrency(net)} {lang === 'bn' ? 'লাভ' : 'Profit'}</div>;
-                    }
-                    if (net < 0) {
-                      return <div className="text-[11px] font-bold text-rose-600 mt-1">-{formatCurrency(Math.abs(net))} {lang === 'bn' ? 'ক্ষতি' : 'Loss'}</div>;
-                    }
-                    return null;
-                  })()}
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => {
-                        setSelectedSale(item);
-                        setIsInvoiceModalOpen(true);
-                      }}
-                      className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-1"
-                    >
-                      <FileText size={14} /> Invoice
-                    </button>
-                    {hasPermission('sales', 'delete') && (
-                      <button 
-                        onClick={() => data.deleteItem('sales', item.id, data.setSales)}
-                        className="text-red-600 hover:text-red-700 font-medium text-sm"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </Table>
-        ) : (
-          <EmptyState 
-            icon={ShoppingCart} 
-            title="No sales recorded" 
-            description="Track your business revenue by recording your first sale."
-            action="Add New Sale"
-            onAction={() => setIsModalOpen(true)}
-          />
-        )}
-      </Card>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          ) : (
+            <EmptyState 
+              icon={ShoppingCart} 
+              title="No sales recorded" 
+              description="Track your business revenue by recording your first sale."
+              action="Add New Sale"
+              onAction={() => setIsModalOpen(true)}
+            />
+          )}
+        </Card>
+      ) : (
+        /* Quotations View */
+        <div className="space-y-4">
+          {/* Quotations Filter & Search Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                type="text"
+                value={quotationSearch}
+                onChange={e => setQuotationSearch(e.target.value)}
+                placeholder={lang === 'bn' ? "কোটেশন নং, গ্রাহকের নাম বা ফোন দিয়ে খুঁজুন..." : "Search quotation #, customer or phone..."}
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{lang === 'bn' ? 'স্ট্যাটাস:' : 'Status:'}</span>
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                {['All', 'Draft', 'Sent', 'Accepted', 'Converted'].map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setQuotationStatusFilter(st)}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      quotationStatusFilter === st
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {st === 'All' ? (lang === 'bn' ? 'সকল' : 'All') :
+                     st === 'Draft' ? (lang === 'bn' ? 'খসড়া' : 'Draft') :
+                     st === 'Sent' ? (lang === 'bn' ? 'প্রেরিত' : 'Sent') :
+                     st === 'Accepted' ? (lang === 'bn' ? 'গৃহীত' : 'Accepted') :
+                     (lang === 'bn' ? 'বিক্রিত' : 'Converted')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <Card>
+            {filteredQuotations.length > 0 ? (
+              <Table headers={[
+                lang === 'bn' ? 'কোটেশন নং' : 'Quotation #',
+                lang === 'bn' ? 'গ্রাহক' : 'Customer',
+                lang === 'bn' ? 'আইটেম সমূহ' : 'Items',
+                lang === 'bn' ? 'তারিখ ও মেয়াদ' : 'Date & Validity',
+                lang === 'bn' ? 'মোট মূল্য' : 'Total Amount',
+                lang === 'bn' ? 'স্ট্যাটাস' : 'Status',
+                lang === 'bn' ? 'অ্যাকশন' : 'Actions'
+              ]}>
+                {filteredQuotations.map((quo: any) => {
+                  const totalQty = (quo.items || []).reduce((sum: number, it: any) => sum + (Number(it.quantity) || 1), 0);
+                  const itemsSummary = (quo.items || []).map((it: any) => {
+                    const n = it.brand ? `${it.brand} ${it.productName}` : (it.productName || 'Product');
+                    const q = Number(it.quantity) || 1;
+                    return `${n}${q > 1 ? ` (x${q})` : ''}`;
+                  }).join(', ');
+
+                  const isExpired = quo.validUntil && new Date(quo.validUntil) < new Date(getTodayStr());
+
+                  return (
+                    <tr key={quo.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 font-bold text-indigo-700">
+                        #{quo.quotationNo || (quo.id ? `QT-${quo.id.slice(-6).toUpperCase()}` : 'QT-0000')}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700">
+                        <div className="font-semibold text-slate-900">{quo.customerName}</div>
+                        {quo.customerPhone && <div className="text-xs text-slate-500">{quo.customerPhone}</div>}
+                        {quo.customerEmail && <div className="text-[11px] text-slate-400">{quo.customerEmail}</div>}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-bold text-indigo-600 text-xs">
+                            {lang === 'bn' ? `${toBengaliNumber(totalQty)} টি পণ্য` : `${totalQty} Items`}
+                          </span>
+                          <span className="text-[11px] text-slate-400 truncate max-w-[200px]" title={itemsSummary}>
+                            {itemsSummary}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        <div className="flex flex-col gap-1">
+                          <div className="text-xs font-medium text-slate-800">
+                            {(quo.date || '').split('T')[0]}
+                          </div>
+                          {quo.validUntil && (
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded w-fit ${
+                              isExpired 
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200' 
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>
+                              <Clock size={10} />
+                              {lang === 'bn' ? `মেয়াদ: ${quo.validUntil}` : `Valid: ${quo.validUntil}`}
+                              {isExpired && (lang === 'bn' ? ' (উত্তীর্ণ)' : ' (Expired)')}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-slate-900">{formatCurrency(quo.total)}</div>
+                        {Number(quo.discountAmount) > 0 && (
+                          <div className="text-[10px] text-amber-600 font-medium">
+                            {lang === 'bn' ? `ছাড়: ${formatCurrency(quo.discountAmount)}` : `Disc: ${formatCurrency(quo.discountAmount)}`}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                          quo.status === 'Converted'
+                            ? 'bg-purple-100 text-purple-700'
+                            : quo.status === 'Accepted'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : quo.status === 'Sent'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {quo.status === 'Converted' ? <CheckCircle2 size={12} /> : null}
+                          {quo.status === 'Accepted' ? <Check size={12} /> : null}
+                          {quo.status === 'Sent' ? <Send size={12} /> : null}
+                          {quo.status || 'Draft'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          {/* Preview Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedQuotation(quo);
+                              setIsQuotationPreviewModalOpen(true);
+                            }}
+                            className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                            title={lang === 'bn' ? 'প্রিভিউ ও প্রিন্ট' : 'Preview & Print'}
+                          >
+                            <Eye size={16} />
+                          </button>
+
+                          {/* Share Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedQuotation(quo);
+                              setIsQuotationPreviewModalOpen(true);
+                            }}
+                            className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                            title={lang === 'bn' ? 'শেয়ার করুন' : 'Share'}
+                          >
+                            <Share2 size={16} />
+                          </button>
+
+                          {/* Convert to Sale Button */}
+                          {quo.status !== 'Converted' && (
+                            <button
+                              type="button"
+                              onClick={() => handleConvertToSale(quo)}
+                              className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-emerald-100 active:scale-95 cursor-pointer"
+                              title={lang === 'bn' ? 'সরাসরি বিক্রয়ে রূপান্তর' : 'Convert to Sale'}
+                            >
+                              <TrendingUp size={12} />
+                              <span>{lang === 'bn' ? 'বিক্রয়ে রূপান্তর' : 'Convert'}</span>
+                            </button>
+                          )}
+
+                          {/* Edit Button */}
+                          {quo.status !== 'Converted' && hasPermission('sales', 'edit') && (
+                            <button
+                              type="button"
+                              onClick={() => handleEditQuotation(quo)}
+                              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                              title={lang === 'bn' ? 'এডিট করুন' : 'Edit'}
+                            >
+                              <Edit size={16} />
+                            </button>
+                          )}
+
+                          {/* Delete Button */}
+                          {hasPermission('sales', 'delete') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(lang === 'bn' ? 'আপনি কি নিশ্চিত এই কোটেশনটি মুছে ফেলতে চান?' : 'Are you sure you want to delete this quotation?')) {
+                                  data.deleteItem('quotations', quo.id, data.setQuotations);
+                                }
+                              }}
+                              className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                              title={lang === 'bn' ? 'মুছে ফেলুন' : 'Delete'}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </Table>
+            ) : (
+              <EmptyState 
+                icon={FileText} 
+                title={lang === 'bn' ? "কোনো কোটেশন পাওয়া যায়নি" : "No quotations found"} 
+                description={lang === 'bn' ? "গ্রাহকদের মূল্য প্রস্তাবনা প্রদানের জন্য নতুন কোটেশন তৈরি করুন।" : "Create quotations to give customized price proposals to your customers."}
+                action={lang === 'bn' ? "নতুন কোটেশন তৈরি করুন" : "Create New Quotation"}
+                onAction={handleOpenNewQuotation}
+              />
+            )}
+          </Card>
+        </div>
+      )}
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={lang === 'bn' ? "নতুন বিক্রয় রেকর্ড করুন" : "Record New Sale"} maxWidth="max-w-4xl">
         <form onSubmit={handleAdd} className="space-y-6 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar">
@@ -5252,6 +6494,459 @@ const Sales = ({ data }: any) => {
           </div>
         </form>
       </Modal>
+
+      {/* --- CREATE / EDIT QUOTATION MODAL --- */}
+      <Modal 
+        isOpen={isQuotationModalOpen} 
+        onClose={() => setIsQuotationModalOpen(false)} 
+        title={editingQuotationId ? (lang === 'bn' ? "কোটেশন সম্পাদনা করুন" : "Edit Quotation") : (lang === 'bn' ? "নতুন কোটেশন তৈরি করুন" : "Create New Quotation")} 
+        maxWidth="max-w-4xl"
+      >
+        <form onSubmit={handleSaveQuotation} className="space-y-6 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar">
+          {/* Customer Information & Quick Customer Select */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                {lang === 'bn' ? 'গ্রাহকের তথ্য (Customer Details)' : 'Customer Information'}
+              </h4>
+              {data.customers && data.customers.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-slate-500 font-medium">{lang === 'bn' ? 'সংরক্ষিত গ্রাহক:' : 'Existing Customer:'}</span>
+                  <select
+                    className="text-xs px-2.5 py-1 bg-white border border-slate-200 rounded-lg outline-none text-slate-700"
+                    onChange={(e) => {
+                      const cust = data.customers.find((c: any) => String(c.id) === e.target.value);
+                      if (cust) {
+                        setNewQuotation(prev => ({
+                          ...prev,
+                          customerName: cust.name || '',
+                          customerPhone: cust.phone || '',
+                          customerEmail: cust.email || '',
+                          customerAddress: cust.address || ''
+                        }));
+                      }
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="">{lang === 'bn' ? '-- গ্রাহক নির্বাচন করুন --' : '-- Select Customer --'}</option>
+                    {data.customers.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  {lang === 'bn' ? 'গ্রাহকের নাম (Customer Name)' : 'Customer Name'} *
+                </label>
+                <input 
+                  type="text" 
+                  required
+                  value={newQuotation.customerName} 
+                  onChange={e => setNewQuotation({...newQuotation, customerName: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
+                  placeholder={lang === 'bn' ? 'গ্রাহকের নাম লিখুন' : 'Enter customer name'}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  {lang === 'bn' ? 'ফোন নম্বর (Phone)' : 'Phone Number'}
+                </label>
+                <input 
+                  type="tel" 
+                  value={newQuotation.customerPhone} 
+                  onChange={e => setNewQuotation({...newQuotation, customerPhone: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
+                  placeholder="017XXXXXXXX"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  {lang === 'bn' ? 'ইমেইল (Email)' : 'Email'}
+                </label>
+                <input 
+                  type="email" 
+                  value={newQuotation.customerEmail} 
+                  onChange={e => setNewQuotation({...newQuotation, customerEmail: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
+                  placeholder="customer@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  {lang === 'bn' ? 'ঠিকানা (Address)' : 'Address'}
+                </label>
+                <input 
+                  type="text" 
+                  value={newQuotation.customerAddress} 
+                  onChange={e => setNewQuotation({...newQuotation, customerAddress: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
+                  placeholder="Customer address"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Quotation Metadata: Quo No, Date, Validity, Status */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              {lang === 'bn' ? 'কোটেশনের বিবরণ (Quotation Info)' : 'Quotation Info'}
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  {lang === 'bn' ? 'কোটেশন নং' : 'Quotation #'}
+                </label>
+                <input 
+                  type="text" 
+                  value={newQuotation.quotationNo} 
+                  onChange={e => setNewQuotation({...newQuotation, quotationNo: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-mono font-bold text-indigo-700" 
+                  placeholder="QT-000001"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  {lang === 'bn' ? 'তারিখ (Date)' : 'Date'}
+                </label>
+                <input 
+                  type="date" 
+                  required
+                  value={newQuotation.date} 
+                  onChange={e => setNewQuotation({...newQuotation, date: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  {lang === 'bn' ? 'মেয়াদ / ভ্যালিডিটি' : 'Valid Until'}
+                </label>
+                <input 
+                  type="date" 
+                  value={newQuotation.validUntil} 
+                  onChange={e => setNewQuotation({...newQuotation, validUntil: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
+                />
+                <div className="flex items-center gap-1 mt-1.5">
+                  {[7, 15, 30].map(days => (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(newQuotation.date || getTodayStr());
+                        d.setDate(d.getDate() + days);
+                        const vStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                        setNewQuotation(prev => ({ ...prev, validUntil: vStr, validDays: String(days) }));
+                      }}
+                      className="text-[10px] font-bold px-2 py-0.5 bg-slate-200/80 hover:bg-indigo-100 hover:text-indigo-700 text-slate-700 rounded transition-colors"
+                    >
+                      +{days}d
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  {lang === 'bn' ? 'কোটেশন স্ট্যাটাস' : 'Status'}
+                </label>
+                <select
+                  value={newQuotation.status}
+                  onChange={e => setNewQuotation({...newQuotation, status: e.target.value as any})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-semibold"
+                >
+                  <option value="Draft">{lang === 'bn' ? 'খসড়া (Draft)' : 'Draft'}</option>
+                  <option value="Sent">{lang === 'bn' ? 'প্রেরিত (Sent)' : 'Sent'}</option>
+                  <option value="Accepted">{lang === 'bn' ? 'গৃহীত (Accepted)' : 'Accepted'}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Quotation Items Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                {lang === 'bn' ? 'পণ্যের তালিকা (Quotation Items)' : 'Quotation Items'}
+              </h4>
+              <div className="flex items-center gap-2">
+                <button 
+                  type="button" 
+                  onClick={() => setIsQuotationScannerOpen(true)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                >
+                  <QrCode size={14} /> {lang === 'bn' ? 'বারকোড স্ক্যান' : 'Scan QR/Barcode'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={addQuotationItem}
+                  className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                >
+                  <PlusCircle size={14} /> {lang === 'bn' ? 'পণ্য যোগ করুন' : 'Add Item'}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {newQuotation.items.map((item, index) => {
+                const qty = parseBanglaInt(item.quantity, 1);
+                const taxRate = parseBanglaFloat(item.taxPercent, 0);
+                const uPrice = Number(item.unitPrice) || 0;
+                const basePrice = uPrice * qty;
+                const taxAmount = basePrice * (taxRate / 100);
+                const lineTotal = basePrice + taxAmount;
+
+                return (
+                  <div key={index} className="p-4 border border-slate-200/90 rounded-2xl relative group bg-white shadow-sm space-y-3">
+                    {newQuotation.items.length > 1 && (
+                      <button 
+                        type="button"
+                        onClick={() => removeQuotationItem(index)}
+                        className="absolute top-3 right-3 text-slate-300 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                        title="Remove Item"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                      {/* Product Selection */}
+                      <div className="sm:col-span-5 space-y-2">
+                        <label className="block text-xs font-medium text-slate-500">
+                          {lang === 'bn' ? 'পণ্য নির্বাচন অথবা নাম লিখুন' : 'Product Select / Name'}
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <select 
+                            value={item.productId || ''} 
+                            onChange={e => updateQuotationItem(index, 'productId', e.target.value)}
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20"
+                          >
+                            <option value="">{lang === 'bn' ? '-- স্টক থেকে নির্বাচন --' : '-- From Inventory --'}</option>
+                            {data.inventory.map((p: any) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} {p.brand ? `[${p.brand}]` : ''} - {formatCurrency(p.price)} (মজুদ: {p.quantity})
+                              </option>
+                            ))}
+                          </select>
+                          <input 
+                            type="text" 
+                            value={item.productName} 
+                            onChange={e => updateQuotationItem(index, 'productName', e.target.value)}
+                            placeholder={lang === 'bn' ? 'পণ্যের নাম' : 'Custom Product Name'}
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 font-medium"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Quantity */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-slate-500 mb-1">
+                          {lang === 'bn' ? 'পরিমাণ (Qty)' : 'Quantity'}
+                        </label>
+                        <input 
+                          type="number" 
+                          min="1" 
+                          value={item.quantity} 
+                          onChange={e => updateQuotationItem(index, 'quantity', e.target.value)}
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold text-center" 
+                        />
+                      </div>
+
+                      {/* Unit Price */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-slate-500 mb-1">
+                          {lang === 'bn' ? 'একক মূল্য' : 'Unit Price'}
+                        </label>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          value={item.unitPrice || ''} 
+                          onChange={e => updateQuotationItem(index, 'unitPrice', e.target.value)}
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold" 
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      {/* Tax % */}
+                      <div className="sm:col-span-1">
+                        <label className="block text-[11px] font-medium text-slate-500 mb-1">Tax%</label>
+                        <input 
+                          type="number" 
+                          value={item.taxPercent} 
+                          onChange={e => updateQuotationItem(index, 'taxPercent', e.target.value)}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none text-center" 
+                          placeholder="0"
+                        />
+                      </div>
+
+                      {/* Item Total */}
+                      <div className="sm:col-span-2 text-right">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase">{lang === 'bn' ? 'মোট মূল্য' : 'Total'}</div>
+                        <div className="text-sm font-black text-indigo-700 mt-1">
+                          {formatCurrency(lineTotal)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Discount & Calculation Breakdown */}
+          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              {lang === 'bn' ? 'মূল্য হিসাব ও ছাড় (Discounts & Calculation)' : 'Summary & Discount'}
+            </h4>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  {lang === 'bn' ? 'ছাড়ের ধরণ (Discount Type)' : 'Discount Type'}
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewQuotation(prev => ({ ...prev, discountType: 'percentage' }))}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      newQuotation.discountType === 'percentage'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    শতাংশ (%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewQuotation(prev => ({ ...prev, discountType: 'flat' }))}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      newQuotation.discountType === 'flat'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    নির্দিষ্ট টাকা (Flat)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  {lang === 'bn' ? 'ছাড়ের পরিমাণ (Discount Value)' : 'Discount Value'}
+                </label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={newQuotation.discountValue} 
+                  onChange={e => setNewQuotation({...newQuotation, discountValue: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-bold" 
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  {lang === 'bn' ? 'অতিরিক্ত ট্যাক্স/ভ্যাট % (Tax %)' : 'Global Tax %'}
+                </label>
+                <input 
+                  type="number" 
+                  value={newQuotation.taxPercent} 
+                  onChange={e => setNewQuotation({...newQuotation, taxPercent: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-bold" 
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            {/* Calculated Values Summary Cards */}
+            {(() => {
+              const validItems = newQuotation.items.filter(i => i.productName || i.productId);
+              const subtotal = calculateQuotationSubtotal(validItems);
+              const discountAmt = calculateQuotationDiscount(subtotal, newQuotation.discountType, newQuotation.discountValue);
+              const taxAmt = calculateQuotationTax(validItems, newQuotation.taxPercent);
+              const grandTotal = Math.max(0, subtotal - discountAmt + taxAmt);
+
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-200">
+                  <div className="bg-white p-3 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">{lang === 'bn' ? 'সাবটোটাল' : 'Subtotal'}</span>
+                    <span className="text-sm font-bold text-slate-800">{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-amber-500 font-bold uppercase block">{lang === 'bn' ? 'ছাড় (Discount)' : 'Discount'}</span>
+                    <span className="text-sm font-bold text-amber-600">-{formatCurrency(discountAmt)}</span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">{lang === 'bn' ? 'মোট ট্যাক্স/ভ্যাট' : 'Tax/VAT'}</span>
+                    <span className="text-sm font-bold text-slate-800">+{formatCurrency(taxAmt)}</span>
+                  </div>
+                  <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-200/80">
+                    <span className="text-[10px] text-indigo-700 font-bold uppercase block">{lang === 'bn' ? 'সর্বমোট প্রাক্কলিত মূল্য' : 'Total Amount'}</span>
+                    <span className="text-base font-black text-indigo-700">{formatCurrency(grandTotal)}</span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Terms & Conditions / Notes */}
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              {lang === 'bn' ? 'শর্তাবলী ও অন্যান্য নোট (Terms & Conditions / Notes)' : 'Terms & Conditions / Notes'}
+            </label>
+            <textarea 
+              rows={3} 
+              value={newQuotation.notes} 
+              onChange={e => setNewQuotation({...newQuotation, notes: e.target.value})}
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-xs leading-relaxed" 
+              placeholder="Terms and conditions..."
+            />
+          </div>
+
+          {/* Form Actions */}
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+            <button 
+              type="button" 
+              onClick={() => setIsQuotationModalOpen(false)}
+              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all cursor-pointer"
+            >
+              {lang === 'bn' ? 'বাতিল' : 'Cancel'}
+            </button>
+            <button 
+              type="submit" 
+              className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-100 active:scale-95 transition-all cursor-pointer"
+            >
+              <CheckCircle2 size={16} />
+              <span>{editingQuotationId ? (lang === 'bn' ? 'কোটেশন আপডেট করুন' : 'Update Quotation') : (lang === 'bn' ? 'কোটেশন সংরক্ষণ করুন' : 'Save Quotation')}</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* --- QUOTATION BARCODE SCANNER --- */}
+      {isQuotationScannerOpen && (
+        <QRScanner 
+          onScan={(code) => {
+            const res = handleQuotationScan(code);
+            if (res === 'added' || res === 'updated') {
+              setIsQuotationScannerOpen(false);
+            }
+            return res;
+          }} 
+          onClose={() => setIsQuotationScannerOpen(false)} 
+          inventory={data.inventory} 
+        />
+      )}
+
+      {/* --- QUOTATION PREVIEW & ACTIONS MODAL --- */}
+      <QuotationModal 
+        isOpen={isQuotationPreviewModalOpen} 
+        onClose={() => setIsQuotationPreviewModalOpen(false)} 
+        quotation={selectedQuotation} 
+        onConvertToSale={handleConvertToSale}
+      />
 
       {isScannerOpen && (
         <QRScanner onScan={handleScan} onClose={() => setIsScannerOpen(false)} inventory={data.inventory} />
