@@ -1,0 +1,22 @@
+--- Verification Email Attempt at 2026-06-29T07:11:28.830Z ---
+To: "GreenlabTechnology.Ceo@gmail.com"
+Code: "634000"
+Business: "GreenSoft Test Business"
+From: ""GreenSoft" <no-reply@greensdesigner.com>"
+Transporter status: CONFIGURED
+RESULT: SUCCESS
+MessageId: <00e1f6b0-6352-462b-71ba-cd703a1031bc@greensdesigner.com>
+Accepted: ["GreenlabTechnology.Ceo@gmail.com"]
+-------------------------------------------
+
+--- Verification Email Attempt at 2026-06-29T07:13:27.986Z ---
+To: "GreenlabTechnology.Ceo@gmail.com"
+Code: "859709"
+Business: "GreenSoft Test Business"
+From: ""GreenSoft" <no-reply@greensdesigner.com>"
+Transporter status: CONFIGURED
+RESULT: SUCCESS
+MessageId: <28f24b85-c005-a6fa-754e-aacabb5cb219@greensdesigner.com>
+Accepted: ["GreenlabTechnology.Ceo@gmail.com"]
+-------------------------------------------
+

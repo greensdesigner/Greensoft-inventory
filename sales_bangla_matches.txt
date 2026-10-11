@@ -1,0 +1,21 @@
+261: sales: "বিক্রয়",
+277: noSalesData: "রিপোর্টের জন্য কোন বিক্রয়ের তথ্য নেই।",
+283: totalSales: "মোট বিক্রয়",
+289: searchInvoice: "ইনভয়েস খুঁজুন",
+290: newSale: "নতুন বিক্রয়",
+293: recentSales: "সাম্প্রতিক বিক্রয়",
+360: convertToSale: "বিক্রয়ে রূপান্তর",
+361: convertedToSale: "বিক্রয়ে রূপান্তরিত",
+2137: { key: 'sales', type: 'count', label: t('totalSales'), value: lang === 'bn' ? toBengaliNumber(filteredSales.length) : filteredSales.length.t
+2344: {lang === 'bn' ? (currentLossDisplay > 0 ? 'বিক্রয় ক্ষতি' : 'ক্ষতি কাভার্ড') : (currentLossDisplay > 0 ? 'Sales Loss' : 'Loss Covered')}
+4650: <span>{lang === 'bn' ? 'বিক্রয়ে রূপান্তরিত হয়েছে' : 'Converted to Sale'}</span>
+4658: <span>{lang === 'bn' ? 'সরাসরি বিক্রয়ে রূপান্তর করুন' : 'Convert to Sale'}</span>
+5028: ? `সতর্কতা: নিম্নের পণ্যগুলোর পর্যাপ্ত স্টক নেই: ${itemNames}। আপনি কি তবুও এটি বিক্রয়ে রূপান্তর করতে চান?`
+5035: ? `আপনি কি কোটেশন #${quo.quotationNo || quo.id.slice(-6)} কে সরাসরি বিক্রয়ে রূপান্তর করতে চান? এটি ইনভেন্টরি স্টক আপডেট করবে এবং নতুন ইনভয়
+5531: <span>{lang === 'bn' ? 'বিক্রয় তালিকা (Sales)' : 'Sales Invoices'}</span>
+5577: <span>{lang === 'bn' ? 'নতুন বিক্রয়' : 'New Sale'}</span>
+5585: title={activeSalesTab === 'sales' ? (lang === 'bn' ? "বিক্রয় তালিকা" : "Sales History") : (lang === 'bn' ? "কোটেশন ম্যানেজমেন্ট" : "Quotati
+5586: description={activeSalesTab === 'sales' ? (lang === 'bn' ? "আপনার ব্যবসার বিক্রয় লেনদেন ও ইনভয়েস পরিচালনা করুন।" : "View and manage your b
+5866: title={lang === 'bn' ? 'সরাসরি বিক্রয়ে রূপান্তর' : 'Convert to Sale'}
+6087: {lang === 'bn' ? 'একক বিক্রয়মূল্য (Unit Price)' : 'Unit Price'}
+6170: {lang === 'bn' ? 'বেস বিক্রয়মূল্য:' : 'Base Total:'}

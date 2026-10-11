@@ -1,0 +1,11893 @@
+import React, { useState, useEffect, FormEvent, useRef, ChangeEvent, ReactNode, Component } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
+
+// --- SAFETY WRAPPER ---
+class ErrorBoundary extends (React.Component as any) {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("Critical Render Error:", error, errorInfo);
+  }
+
+  render() {
+    const { hasError, error } = this.state;
+    const { children, fallback } = this.props;
+
+    if (hasError) {
+      return fallback || (
+        <div className="p-8 text-center bg-red-50 min-h-screen flex flex-col items-center justify-center">
+          <div className="text-red-500 mb-4 flex justify-center">
+             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <h1 className="text-2xl font-bold text-red-900 mb-2">Something went wrong</h1>
+          <p className="text-red-600 mb-6">The application encountered a critical error. Please try refreshing.</p>
+          <pre className="text-xs bg-white p-4 rounded-xl border border-red-100 max-w-lg overflow-auto text-left mb-6">
+            {error?.message || String(error)}
+          </pre>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-6 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all"
+          >
+            Refresh App
+          </button>
+        </div>
+      );
+    }
+    return children;
+  }
+}
+import { 
+  LayoutDashboard, 
+  Package, 
+  ShoppingCart, 
+  Truck, 
+  Users, 
+  Receipt, 
+  BarChart3, 
+  Settings as SettingsIcon,
+  LogOut,
+  Menu,
+  X,
+  Plus,
+  Search,
+  Bell,
+  ChevronRight,
+  TrendingUp,
+  DollarSign,
+  ArrowUpRight,
+  ArrowDownRight,
+  Filter,
+  Download,
+  MoreVertical,
+  Calendar,
+  MapPin,
+  Printer,
+  FileText,
+  CreditCard,
+  ShieldCheck,
+  Smartphone,
+  Copy,
+  CheckCircle2,
+  Trash2,
+  PlusCircle,
+  QrCode,
+  Zap,
+  AlertCircle,
+  RotateCcw,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Mail,
+  Key,
+  Facebook,
+  Lock,
+  Unlock,
+  ShieldAlert,
+  Clock,
+  Phone,
+  AlertTriangle,
+  UserCheck,
+  UserX,
+  Camera,
+  ChevronDown,
+  Globe,
+  Barcode,
+  ScanLine,
+  Scan,
+  Share2,
+  Send,
+  Check,
+  ExternalLink,
+  Edit,
+  Layers,
+  Hash,
+  Shield
+} from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
+import { Html5Qrcode } from 'html5-qrcode';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas-pro';
+import html2pdf from 'html2pdf.js';
+import { useReactToPrint } from 'react-to-print';
+import { 
+  BrowserRouter as Router, 
+  Routes, 
+  Route, 
+  Link, 
+  useLocation, 
+  Navigate,
+  useNavigate
+} from 'react-router-dom';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  Bar,
+  ReferenceLine,
+  ComposedChart
+} from 'recharts';
+import { motion, AnimatePresence } from 'motion/react';
+import { cn } from './lib/utils';
+
+// --- BRAND CONFIGURATION ---
+const BRAND_CONFIG = {
+  name: "GreensStock",
+  logo: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ9smqCpJW5Ix_xU5CAi1C5N01TqRAh76jKsg&s",
+  color: "emerald-600"
+};
+
+// --- TRANSLATIONS ---
+const translations: any = {
+  en: {
+    dashboard: "Dashboard",
+    inventory: "Inventory",
+    sales: "Sales",
+    returns: "Returns",
+    suppliers: "Suppliers",
+    customers: "Customers",
+    expenses: "Expenses",
+    reports: "Reports",
+    settings: "Settings",
+    subscription: "Subscription",
+    netRevenue: "Net Revenue",
+    currentProfit: "Current Profit",
+    currentLoss: "Current Loss",
+    profitVsLossTrend: "Profit vs Loss Trend",
+    netProfit: "Net Profit",
+    profit: "Profit",
+    loss: "Loss",
+    revenue7Days: "Revenue (Last 7 Days)",
+    noSalesData: "No sales data for reporting.",
+    inventoryStatus: "Inventory Status",
+    stockHealth: "Stock Health",
+    totalExpenses: "Total Expenses",
+    totalRefunds: "Total Refunds",
+    totalReplacements: "Total Replacements",
+    totalSales: "Total Sales",
+    today: "Today",
+    last7Days: "7 Days",
+    last30Days: "30 Days",
+    logout: "Logout",
+    search: "Search anything...",
+    searchInvoice: "Search Invoice",
+    newSale: "New Sale",
+    addItem: "Add Item",
+    lowStock: "Low Stock Items",
+    recentSales: "Recent Sales",
+    recentRecords: "Recent Records",
+    daysLeft: "Days Left",
+    expired: "Expired",
+    businessPerformance: "Business performance metrics and analytics.",
+    dashboardOverview: "Dashboard Overview",
+    totalReturn: "Full Return",
+    replaceItem: "Replace Item",
+    reasonFor: "Reason for",
+    process: "Process",
+    adjustmentAmount: "Adjustment Amount",
+    replacementProduct: "Replacement Product details",
+    refund: "Refund",
+    extra: "Extra",
+    welcome: "Welcome",
+    softwareOnline: "Your software is online",
+    softwareOffline: "Your software is offline, please do not put data",
+    welcomeBack: "Welcome back",
+    createAccount: "Create your account",
+    loginDesc: "Enter your credentials to access your business dashboard.",
+    signupDesc: "Start managing your local business more efficiently today.",
+    businessNameLabel: "Business Name",
+    fullNameLabel: "Full Name",
+    phoneLabel: "Phone Number",
+    emailLabel: "Email Address",
+    addressLabel: "Address",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm Password",
+    signIn: "Sign In",
+    createAccountBtn: "Create Account",
+    noAccount: "Don't have an account?",
+    haveAccount: "Already have an account?",
+    signup: "Sign up",
+    login: "Log in",
+    processing: "Processing...",
+    softwareLoading: "Software is loading...",
+    brandName: "Brand Name",
+    team: "Team",
+    role: "Role",
+    permissions: "Permissions",
+    addEmployee: "Add Employee",
+    editEmployee: "Edit Employee",
+    employeeName: "Employee Name",
+    view: "View",
+    edit: "Edit",
+    delete: "Delete",
+    savePermissions: "Save Permissions",
+    accessDenied: "Access Denied",
+    managerOnly: "This section is restricted",
+    forgotPassword: "Forgot Password?",
+    resetPassword: "Reset Password",
+    sendResetCode: "Send Reset Code",
+    enterResetEmail: "Enter your email address to recover your password.",
+    resetCodeLabel: "6-Digit Reset Code",
+    newPasswordLabel: "New Password",
+    confirmNewPasswordLabel: "Confirm New Password",
+    backToLogin: "Back to Login Page",
+    customDate: "Custom Date",
+    startDate: "Start Date",
+    endDate: "End Date",
+    downloadPDF: "Download PDF",
+    quotations: "Quotations",
+    quotation: "Quotation",
+    newQuotation: "New Quotation",
+    createQuotation: "Create Quotation",
+    quotationHistory: "Quotations List",
+    validUntil: "Valid Until",
+    convertToSale: "Convert to Sale",
+    convertedToSale: "Converted to Sale",
+    shareQuotation: "Share Quotation",
+  },
+  bn: {
+    dashboard: "ড্যাশবোর্ড",
+    inventory: "ইনভেন্টরি",
+    sales: "Sales Invoices",
+    returns: "রিটার্ন",
+    suppliers: "সরবরাহকারী",
+    customers: "গ্রাহক",
+    expenses: "খরচ",
+    reports: "রিপোর্ট",
+    settings: "সেটিংস",
+    subscription: "সাবস্ক্রিপশন",
+    netRevenue: "নিট রাজস্ব",
+    currentProfit: "বর্তমান লাভ",
+    currentLoss: "বর্তমান ক্ষতি",
+    profitVsLossTrend: "লাভ বনাম ক্ষতি ট্রেন্ড",
+    netProfit: "নিট লাভ",
+    profit: "লাভ",
+    loss: "ক্ষতি",
+    revenue7Days: "রাজস্ব (শেষ ৭ দিন)",
+    noSalesData: "No sales data for reporting.",
+    inventoryStatus: "ইনভেন্টরি অবস্থা",
+    stockHealth: "স্টক হেলথ",
+    totalExpenses: "মোট খরচ",
+    totalRefunds: "মোট ফেরত",
+    totalReplacements: "মোট পরিবর্তন",
+    totalSales: "Total Sales",
+    today: "আজ",
+    last7Days: "৭ দিন",
+    last30Days: "৩০ দিন",
+    logout: "লগআউট",
+    search: "যেকোন কিছু খুঁজুন...",
+    searchInvoice: "Search Invoice",
+    newSale: "New Sale",
+    addItem: "পণ্য যোগ করুন",
+    lowStock: "স্বল্প স্টকের পণ্য",
+    recentSales: "Recent Sales",
+    recentRecords: "সাম্প্রতিক রেকর্ড",
+    daysLeft: "দিন বাকি",
+    expired: "মেয়াদ শেষ",
+    businessPerformance: "ব্যবসায়িক পারফরম্যান্স মেট্রিক্স এবং বিশ্লেষণ।",
+    dashboardOverview: "ড্যাশবোর্ড ওভারভিউ",
+    totalReturn: "সম্পূর্ণ রিটার্ন",
+    replaceItem: "পণ্য পরিবর্তন",
+    reasonFor: "কারণ",
+    process: "প্রসেস করুন",
+    adjustmentAmount: "মূল্য সমন্বয়",
+    replacementProduct: "নতুন প্রোডাক্টের বিবরণ",
+    refund: "ফেরত",
+    extra: "অতিরিক্ত",
+    welcome: "স্বাগতম",
+    softwareOnline: "আপনার সফটওয়্যার অনলাইন আছে",
+    softwareOffline: "আপনার সফটওয়্যার অফলাইন, দয়া করে ডাটা এন্ট্রি করবেন না",
+    welcomeBack: "স্বাগতম",
+    createAccount: "অ্যাকাউন্ট তৈরি করুন",
+    loginDesc: "আপনার ড্যাশবোর্ডে প্রবেশের জন্য লগইন করুন।",
+    signupDesc: "আজই আপনার ব্যবসা ম্যানেজ করা শুরু করুন।",
+    businessNameLabel: "ব্যবসার নাম",
+    fullNameLabel: "পুরো নাম",
+    phoneLabel: "ফোন নম্বর",
+    emailLabel: "ইমেইল ঠিকানা",
+    addressLabel: "ঠিকানা",
+    passwordLabel: "পাসওয়ার্ড",
+    confirmPasswordLabel: "পাসওয়ার্ড নিশ্চিত করুন",
+    signIn: "সাইন ইন",
+    createAccountBtn: "অ্যাকাউন্ট তৈরি করুন",
+    noAccount: "অ্যাকাউন্ট নেই?",
+    haveAccount: "অ্যাকাউন্ট আছে?",
+    signup: "সাইন আপ",
+    login: "লগইন",
+    processing: "প্রসেসিং...",
+    softwareLoading: "সফটওয়্যার লোড হচ্ছে...",
+    brandName: "ব্র্যান্ড নেম",
+    team: "টিম",
+    role: "রোল",
+    permissions: "পারমিশন",
+    addEmployee: "কর্মচারী যোগ করুন",
+    editEmployee: "কর্মচারী এডিট",
+    employeeName: "কর্মচারীর নাম",
+    view: "ভিউ",
+    edit: "এডিট",
+    delete: "ডিলিট",
+    savePermissions: "পারমিশন সেভ করুন",
+    accessDenied: "এক্সেস ডিনাইড",
+    managerOnly: "এই সেকশনটি মালিক দ্বারা সংরক্ষিত",
+    forgotPassword: "পাসওয়ার্ড ভুলে গেছেন?",
+    resetPassword: "পাসওয়ার্ড রিসেট করুন",
+    sendResetCode: "রিসেট কোড পাঠান",
+    enterResetEmail: "পাসওয়ার্ড পুনরায় ফিরে পেতে আপনার ইমেইল এড্রেসটি লিখুন।",
+    resetCodeLabel: "৬-ডিজিটের রিসেট কোড",
+    newPasswordLabel: "নতুন পাসওয়ার্ড",
+    confirmNewPasswordLabel: "নতুন পাসওয়ার্ড নিশ্চিত করুন",
+    backToLogin: "লগইন পেজে ফিরে যান",
+    customDate: "কাস্টম ডেট",
+    startDate: "শুরুর তারিখ",
+    endDate: "শেষের তারিখ",
+    downloadPDF: "Download PDF",
+    quotations: "Quotations",
+    quotation: "Quotation",
+    newQuotation: "New Quotation",
+    createQuotation: "Create Quotation",
+    quotationHistory: "Quotations List",
+    validUntil: "Valid Until",
+    convertToSale: "Convert to Sale",
+    convertedToSale: "Converted to Sale",
+    shareQuotation: "Share Quotation",
+  },
+  es: {
+    dashboard: "Tablero",
+    inventory: "Inventario",
+    sales: "Ventas",
+    returns: "Devoluciones",
+    suppliers: "Proveedores",
+    customers: "Clientes",
+    expenses: "Gastos",
+    reports: "Informes",
+    settings: "Configuración",
+    subscription: "Suscripción",
+    netRevenue: "Ingresos Netos",
+    currentProfit: "Ganancia Actual",
+    currentLoss: "Pérdida Actual",
+    profitVsLossTrend: "Tendencia de Pérdidas y Ganancias",
+    netProfit: "Ganancia Neta",
+    profit: "Ganancia",
+    loss: "Pérdida",
+    revenue7Days: "Ingresos (Últimos 7 Días)",
+    noSalesData: "No hay datos de ventas para informes.",
+    inventoryStatus: "Estado del Inventario",
+    stockHealth: "Salud del Stock",
+    totalExpenses: "Gastos Totales",
+    totalRefunds: "Reembolsos Totales",
+    totalReplacements: "Reemplazos Totales",
+    totalSales: "Ventas Totales",
+    today: "Hoy",
+    last7Days: "7 Días",
+    last30Days: "30 Días",
+    logout: "Cerrar sesión",
+    search: "Buscar algo...",
+    searchInvoice: "Buscar factura",
+    newSale: "Nueva venta",
+    addItem: "Añadir artículo",
+    lowStock: "Artículos con poco stock",
+    recentSales: "Ventas recientes",
+    recentRecords: "Registros recientes",
+    daysLeft: "Días restantes",
+    expired: "Expirado",
+    businessPerformance: "Métricas y análisis del rendimiento empresarial.",
+    dashboardOverview: "Resumen del Tablero",
+    totalReturn: "Devolución total",
+    replaceItem: "Reemplazar artículo",
+    reasonFor: "Razón de",
+    process: "Procesar",
+    adjustmentAmount: "Monto de ajuste",
+    replacementProduct: "Detalles del producto de reemplazo",
+    refund: "Reembolso",
+    extra: "Extra",
+    welcome: "Bienvenido",
+    softwareOnline: "Tu software está en línea",
+    softwareOffline: "Tu software está fuera de línea, por favor no ingreses datos",
+    welcomeBack: "Bienvenido de nuevo",
+    createAccount: "Crea tu cuenta",
+    loginDesc: "Ingrese sus credenciales para acceder a su tablero de negocios.",
+    signupDesc: "Comience a administrar su negocio local de manera más eficiente hoy.",
+    businessNameLabel: "Nombre del negocio",
+    fullNameLabel: "Nombre completo",
+    phoneLabel: "Número de teléfono",
+    emailLabel: "Correo electrónico",
+    passwordLabel: "Contraseña",
+    confirmPasswordLabel: "Confirmar contraseña",
+    signIn: "Iniciar sesión",
+    createAccountBtn: "Crear cuenta",
+    noAccount: "¿No tienes una cuenta?",
+    haveAccount: "¿Ya tienes una cuenta?",
+    signup: "Regístrate",
+    login: "Iniciar sesión",
+    processing: "Procesando...",
+    softwareLoading: "El software se está cargando...",
+    brandName: "Nombre de la marca",
+    customDate: "Fecha Personalizada",
+    startDate: "Fecha de Inicio",
+    endDate: "Fecha de Fin",
+    downloadPDF: "Descargar PDF",
+  }
+};
+
+const LanguageContext = React.createContext({
+  lang: 'en',
+  setLang: (l: string) => {},
+  t: (key: string) => key
+});
+
+const LanguageProvider = ({ children }: { children: ReactNode }) => {
+  const [lang, setLang] = useState(localStorage.getItem('app_lang') || 'en');
+
+  useEffect(() => {
+    localStorage.setItem('app_lang', lang);
+  }, [lang]);
+
+  const t = (key: string) => {
+    return translations[lang][key] || key;
+  };
+
+  return (
+    <LanguageContext.Provider value={{ lang, setLang, t }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+};
+
+const useTranslation = () => React.useContext(LanguageContext);
+
+// --- HELPERS ---
+const banglaToEnglishDigits = (str: any): string => {
+  if (str === null || str === undefined) return '';
+  const banglaToEnglishMap: Record<string, string> = {
+    '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+    '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9'
+  };
+  return str.toString().replace(/[০-৯]/g, (digit: string) => banglaToEnglishMap[digit] || digit);
+};
+
+const parseBanglaInt = (val: any, fallback = 0): number => {
+  if (val === undefined || val === null) return fallback;
+  const cleaned = banglaToEnglishDigits(val).replace(/[^\d-]/g, '');
+  const parsed = parseInt(cleaned, 10);
+  return isNaN(parsed) ? fallback : parsed;
+};
+
+const parseBanglaFloat = (val: any, fallback = 0): number => {
+  if (val === undefined || val === null) return fallback;
+  const cleaned = banglaToEnglishDigits(val).replace(/[^\d.-]/g, '');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? fallback : parsed;
+};
+
+const f2 = (num: any) => (Number(num) || 0).toFixed(2);
+
+// --- CURRENCY SYSTEM & LOCATION AUTO-DETECTION ---
+export interface CurrencyInfo {
+  code: string;
+  symbol: string;
+  name: string;
+  country: string;
+  flag: string;
+}
+
+export const SUPPORTED_CURRENCIES: CurrencyInfo[] = [
+  { code: 'BDT', symbol: '৳', name: 'টাকা (Taka)', country: 'Bangladesh', flag: '🇧🇩' },
+  { code: 'USD', symbol: '$', name: 'US Dollar', country: 'United States', flag: '🇺🇸' },
+  { code: 'EUR', symbol: '€', name: 'Euro', country: 'European Union', flag: '🇪🇺' },
+  { code: 'GBP', symbol: '£', name: 'British Pound', country: 'United Kingdom', flag: '🇬🇧' },
+  { code: 'INR', symbol: '₹', name: 'Indian Rupee', country: 'India', flag: '🇮🇳' },
+  { code: 'SAR', symbol: '﷼', name: 'Saudi Riyal', country: 'Saudi Arabia', flag: '🇸🇦' },
+  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham', country: 'United Arab Emirates', flag: '🇦🇪' },
+  { code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit', country: 'Malaysia', flag: '🇲🇾' },
+  { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar', country: 'Singapore', flag: '🇸🇬' },
+  { code: 'CAD', symbol: 'CA$', name: 'Canadian Dollar', country: 'Canada', flag: '🇨🇦' },
+  { code: 'AUD', symbol: 'AU$', name: 'Australian Dollar', country: 'Australia', flag: '🇦🇺' },
+  { code: 'JPY', symbol: '¥', name: 'Japanese Yen', country: 'Japan', flag: '🇯🇵' },
+  { code: 'QAR', symbol: 'QR', name: 'Qatari Riyal', country: 'Qatar', flag: '🇶🇦' },
+  { code: 'KWD', symbol: 'KD', name: 'Kuwaiti Dinar', country: 'Kuwait', flag: '🇰🇼' },
+  { code: 'OMR', symbol: 'OMR', name: 'Omani Rial', country: 'Oman', flag: '🇴🇲' },
+  { code: 'PKR', symbol: 'Rs', name: 'Pakistani Rupee', country: 'Pakistan', flag: '🇵🇰' }
+];
+
+const detectCurrencyFromLocation = (): { code: string; country: string } => {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    if (tz) {
+      if (tz.includes('Dhaka')) return { code: 'BDT', country: 'Bangladesh' };
+      if (tz.includes('Kolkata') || tz.includes('Calcutta')) return { code: 'INR', country: 'India' };
+      if (tz.includes('Riyadh')) return { code: 'SAR', country: 'Saudi Arabia' };
+      if (tz.includes('Dubai')) return { code: 'AED', country: 'United Arab Emirates' };
+      if (tz.includes('London')) return { code: 'GBP', country: 'United Kingdom' };
+      if (tz.startsWith('Europe/')) return { code: 'EUR', country: 'Europe' };
+      if (tz.includes('Toronto') || tz.includes('Vancouver') || tz.includes('Montreal')) return { code: 'CAD', country: 'Canada' };
+      if (tz.startsWith('America/')) return { code: 'USD', country: 'United States' };
+      if (tz.startsWith('Australia/')) return { code: 'AUD', country: 'Australia' };
+      if (tz.includes('Tokyo')) return { code: 'JPY', country: 'Japan' };
+      if (tz.includes('Kuala_Lumpur')) return { code: 'MYR', country: 'Malaysia' };
+      if (tz.includes('Singapore')) return { code: 'SGD', country: 'Singapore' };
+      if (tz.includes('Qatar')) return { code: 'QAR', country: 'Qatar' };
+      if (tz.includes('Kuwait')) return { code: 'KWD', country: 'Kuwait' };
+      if (tz.includes('Karachi')) return { code: 'PKR', country: 'Pakistan' };
+      if (tz.includes('Muscat')) return { code: 'OMR', country: 'Oman' };
+    }
+
+    const navLang = (navigator.language || '').toLowerCase();
+    if (navLang.includes('bd') || navLang.startsWith('bn')) return { code: 'BDT', country: 'Bangladesh' };
+    if (navLang.includes('in') || navLang.startsWith('hi')) return { code: 'INR', country: 'India' };
+    if (navLang.includes('sa')) return { code: 'SAR', country: 'Saudi Arabia' };
+    if (navLang.includes('ae')) return { code: 'AED', country: 'United Arab Emirates' };
+    if (navLang.includes('gb')) return { code: 'GBP', country: 'United Kingdom' };
+    if (navLang.includes('us')) return { code: 'USD', country: 'United States' };
+    if (navLang.includes('ca')) return { code: 'CAD', country: 'Canada' };
+    if (navLang.includes('au')) return { code: 'AUD', country: 'Australia' };
+    if (navLang.includes('jp') || navLang.startsWith('ja')) return { code: 'JPY', country: 'Japan' };
+  } catch (e) {
+    // fallback
+  }
+  return { code: 'BDT', country: 'Bangladesh' };
+};
+
+interface CurrencyContextType {
+  currency: CurrencyInfo;
+  currencyCode: string;
+  currencySymbol: string;
+  isAutoLocation: boolean;
+  detectedLocation: string;
+  setCurrencyCode: (code: string) => void;
+  enableAutoLocation: () => void;
+  supportedCurrencies: CurrencyInfo[];
+  formatCurrency: (amount: number | string, decimals?: number) => string;
+  toBengaliNumber: (num: string | number) => string;
+}
+
+const CurrencyContext = React.createContext<CurrencyContextType | null>(null);
+
+const CurrencyProvider = ({ children }: { children: ReactNode }) => {
+  const { lang } = useTranslation();
+  
+  const [currencyCode, setCurrencyCodeState] = useState<string>(() => {
+    const savedCode = localStorage.getItem('app_currency_code');
+    const isManual = localStorage.getItem('app_currency_manual') === 'true';
+    if (isManual && savedCode && SUPPORTED_CURRENCIES.some(c => c.code === savedCode)) {
+      return savedCode;
+    }
+    const detected = detectCurrencyFromLocation();
+    return detected.code;
+  });
+
+  const [isAutoLocation, setIsAutoLocation] = useState<boolean>(() => {
+    return localStorage.getItem('app_currency_manual') !== 'true';
+  });
+
+  const [detectedLocation, setDetectedLocation] = useState<string>(() => {
+    return detectCurrencyFromLocation().country;
+  });
+
+  // Background IP lookup for precise Geo Location if auto mode is enabled
+  useEffect(() => {
+    if (!isAutoLocation) return;
+
+    let isMounted = true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+
+    fetch('https://ipwho.is/', { signal: controller.signal })
+      .then(res => res.json())
+      .then(data => {
+        clearTimeout(timer);
+        if (!isMounted || !data || !data.success) return;
+        
+        const country = data.country || '';
+        const currencyData = data.currency || {};
+        const code = (currencyData.code || '').toUpperCase();
+
+        if (country) setDetectedLocation(country);
+
+        if (code && SUPPORTED_CURRENCIES.some(c => c.code === code)) {
+          setCurrencyCodeState(code);
+          localStorage.setItem('app_currency_code', code);
+        }
+      })
+      .catch(() => {
+        // Fallback already handled by client timezone
+      });
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [isAutoLocation]);
+
+  const activeCurrency = SUPPORTED_CURRENCIES.find(c => c.code === currencyCode) || SUPPORTED_CURRENCIES[0];
+
+  const setCurrencyCode = (code: string) => {
+    if (SUPPORTED_CURRENCIES.some(c => c.code === code)) {
+      setCurrencyCodeState(code);
+      setIsAutoLocation(false);
+      localStorage.setItem('app_currency_code', code);
+      localStorage.setItem('app_currency_manual', 'true');
+    }
+  };
+
+  const enableAutoLocation = () => {
+    setIsAutoLocation(true);
+    localStorage.removeItem('app_currency_manual');
+    const detected = detectCurrencyFromLocation();
+    setCurrencyCodeState(detected.code);
+    setDetectedLocation(detected.country);
+    localStorage.setItem('app_currency_code', detected.code);
+  };
+
+  const toBengaliNumber = (num: string | number): string => {
+    return String(num ?? '');
+  };
+
+  const formatCurrency = (amount: number | string, decimals: number = 2) => {
+    const num = Number(amount) || 0;
+    const formatted = num.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    });
+    return `${activeCurrency.symbol}${formatted}`;
+  };
+
+  return (
+    <CurrencyContext.Provider value={{
+      currency: activeCurrency,
+      currencyCode,
+      currencySymbol: activeCurrency.symbol,
+      isAutoLocation,
+      detectedLocation,
+      setCurrencyCode,
+      enableAutoLocation,
+      supportedCurrencies: SUPPORTED_CURRENCIES,
+      formatCurrency,
+      toBengaliNumber
+    }}>
+      {children}
+    </CurrencyContext.Provider>
+  );
+};
+
+const useCurrency = () => {
+  const ctx = React.useContext(CurrencyContext);
+  if (!ctx) {
+    const toBengaliNumber = (num: string | number): string => {
+      return String(num ?? '');
+    };
+    const formatCurrency = (amount: number | string, decimals: number = 2) => {
+      const num = Number(amount) || 0;
+      const formatted = num.toLocaleString('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
+      return `৳${formatted}`;
+    };
+    return {
+      currency: SUPPORTED_CURRENCIES[0],
+      currencyCode: 'BDT',
+      currencySymbol: '৳',
+      isAutoLocation: true,
+      detectedLocation: 'Bangladesh',
+      setCurrencyCode: () => {},
+      enableAutoLocation: () => {},
+      supportedCurrencies: SUPPORTED_CURRENCIES,
+      formatCurrency,
+      toBengaliNumber
+    };
+  }
+  return ctx;
+};
+
+// UI Component for selecting currency with auto location toggle
+const CurrencySelector = ({ compact = false }: { compact?: boolean }) => {
+  const { 
+    currency, 
+    currencyCode, 
+    isAutoLocation, 
+    detectedLocation, 
+    setCurrencyCode, 
+    enableAutoLocation, 
+    supportedCurrencies 
+  } = useCurrency();
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const { lang } = useTranslation();
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const filtered = supportedCurrencies.filter(c => 
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    c.code.toLowerCase().includes(search.toLowerCase()) ||
+    c.country.toLowerCase().includes(search.toLowerCase()) ||
+    c.symbol.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-xs font-bold",
+          isOpen 
+            ? "bg-emerald-50 border-emerald-300 text-emerald-800 ring-2 ring-emerald-500/20" 
+            : "bg-white border-slate-200 hover:border-slate-300 text-slate-700 shadow-xs"
+        )}
+        title={lang === 'bn' ? 'মুদ্রার প্রতীক পরিবর্তন করুন' : 'Change Currency Symbol'}
+      >
+        <span className="text-base leading-none">{currency.flag}</span>
+        <span className="font-black text-emerald-700 text-sm">{currency.symbol}</span>
+        <span className="text-slate-800 font-semibold">{currency.code}</span>
+        {isAutoLocation ? (
+          <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            {lang === 'bn' ? 'স্বয়ংক্রিয়' : 'Auto'}
+          </span>
+        ) : (
+          <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[9px] font-bold">
+            {lang === 'bn' ? 'ম্যানুয়াল' : 'Manual'}
+          </span>
+        )}
+        <ChevronDown size={14} className={cn("text-slate-400 transition-transform duration-200", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200/90 z-50 p-3 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div>
+              <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Globe size={13} className="text-emerald-600" />
+                {lang === 'bn' ? 'মুদ্রার প্রতীক নির্বাচন' : 'Currency Symbol'}
+              </div>
+              <div className="text-[10px] text-slate-500">
+                {isAutoLocation 
+                  ? (lang === 'bn' ? `লোকেশন: ${detectedLocation}` : `Location: ${detectedLocation}`)
+                  : (lang === 'bn' ? 'কাস্টম মুদ্রা সক্রিয়' : 'Custom Currency Active')}
+              </div>
+            </div>
+            
+            {!isAutoLocation && (
+              <button
+                type="button"
+                onClick={() => {
+                  enableAutoLocation();
+                  setIsOpen(false);
+                }}
+                className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
+                title={lang === 'bn' ? 'লোকেশন অনুযায়ী স্বয়ংক্রিয় করুন' : 'Reset to auto location'}
+              >
+                <RefreshCw size={10} />
+                {lang === 'bn' ? 'স্বয়ংক্রিয়' : 'Auto'}
+              </button>
+            )}
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={lang === 'bn' ? 'মুদ্রা বা দেশ খুঁজুন...' : 'Search currency or country...'}
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              autoFocus
+            />
+          </div>
+
+          {/* Currencies List */}
+          <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1 pr-1">
+            {filtered.map(c => {
+              const isSelected = c.code === currencyCode;
+              return (
+                <button
+                  key={c.code}
+                  type="button"
+                  onClick={() => {
+                    setCurrencyCode(c.code);
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center justify-between p-2 rounded-xl text-xs transition-all text-left",
+                    isSelected 
+                      ? "bg-emerald-50 text-emerald-900 font-bold border border-emerald-200/80" 
+                      : "hover:bg-slate-50 text-slate-700 font-medium"
+                  )}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg leading-none">{c.flag}</span>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-emerald-700 text-sm">{c.symbol}</span>
+                        <span className="font-bold text-slate-900">{c.code}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 leading-tight">
+                        {c.country} • {c.name}
+                      </div>
+                    </div>
+                  </div>
+                  {isSelected && (
+                    <span className="text-emerald-600 bg-emerald-100 p-1 rounded-full">
+                      <CheckCircle2 size={13} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {filtered.length === 0 && (
+              <div className="text-center py-4 text-xs text-slate-400">
+                {lang === 'bn' ? 'কোন মুদ্রা পাওয়া যায়নি' : 'No currency found'}
+              </div>
+            )}
+          </div>
+
+          {/* Footer note */}
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+            <span>{lang === 'bn' ? 'লোকেশন অনুযায়ী কারেন্সি স্বয়ংক্রিয়ভাবে সেট হয়' : 'Currency auto-adjusts by location'}</span>
+            <span className="font-mono font-bold text-slate-600">{currency.symbol}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const getTodayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const WHATSAPP_NUM = "01720150101";
+
+// --- SUBSCRIPTION HOOK ---
+const useSubscription = (user: any) => {
+  const [subscription, setSubscription] = useState<{ 
+    active: boolean, 
+    expiryDate: string | null, 
+    loading: boolean,
+    isLocked: boolean,
+    lockReason?: string,
+    subscriptionFee: number 
+  }>({
+    active: true,
+    expiryDate: null,
+    loading: true,
+    isLocked: false,
+    lockReason: '',
+    subscriptionFee: 500
+  });
+
+  const checkStatus = async () => {
+    const checkId = user?.ownerId || user?.id;
+    if (!checkId) {
+      setSubscription(prev => ({ ...prev, loading: false }));
+      return { active: false };
+    }
+    try {
+      const res = await fetch(`/api/subscription/status?userId=${checkId}`);
+      const data = await res.json();
+      setSubscription({ 
+        active: !data.isLocked && !!data.active, 
+        expiryDate: data.expiryDate, 
+        isLocked: !!data.isLocked,
+        lockReason: data.lockReason || '',
+        subscriptionFee: data.subscriptionFee !== undefined ? Number(data.subscriptionFee) : 500,
+        loading: false 
+      });
+      return data;
+    } catch (e) {
+      setSubscription(prev => ({ ...prev, loading: false }));
+      return { active: false };
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) {
+      checkStatus();
+      
+      // Handle Stripe Redirect Success
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('stripe_session_id');
+      if (sessionId) {
+        confirmStripePayment(sessionId);
+      }
+    } else {
+      setSubscription(prev => ({ ...prev, loading: false }));
+    }
+  }, [user?.id]);
+
+  const confirmStripePayment = async (sessionId: string) => {
+    setSubscription(prev => ({ ...prev, loading: true }));
+    try {
+      const res = await fetch('/api/subscription/confirm-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSubscription({ active: true, expiryDate: data.expiryDate, loading: false });
+        alert('Payment successful! Your subscription has been extended by 30 days.');
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else {
+        alert('Payment confirmation failed. Please contact support.');
+        setSubscription(prev => ({ ...prev, loading: false }));
+      }
+    } catch (e) {
+      console.error('Confirm Payment Error:', e);
+      setSubscription(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const createStripeSession = async () => {
+    const checkId = user?.ownerId || user?.id;
+    if (!checkId) return alert('Please login first');
+    
+    try {
+      const res = await fetch('/api/subscription/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: checkId })
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || 'Could not create checkout session');
+      }
+    } catch (e) {
+      console.error('Stripe error:', e);
+      alert('Error connecting to payment gateway.');
+    }
+  };
+
+  const activate = async (code: string) => {
+    const checkId = user?.ownerId || user?.id;
+    if (!checkId) return { success: false, error: 'User not authenticated' };
+    try {
+      const res = await fetch('/api/subscription/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, userId: checkId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSubscription({ active: true, expiryDate: data.expiryDate, loading: false });
+        
+        // Update local user data with new expiry
+        const savedUser = localStorage.getItem('greensoft_user');
+        if (savedUser) {
+          const u = JSON.parse(savedUser);
+          u.expiryDate = data.expiryDate;
+          localStorage.setItem('greensoft_user', JSON.stringify(u));
+        }
+        
+        return { success: true };
+      }
+      return { success: false, error: data.error };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  };
+
+  return { ...subscription, checkStatus, activate, createStripeSession };
+};
+
+// --- REAL AUTH HOOK ---
+const useAuth = () => {
+  const [user, setUser] = useState<{ 
+    id: number; 
+    email: string; 
+    businessName: string; 
+    logo?: string; 
+    name?: string; 
+    phoneNumber?: string; 
+    address?: string; 
+    expiryDate?: string;
+    role?: 'OWNER' | 'MANAGER';
+    ownerId?: number;
+    permissions?: any;
+  } | null>(() => {
+    try {
+      const savedUser = localStorage.getItem('greensoft_user');
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (!parsed.role) parsed.role = 'OWNER';
+        return parsed;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(false);
+
+  const hasPermission = (module: string, action: 'view' | 'edit' | 'delete' = 'view') => {
+    // Only restrict if explicitly a MANAGER
+    if (user && user.role === 'MANAGER') {
+      if (!user.permissions) return false;
+      const modPerms = user.permissions[module];
+      if (!modPerms) return false;
+      return modPerms[action] === true;
+    }
+    // OWNER or unassigned has full access
+    return true;
+  };
+
+  useEffect(() => {
+    const handleUserUpdate = () => {
+      try {
+        const savedUser = localStorage.getItem('greensoft_user');
+        if (savedUser) {
+          const parsed = JSON.parse(savedUser);
+          if (!parsed.role) parsed.role = 'OWNER';
+          setUser(parsed);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    window.addEventListener('greensoft_user_updated', handleUserUpdate);
+    window.addEventListener('storage', handleUserUpdate);
+
+    // Initial check
+    handleUserUpdate();
+
+    return () => {
+      window.removeEventListener('greensoft_user_updated', handleUserUpdate);
+      window.removeEventListener('storage', handleUserUpdate);
+    };
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const userData = { ...data.user, role: data.user.role || 'OWNER' };
+        localStorage.setItem('greensoft_user', JSON.stringify(userData));
+        setUser(userData);
+        window.dispatchEvent(new Event('greensoft_user_updated'));
+        return { success: true };
+      }
+      if (data.error === 'email_not_verified') {
+        return { success: false, error: 'email_not_verified', email: data.email, message: data.message };
+      }
+      return { success: false, error: data.error || 'Login failed' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const signup = async (userData: any) => {
+    try {
+      // Email validation regex
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!userData.email || !emailRegex.test(userData.email)) {
+        return { success: false, error: 'অনুগ্রহ করে একটি সঠিক ইমেইল এড্রেস দিন (যেমন: example@mail.com)' };
+      }
+
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (data.needsVerification) {
+          return { success: true, needsVerification: true, email: data.email, message: data.message };
+        }
+        const userObj = { ...data.user, role: data.user.role || 'OWNER' };
+        localStorage.setItem('greensoft_user', JSON.stringify(userObj));
+        setUser(userObj);
+        window.dispatchEvent(new Event('greensoft_user_updated'));
+        return { success: true };
+      }
+      return { success: false, error: data.error || 'Registration failed' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const verifyEmail = async (email: string, code: string) => {
+    try {
+      const res = await fetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const userObj = { ...data.user, role: data.user.role || 'OWNER' };
+        localStorage.setItem('greensoft_user', JSON.stringify(userObj));
+        setUser(userObj);
+        window.dispatchEvent(new Event('greensoft_user_updated'));
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || 'ভেরিফিকেশন কোডটি সঠিক নয়!' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const resendCode = async (email: string) => {
+    try {
+      const res = await fetch('/api/auth/resend-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (data.success) {
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || 'Failed to resend code' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const updateProfile = async (profileData: any) => {
+    try {
+      console.log('--- UPDATING PROFILE ---', profileData);
+      const res = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...profileData, userId: user?.id })
+      });
+      
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        const data = await res.json();
+        console.log('--- UPDATE RESPONSE ---', data);
+        if (data.success) {
+          const updatedUser = {
+            ...user,
+            ...data.user,
+            role: data.user?.role || user?.role || 'OWNER'
+          };
+          try {
+            localStorage.setItem('greensoft_user', JSON.stringify(updatedUser));
+          } catch (storageErr) {
+            console.warn('LocalStorage save failed:', storageErr);
+          }
+          setUser(updatedUser);
+          window.dispatchEvent(new Event('greensoft_user_updated'));
+          return { success: true };
+        }
+        return { success: false, error: data.error || 'Update failed' };
+      } else {
+        const text = await res.text();
+        console.error('--- NON-JSON RESPONSE ---', text);
+        return { success: false, error: 'Server returned an invalid response. This may be due to large file size (Logo).' };
+      }
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('greensoft_user');
+    setUser(null);
+    window.dispatchEvent(new Event('greensoft_user_updated'));
+  };
+
+  const forgotPassword = async (email: string) => {
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (data.success) {
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || 'Failed to send reset code' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const resetPassword = async (email: string, code: string, newPassword: string) => {
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code, newPassword })
+      });
+      const data = await res.json();
+      if (data.success) {
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || 'Password reset failed' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  return { user, loading, login, signup, verifyEmail, resendCode, updateProfile, logout, hasPermission, forgotPassword, resetPassword };
+};
+
+// --- DATA HOOK ---
+const useData = (user: any) => {
+  const [inventory, setInventory] = useState<any[]>([]);
+  const [sales, setSales] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [returns, setReturns] = useState<any[]>([]);
+  const [quotations, setQuotations] = useState<any[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Sanitization helper
+  const n = (v: any) => parseBanglaFloat(v);
+
+  const sanitizeItem = (key: string, item: any) => {
+    if (key === 'inventory') {
+      return {
+        ...item,
+        quantity: n(item.quantity),
+        price: n(item.price),
+        minStock: n(item.minStock)
+      };
+    }
+    if (key === 'sales') {
+      return {
+        ...item,
+        total: n(item.total),
+        paid: n(item.paid),
+        due: n(item.due)
+      };
+    }
+    if (key === 'quotations') {
+      return {
+        ...item,
+        subtotal: n(item.subtotal),
+        discountPercent: n(item.discountPercent),
+        discountAmount: n(item.discountAmount),
+        taxPercent: n(item.taxPercent),
+        taxAmount: n(item.taxAmount),
+        total: n(item.total)
+      };
+    }
+    if (key === 'expenses') {
+      return {
+        ...item,
+        amount: n(item.amount)
+      };
+    }
+    if (key === 'returns') {
+      return {
+        ...item,
+        totalAmount: n(item.totalAmount)
+      };
+    }
+    if (key === 'customers') {
+      return {
+        ...item,
+        orders: n(item.orders),
+        spent: n(item.spent),
+        due: n(item.due)
+      };
+    }
+    return item;
+  };
+
+  const fetchData = async () => {
+    if (!user?.id) {
+      setIsLoaded(true);
+      return;
+    }
+    try {
+      const entities = ['inventory', 'sales', 'suppliers', 'customers', 'expenses', 'returns', 'quotations'];
+      const setters: any = {
+        inventory: setInventory,
+        sales: setSales,
+        suppliers: setSuppliers,
+        customers: setCustomers,
+        expenses: setExpenses,
+        returns: setReturns,
+        quotations: setQuotations
+      };
+
+      for (const entity of entities) {
+        try {
+          const res = await fetch(`/api/${entity}?userId=${user.id}&role=${user.role || 'OWNER'}&ownerId=${user.ownerId || ''}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              const sanitizedData = data.map(item => sanitizeItem(entity, item));
+              
+              if (entity === 'sales') {
+                const formattedSales = sanitizedData.map((s: any) => {
+                  let items = [];
+                  try {
+                    items = typeof s.items === 'string' ? JSON.parse(s.items) : (s.items || []);
+                  } catch (e) { items = []; }
+                  return { ...s, items: Array.isArray(items) ? items : [] };
+                });
+                setSales(formattedSales);
+              } else if (entity === 'quotations') {
+                const formattedQuotations = sanitizedData.map((q: any) => {
+                  let items = [];
+                  try {
+                    items = typeof q.items === 'string' ? JSON.parse(q.items) : (q.items || []);
+                  } catch (e) { items = []; }
+                  return { ...q, items: Array.isArray(items) ? items : [] };
+                });
+                setQuotations(formattedQuotations);
+              } else {
+                setters[entity](sanitizedData);
+              }
+            }
+          }
+        } catch (e) {
+          console.error(`Field to parse ${entity}:`, e);
+        }
+      }
+
+      setIsLoaded(true);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setIsLoaded(true);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [user?.id]);
+
+  const saveData = (key: string, data: any) => {
+    localStorage.setItem(`greensoft_${key}_${user?.id || 'guest'}`, JSON.stringify(data));
+  };
+
+  const addItem = async (key: string, item: any, setter: any) => {
+    if (!user?.id) return;
+    const newItem = { 
+      ...item, 
+      userId: user.id,
+      id: item.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` 
+    };
+    const sanitizedItem = sanitizeItem(key, newItem);
+    
+    try {
+      const res = await fetch(`/api/${key}?userId=${user.id}&role=${user.role || 'OWNER'}&ownerId=${user.ownerId || ''}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sanitizedItem)
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Server rejected the data');
+      }
+    } catch (error: any) {
+      console.error(`[SYNC ERROR] ${key}:`, error.message);
+    }
+
+    setter((prev: any[]) => {
+      const newData = [sanitizedItem, ...prev];
+      saveData(key, newData);
+      return newData;
+    });
+  };
+
+  const editItem = async (key: string, id: string, updatedFields: any, setter: any) => {
+    if (!user?.id) return;
+    setter((prev: any[]) => {
+      const item = prev.find((i: any) => i.id === id);
+      if (!item) return prev;
+      
+      const fullUpdatedItem = sanitizeItem(key, { ...item, ...updatedFields, userId: user.id });
+      
+      fetch(`/api/${key}?userId=${user.id}&role=${user.role || 'OWNER'}&ownerId=${user.ownerId || ''}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fullUpdatedItem)
+      }).catch(err => console.error(`Error syncing edit for ${key}:`, err));
+
+      const newData = prev.map((i: any) => i.id === id ? fullUpdatedItem : i);
+      saveData(key, newData);
+      return newData;
+    });
+  };
+
+  const deleteItem = async (key: string, id: string, setter: any) => {
+    if (!user?.id) return;
+    try {
+      await fetch(`/api/${key}/${id}?userId=${user.id}&role=${user.role || 'OWNER'}&ownerId=${user.ownerId || ''}`, { method: 'DELETE' });
+    } catch (error) {
+      console.error(`Error deleting ${key}:`, error);
+    }
+    setter((prev: any[]) => {
+      const newData = prev.filter((item: any) => item.id !== id);
+      saveData(key, newData);
+      return newData;
+    });
+  };
+
+  return {
+    inventory, setInventory: (d: any) => { setInventory(d); saveData('inventory', d); },
+    sales, setSales: (d: any) => { setSales(d); saveData('sales', d); },
+    suppliers, setSuppliers: (d: any) => { setSuppliers(d); saveData('suppliers', d); },
+    customers, setCustomers: (d: any) => { setCustomers(d); saveData('customers', d); },
+    expenses, setExpenses: (d: any) => { setExpenses(d); saveData('expenses', d); },
+    returns, setReturns: (d: any) => { setReturns(d); saveData('returns', d); },
+    quotations, setQuotations: (d: any) => { setQuotations(d); saveData('quotations', d); },
+    addInventory: (item: any) => addItem('inventory', item, setInventory),
+    addSale: (item: any) => addItem('sales', item, setSales),
+    addSupplier: (item: any) => addItem('suppliers', item, setSuppliers),
+    addCustomer: (item: any) => addItem('customers', item, setCustomers),
+    addExpense: (item: any) => addItem('expenses', item, setExpenses),
+    addReturn: (item: any) => addItem('returns', item, setReturns),
+    addQuotation: (item: any) => addItem('quotations', item, setQuotations),
+    deleteItem,
+    editItem,
+    isLoaded,
+    fetchData
+  };
+};
+
+// --- REUSABLE UI COMPONENTS ---
+
+const EmptyState = ({ icon: Icon, title, description, action, onAction }: any) => (
+  <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+    <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mb-4">
+      <Icon size={32} />
+    </div>
+    <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+    <p className="text-slate-500 max-w-xs mt-1 mb-6">{description}</p>
+    {action && (
+      <button 
+        onClick={onAction}
+        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-all"
+      >
+        <Plus size={20} />
+        {action}
+      </button>
+    )}
+  </div>
+);
+
+const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }: any) => (
+  <AnimatePresence>
+    {isOpen && (
+      <>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60]"
+        />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className={cn(
+            "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full bg-white rounded-3xl shadow-2xl z-[70] overflow-hidden flex flex-col max-h-[90vh]",
+            maxWidth
+          )}
+        >
+          <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+            <h3 className="text-xl font-bold text-slate-900">{title}</h3>
+            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600">
+              <X size={20} />
+            </button>
+          </div>
+          <div className="p-6 overflow-y-auto">
+            {children}
+          </div>
+        </motion.div>
+      </>
+    )}
+  </AnimatePresence>
+);
+
+const Card = ({ children, className }: any) => (
+  <div className={cn("bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden", className)}>
+    {children}
+  </div>
+);
+
+const PageHeader = ({ title, description, action, onAction }: any) => (
+  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <div>
+      <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
+      {description && <p className="text-slate-500">{description}</p>}
+    </div>
+    {action && (
+      <button 
+        onClick={onAction}
+        className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10 active:scale-95"
+      >
+        <Plus size={20} />
+        {action}
+      </button>
+    )}
+  </div>
+);
+
+const Table = ({ headers, children }: any) => (
+  <div className="overflow-x-auto">
+    <table className="w-full text-left">
+      <thead>
+        <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+          {headers.map((header: string) => (
+            <th key={header} className="px-6 py-4 font-semibold">{header}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-100">
+        {children}
+      </tbody>
+    </table>
+  </div>
+);
+
+const SidebarItem = ({ icon: Icon, label, to, active, collapsed }: any) => (
+  <Link
+    to={to}
+    className={cn(
+      "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors group relative",
+      active 
+        ? "bg-emerald-50 text-emerald-700 font-medium" 
+        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+    )}
+  >
+    <Icon size={20} className={cn(active ? "text-emerald-600" : "text-slate-400 group-hover:text-slate-600")} />
+    {!collapsed && <span>{label}</span>}
+    {collapsed && (
+      <div className="absolute left-full ml-2 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+        {label}
+      </div>
+    )}
+  </Link>
+);
+
+const Layout = ({ children, user, logout, subscription }: any) => {
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const location = useLocation();
+  const { t, lang, setLang } = useTranslation();
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const isSubscribed = subscription?.active;
+  const { hasPermission } = useAuth();
+
+  const navItems = [
+    { icon: LayoutDashboard, label: t('dashboard'), to: '/', module: 'dashboard' },
+    { icon: Package, label: t('inventory'), to: '/inventory', module: 'inventory' },
+    { icon: ShoppingCart, label: t('sales'), to: '/sales', module: 'sales' },
+    { icon: Truck, label: t('suppliers'), to: '/suppliers', module: 'suppliers' },
+    { icon: Users, label: t('customers'), to: '/customers', module: 'customers' },
+    { icon: Receipt, label: t('expenses'), to: '/expenses', module: 'expenses' },
+    { icon: RotateCcw, label: t('returns'), to: '/returns', module: 'returns' },
+    { icon: BarChart3, label: t('reports'), to: '/reports', module: 'reports' },
+    { icon: ShieldCheck, label: t('subscription'), to: '/subscription', module: 'subscription' },
+    { icon: SettingsIcon, label: t('settings'), to: '/settings', module: 'settings' },
+  ];
+
+  // If not subscribed, only allow access to Subscription page
+  const filteredNavItems = navItems.filter(item => {
+    // 1. Subscription check
+    if (!isSubscribed && item.to !== '/subscription') return false;
+    
+    // 2. Manager permission check
+    if (user?.role === 'MANAGER') {
+      if (item.module === 'subscription') return false; // Managers can't see subscription
+      if (item.module === 'dashboard' || item.module === 'settings') return true; // Allowed by default
+      return hasPermission(item.module, 'view');
+    }
+    
+    return true;
+  });
+
+  const subscriptionDays = subscription?.expiryDate 
+    ? Math.ceil((new Date(subscription.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+
+  return (
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
+      {!isSubscribed && location.pathname !== '/subscription' && (
+        <Navigate to="/subscription" replace />
+      )}
+      
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMobileOpen(false)}
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 bg-white border-r border-slate-200 transition-all duration-300 lg:relative lg:translate-x-0",
+          mobileOpen ? "translate-x-0 w-64" : "-translate-x-full lg:translate-x-0",
+          collapsed ? "lg:w-20" : "lg:w-64"
+        )}
+      >
+        <div className="flex flex-col h-full">
+          <div className="h-16 flex items-center px-6 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              {user?.logo ? (
+                <img src={user.logo} alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
+              ) : BRAND_CONFIG.logo ? (
+                <img src={BRAND_CONFIG.logo} alt="Logo" className="w-8 h-8 rounded-lg object-contain" />
+              ) : (
+                <div className={`w-8 h-8 bg-${BRAND_CONFIG.color} rounded-lg flex items-center justify-center text-white font-bold`}>
+                  {BRAND_CONFIG.name.charAt(0)}
+                </div>
+              )}
+              {!collapsed && <span className="text-xl font-bold text-slate-900">{user?.businessName || BRAND_CONFIG.name}</span>}
+            </div>
+          </div>
+
+          <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+            {filteredNavItems.map((item) => (
+              <SidebarItem
+                key={item.to}
+                {...item}
+                active={location.pathname === item.to}
+                collapsed={collapsed}
+              />
+            ))}
+          </nav>
+
+          <div className="p-4 border-t border-slate-100">
+            {!collapsed && (
+              <Link to="/subscription" className="mb-4 block p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition-colors">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Subscription</span>
+                  <ShieldCheck size={12} className={cn(
+                    isSubscribed ? "text-emerald-500" : "text-red-500"
+                  )} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">
+                    {isSubscribed ? "Active Plan" : "Inactive"}
+                  </span>
+                  <ChevronRight size={12} className="text-slate-400" />
+                </div>
+              </Link>
+            )}
+            <div className={cn("flex items-center gap-3", collapsed ? "justify-center" : "px-2")}>
+              {!collapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-900 truncate">{user?.businessName}</p>
+                  <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                </div>
+              )}
+              <button
+                onClick={logout}
+                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title={t('logout')}
+              >
+                <LogOut size={20} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Connection Status Bar */}
+        <div className={cn(
+          "px-4 py-2 text-center text-sm sm:text-base font-extrabold uppercase tracking-wide transition-all duration-300 z-50",
+          isOnline 
+            ? "bg-emerald-500 text-white shadow-md" 
+            : "bg-red-600 text-white animate-pulse shadow-lg"
+        )}>
+          <div className="flex items-center justify-center gap-3">
+            <div className={cn(
+              "w-3 h-3 rounded-full border border-white/20",
+              isOnline ? "bg-white shadow-[0_0_10px_rgba(255,255,255,1)]" : "bg-white animate-ping"
+            )} />
+            {isOnline 
+              ? t('softwareOnline') 
+              : t('softwareOffline')
+            }
+          </div>
+        </div>
+
+        {isSubscribed && subscriptionDays <= 7 && subscriptionDays > 0 && (
+          <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center justify-center gap-2 text-amber-800 text-xs sm:text-sm font-medium z-30">
+            <Bell size={16} className="animate-bounce shrink-0" />
+            Only {subscriptionDays} {t('daysLeft')} until your subscription expires. Please renew.
+            <Link to="/subscription" className="underline font-bold ml-2 whitespace-nowrap">Renew Now</Link>
+          </div>
+        )}
+        {!isSubscribed && (
+          <div className="bg-red-600 text-white px-4 py-3 flex items-center justify-between gap-4 z-50 shadow-xl overflow-hidden animate-pulse">
+            <div className="flex items-center gap-3">
+              <ShieldCheck size={24} className="shrink-0" />
+              <div>
+                <p className="font-bold text-sm sm:text-base">Pay your subscription fee and activate your software</p>
+                <p className="text-xs opacity-90">Please contact the owner to receive your activation code.</p>
+              </div>
+            </div>
+            <a 
+              href={`https://wa.me/${WHATSAPP_NUM}?text=Hello, I want to pay my subscription fee for GreensStock.`} 
+              target="_blank" 
+              rel="noreferrer"
+              className="bg-white text-red-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all shrink-0"
+            >
+              Contact Owner
+            </a>
+          </div>
+        )}
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 shrink-0">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg lg:hidden"
+            >
+              <Menu size={20} />
+            </button>
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg hidden lg:block"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-4">
+              <h1 className="text-lg font-semibold text-slate-800 capitalize leading-none">
+                {location.pathname === '/' ? t('dashboard') : t(location.pathname.substring(1))}
+              </h1>
+              {subscriptionDays !== null && (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 rounded-full border border-slate-100 w-fit">
+                    <Calendar size={12} className="text-slate-400" />
+                    <span className="text-[10px] font-bold text-slate-600 whitespace-nowrap">
+                      {subscriptionDays > 0 ? `${subscriptionDays} ${t('daysLeft')}` : t('expired')}
+                      {subscriptionDays > 0 && subscriptionDays <= 30 && ` • Day ${31 - subscriptionDays}/30`}
+                    </span>
+                  </div>
+                  <div className="hidden md:flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-100 w-fit">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-bold text-emerald-700 whitespace-nowrap">
+                      {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Language Selector */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-2xl mr-2">
+              <button 
+                onClick={() => setLang('en')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-bold rounded-xl transition-all",
+                  lang === 'en' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500"
+                )}
+              >
+                EN
+              </button>
+              <button 
+                onClick={() => setLang('bn')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-bold rounded-xl transition-all",
+                  lang === 'bn' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500"
+                )}
+              >
+                বাংলা
+              </button>
+              <button 
+                onClick={() => setLang('es')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-bold rounded-xl transition-all",
+                  lang === 'es' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500"
+                )}
+              >
+                ES
+              </button>
+            </div>
+
+            <div className="relative hidden sm:block">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input
+                type="text"
+                placeholder={t('search')}
+                className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-48 lg:w-64"
+              />
+            </div>
+            <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg relative">
+              <Bell size={20} />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full border-2 border-white"></span>
+            </button>
+            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-medium text-sm">
+              {user?.businessName?.[0] || 'U'}
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-4 lg:p-8">
+          <div className="max-w-7xl mx-auto">
+            {children}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+// --- PROFIT & LOSS CALCULATION HELPERS ---
+const computeSaleItemProfitLoss = (item: any, inventory: any[]) => {
+  const qty = parseBanglaInt(item?.quantity, 1) || 1;
+  const product = (inventory || []).find((p: any) => 
+    (item?.productId && String(p.id) === String(item.productId)) ||
+    (item?.productName && p.name && p.name.trim().toLowerCase() === String(item.productName).trim().toLowerCase())
+  );
+
+  // Authentic purchase cost (buyPrice)
+  let unitBuyPrice = parseBanglaFloat(item?.buyPrice, NaN);
+  const uPrice = parseBanglaFloat(item?.unitPrice, 0);
+
+  // If item has no valid buyPrice or buyPrice was previously overwritten to match unitPrice while inventory product has a different cost:
+  if (isNaN(unitBuyPrice) || unitBuyPrice <= 0 || (product && Number(product.price) > 0 && unitBuyPrice === uPrice && Number(product.price) !== uPrice)) {
+    if (product && Number(product.price) > 0) {
+      unitBuyPrice = Number(product.price);
+    } else if (isNaN(unitBuyPrice)) {
+      unitBuyPrice = 0;
+    }
+  }
+
+  const cost = unitBuyPrice * qty;
+  // Selling base revenue without tax:
+  const sellingPricePerUnit = uPrice > 0 
+    ? uPrice 
+    : (qty > 0 ? (parseBanglaFloat(item?.total, 0) - parseBanglaFloat(item?.taxAmount, 0)) / qty : 0);
+  const revenue = sellingPricePerUnit * qty;
+  const diff = revenue - cost;
+
+  return {
+    qty,
+    unitBuyPrice,
+    unitSellingPrice: sellingPricePerUnit,
+    cost,
+    revenue,
+    profit: diff > 0 ? diff : 0,
+    loss: diff < 0 ? Math.abs(diff) : 0,
+    net: diff
+  };
+};
+
+const calculateSalesProfitAndLoss = (salesList: any[], inventoryList: any[]) => {
+  let totalSalesProfit = 0;
+  let totalSalesLoss = 0;
+  let totalSalesGross = 0;
+
+  (salesList || []).forEach((s: any) => {
+    totalSalesGross += (parseBanglaFloat(s?.total, 0) || 0);
+    const items = Array.isArray(s?.items) ? s.items : [];
+    if (items.length > 0) {
+      items.forEach((item: any) => {
+        const res = computeSaleItemProfitLoss(item, inventoryList);
+        totalSalesProfit += res.profit;
+        totalSalesLoss += res.loss;
+      });
+    } else {
+      const qty = parseBanglaInt(s?.quantity, 1) || 1;
+      const product = (inventoryList || []).find((p: any) => 
+        (s?.productId && String(p.id) === String(s.productId)) ||
+        (s?.productName && p.name && p.name.trim().toLowerCase() === String(s.productName).trim().toLowerCase())
+      );
+      let unitBuyPrice = parseBanglaFloat(s?.buyPrice, NaN);
+      const uPrice = parseBanglaFloat(s?.price || s?.unitPrice, 0);
+      if (isNaN(unitBuyPrice) || unitBuyPrice <= 0 || (product && Number(product.price) > 0 && unitBuyPrice === uPrice && Number(product.price) !== uPrice)) {
+        if (product && Number(product.price) > 0) {
+          unitBuyPrice = Number(product.price);
+        } else if (isNaN(unitBuyPrice)) {
+          unitBuyPrice = 0;
+        }
+      }
+      const cost = unitBuyPrice * qty;
+      const revenue = (parseBanglaFloat(s?.total, 0) || 0) - (parseBanglaFloat(s?.totalTax, 0) || 0);
+      const diff = revenue - cost;
+      if (diff > 0) totalSalesProfit += diff;
+      else if (diff < 0) totalSalesLoss += Math.abs(diff);
+    }
+  });
+
+  return { 
+    totalSalesProfit: Number(totalSalesProfit.toFixed(2)), 
+    totalSalesLoss: Number(totalSalesLoss.toFixed(2)), 
+    totalSalesGross: Number(totalSalesGross.toFixed(2)) 
+  };
+};
+
+// --- PAGES ---
+
+const Dashboard = ({ data, user: propUser }: any) => {
+  const { user: authUser } = useAuth();
+  const currentUser = propUser || authUser;
+
+  const hasPermission = (module: string, action: 'view' | 'edit' | 'delete' = 'view') => {
+    // Only restrict if explicitly a MANAGER
+    if (currentUser && currentUser.role === 'MANAGER') {
+      if (!currentUser.permissions) return false;
+      const modPerms = currentUser.permissions[module];
+      if (!modPerms) return false;
+      return modPerms[action] === true;
+    }
+    // OWNER or any user has full dashboard visibility
+    return true;
+  };
+
+  const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days' | 'custom'>('30days');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [isExporting, setIsExporting] = useState(false);
+  const dashboardRef = useRef<HTMLDivElement>(null);
+  const { t, lang } = useTranslation();
+  const { formatCurrency, toBengaliNumber } = useCurrency();
+
+  // --- CALCULATION LOGIC ---
+  const isWithinRange = (dateStr: string) => {
+    if (!dateStr) return false;
+    
+    // Parse YYYY-MM-DD as local date to avoid timezone shift issues with new Date(dateStr)
+    const parts = dateStr.split('-');
+    let date: Date;
+    if (parts.length === 3) {
+      date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    } else {
+      date = new Date(dateStr);
+    }
+    date.setHours(0, 0, 0, 0);
+    
+    if (timeFilter === 'custom') {
+      if (!startDate && !endDate) return true;
+      const start = startDate ? new Date(startDate) : null;
+      if (start) start.setHours(0, 0, 0, 0);
+      const end = endDate ? new Date(endDate) : null;
+      if (end) end.setHours(23, 59, 59, 999);
+      
+      if (start && end) {
+        return date >= start && date <= end;
+      } else if (start) {
+        return date >= start;
+      } else if (end) {
+        return date <= end;
+      }
+      return true;
+    }
+    
+    const rangeDate = new Date();
+    rangeDate.setHours(0, 0, 0, 0);
+    
+    if (timeFilter === '7days') rangeDate.setDate(rangeDate.getDate() - 7);
+    else if (timeFilter === '30days') rangeDate.setDate(rangeDate.getDate() - 30);
+    // for 'today', rangeDate is already today at 00:00:00
+    
+    return date >= rangeDate;
+  };
+
+  const filteredSales = (data.sales || []).filter((s: any) => isWithinRange(s?.date));
+  const filteredExpenses = (data.expenses || []).filter((e: any) => isWithinRange(e?.date));
+  const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r?.date));
+
+  // 1. Calculate Sales Profit/Loss for the filtered range using authentic product costs
+  const { totalSalesProfit, totalSalesLoss, totalSalesGross } = calculateSalesProfitAndLoss(filteredSales, data.inventory);
+
+  // 2. Calculate Expenses and Returns
+  const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
+  const totalRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
+  const totalExtraIncome = filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  
+  const totalReturnsNet = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  const netRevenue = totalSalesGross + totalReturnsNet;
+
+  // 3. Current Profit and Current Loss with automatic loss offset
+  // When profit covers the loss, loss automatically shows 0, and profit shows remaining profit after covering loss.
+  // When loss exceeds profit, profit shows 0, and loss shows the remaining uncovered loss.
+  const grossSalesProfit = totalSalesProfit + totalExtraIncome;
+  const grossSalesLoss = totalSalesLoss;
+  const currentProfitDisplay = Math.max(0, grossSalesProfit - grossSalesLoss);
+  const currentLossDisplay = Math.max(0, grossSalesLoss - grossSalesProfit);
+  const finalNetResult = (grossSalesProfit - grossSalesLoss) - totalExpenses - totalRefunds;
+
+  // Calculate Daily Stats for Chart
+  let chartDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }).reverse();
+
+  if (timeFilter === 'custom' && startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    const dates: string[] = [];
+    const current = new Date(start);
+    const maxDays = Math.min(diffDays + 1, 31);
+    for (let i = 0; i < maxDays; i++) {
+      dates.push(`${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`);
+      current.setDate(current.getDate() + 1);
+    }
+    chartDates = dates;
+  } else if (timeFilter === 'today') {
+    chartDates = [getTodayStr()];
+  } else if (timeFilter === '30days') {
+    chartDates = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }).reverse();
+  }
+
+  const dailyStats = chartDates.map(date => {
+    const daySales = (data.sales || []).filter((s: any) => (s?.date || '').slice(0, 10) === date);
+    const dayPL = calculateSalesProfitAndLoss(daySales, data.inventory);
+    const dProfit = dayPL.totalSalesProfit;
+    const dLoss = dayPL.totalSalesLoss;
+
+    const dayExpenses = (data.expenses || []).filter((e: any) => (e?.date || '').slice(0, 10) === date);
+    const dExpenses = dayExpenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
+    
+    const dayReturns = (data.returns || []).filter((r: any) => (r?.date || '').slice(0, 10) === date);
+    const dRefunds = Math.abs(dayReturns.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
+    const dExtraInc = dayReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+
+    // Gross Daily Profit vs Gross Daily Loss
+    const dayProfitDisplay = dProfit + dExtraInc;
+    const dayLossDisplay = dLoss + dExpenses + dRefunds;
+    const netDay = dayProfitDisplay - dayLossDisplay;
+
+    return {
+      date: date.split('-').slice(1).join('/'),
+      fullDate: date,
+      profit: parseFloat(dayProfitDisplay.toFixed(2)),
+      loss: -parseFloat(dayLossDisplay.toFixed(2)),
+      salesProfit: parseFloat(dProfit.toFixed(2)),
+      salesLoss: parseFloat(dLoss.toFixed(2)),
+      expenses: parseFloat(dExpenses.toFixed(2)),
+      net: parseFloat(netDay.toFixed(2)),
+    };
+  });
+
+  const stats = [
+    { key: 'sales', type: 'revenue', label: t('netRevenue'), value: formatCurrency(netRevenue, 0), icon: DollarSign, color: 'bg-indigo-500' },
+    { key: 'sales', type: 'profit', label: t('currentProfit'), value: formatCurrency(currentProfitDisplay), icon: TrendingUp, color: 'bg-emerald-500' },
+    { key: 'sales', type: 'loss', label: t('currentLoss'), value: formatCurrency(currentLossDisplay), icon: ArrowDownRight, color: currentLossDisplay > 0 ? 'bg-red-500' : 'bg-slate-500' },
+    { key: 'sales', type: 'net', label: t('netProfit'), value: (finalNetResult < 0 ? `-${formatCurrency(Math.abs(finalNetResult))}` : formatCurrency(finalNetResult)), icon: CheckCircle2, color: finalNetResult >= 0 ? 'bg-emerald-600' : 'bg-rose-600' },
+    { key: 'expenses', type: 'expense', label: t('totalExpenses'), value: formatCurrency(totalExpenses, 0), icon: Receipt, color: 'bg-orange-500' },
+    { key: 'returns', type: 'refund', label: t('totalRefunds'), value: formatCurrency(totalRefunds, 0), icon: RotateCcw, color: 'bg-slate-500' },
+    { key: 'returns', type: 'replacement', label: t('totalReplacements'), value: formatCurrency(totalExtraIncome, 0), icon: RefreshCw, color: 'bg-indigo-400' },
+    { key: 'sales', type: 'count', label: t('totalSales'), value: lang === 'bn' ? toBengaliNumber(filteredSales.length) : filteredSales.length.toString(), icon: ShoppingCart, color: 'bg-blue-500' },
+  ].filter(stat => hasPermission(stat.key as any, 'view'));
+
+  const lowStockItems = (data?.inventory || []).filter((item: any) => item.quantity <= (item.minStock || 5));
+
+  const exportPDF = async () => {
+    if (!dashboardRef.current || isExporting) return;
+    setIsExporting(true);
+    try {
+      const element = dashboardRef.current;
+      
+      const buttonsToHide = element.querySelectorAll('.no-pdf-export');
+      buttonsToHide.forEach((btn: any) => {
+        btn.setAttribute('data-original-display', btn.style.display);
+        btn.style.setProperty('display', 'none', 'important');
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 80));
+
+      let pdfSaved = false;
+
+      try {
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#f8fafc',
+          allowTaint: false,
+          logging: false
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        
+        const pdf = new jsPDF({
+          orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+          unit: 'px',
+          format: [canvas.width, canvas.height]
+        });
+        pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+        const fileName = `Dashboard-Report-${timeFilter === 'custom' ? `${startDate || 'Start'}_to_${endDate || 'End'}` : timeFilter}.pdf`;
+        pdf.save(fileName);
+        pdfSaved = true;
+      } catch (canvasErr) {
+        console.warn("Canvas capture fallback triggered for Dashboard:", canvasErr);
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        pdf.setFillColor(15, 23, 42);
+        pdf.rect(0, 0, pageWidth, 28, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(currentUser?.businessName || 'Business Dashboard Report', 14, 14);
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Generated: ${new Date().toLocaleString()} | Filter: ${timeFilter.toUpperCase()}`, 14, 21);
+        
+        pdf.setTextColor(15, 23, 42);
+        pdf.setFontSize(13);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Financial Summary', 14, 38);
+
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Net Revenue: $${Number(netRevenue || 0).toFixed(2)}`, 14, 46);
+        pdf.text(`Current Profit: $${Number(currentProfitDisplay || 0).toFixed(2)}`, 14, 53);
+        pdf.text(`Current Loss: $${Number(currentLossDisplay || 0).toFixed(2)}`, 14, 60);
+        pdf.text(`Total Sales Count: ${filteredSales.length}`, 14, 67);
+
+        const fileName = `Dashboard-Report-${timeFilter === 'custom' ? `${startDate || 'Start'}_to_${endDate || 'End'}` : timeFilter}.pdf`;
+        pdf.save(fileName);
+        pdfSaved = true;
+      }
+
+      buttonsToHide.forEach((btn: any) => {
+        const orig = btn.getAttribute('data-original-display');
+        btn.style.display = orig || '';
+      });
+
+      if (pdfSaved) {
+        setTimeout(() => {
+          alert("PDF downloaded successfully");
+        }, 250);
+      }
+    } catch (error) {
+      console.error("Dashboard PDF Export Error:", error);
+      try {
+        const fallbackPdf = new jsPDF('p', 'mm', 'a4');
+        fallbackPdf.setFontSize(16);
+        fallbackPdf.text(`${currentUser?.businessName || 'Business'} - Dashboard Report`, 14, 20);
+        fallbackPdf.setFontSize(10);
+        fallbackPdf.text(`Generated: ${new Date().toLocaleString()} | Filter: ${timeFilter.toUpperCase()}`, 14, 30);
+        fallbackPdf.text(`Net Revenue: $${Number(netRevenue || 0).toFixed(2)}`, 14, 40);
+        fallbackPdf.text(`Profit: $${Number(currentProfitDisplay || 0).toFixed(2)}`, 14, 50);
+        fallbackPdf.save(`Dashboard-Report-${timeFilter}.pdf`);
+        setTimeout(() => {
+          alert("PDF downloaded successfully");
+        }, 250);
+      } catch (e) {
+        alert("PDF download failed. Please try again.");
+      }
+    } finally {
+      setIsExporting(false);
+      if (dashboardRef.current) {
+        const buttonsToHide = dashboardRef.current.querySelectorAll('.no-pdf-export');
+        buttonsToHide.forEach((btn: any) => {
+          const orig = btn.getAttribute('data-original-display');
+          btn.style.display = orig || '';
+        });
+      }
+    }
+  };
+
+  return (
+    <div ref={dashboardRef} className="space-y-8 p-2 bg-[#f8fafc]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-black text-slate-900">{t('dashboardOverview')}</h2>
+          <p className="text-sm text-slate-500">{t('businessPerformance')}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 no-pdf-export">
+          <CurrencySelector />
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+            <button 
+              onClick={() => setTimeFilter('today')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === 'today' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('today')}
+            </button>
+            <button 
+              onClick={() => setTimeFilter('7days')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === '7days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('last7Days')}
+            </button>
+            <button 
+              onClick={() => setTimeFilter('30days')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === '30days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('last30Days')}
+            </button>
+            <button 
+              onClick={() => setTimeFilter('custom')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === 'custom' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('customDate')}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {timeFilter === 'custom' && (
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-wrap items-center gap-4 no-pdf-export">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">{t('startDate')}:</span>
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">{t('endDate')}:</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {stats.map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className={cn("p-3 rounded-xl text-white", stat.color)}>
+                <stat.icon size={24} />
+              </div>
+              {stat.type === 'profit' && (
+                <span className="text-xs font-bold px-2 py-1 rounded-full text-emerald-600 bg-emerald-50">
+                  {lang === 'bn' ? 'বর্তমান লাভ' : 'Current Profit'}
+                </span>
+              )}
+              {stat.type === 'loss' && (
+                <span className={cn(
+                  "text-xs font-bold px-2 py-1 rounded-full",
+                  currentLossDisplay > 0 ? "text-red-600 bg-red-50" : "text-emerald-700 bg-emerald-50"
+                )}>
+                  {currentLossDisplay > 0 ? 'Sales Loss' : 'Loss Covered'}
+                </span>
+              )}
+              {stat.type === 'net' && (
+                <span className={cn(
+                  "text-xs font-bold px-2 py-1 rounded-full",
+                  finalNetResult >= 0 ? "text-emerald-700 bg-emerald-50" : "text-rose-700 bg-rose-50"
+                )}>
+                  {lang === 'bn' ? 'চূড়ান্ত নিট' : 'Overall Net'}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 font-medium">{stat.label}</p>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">{stat.value}</h3>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {hasPermission('sales', 'view') && (
+            <Card>
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="font-bold text-slate-900">{t('profitVsLossTrend')}</h3>
+                <div className="flex items-center gap-4 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                    <span className="text-slate-500">{t('profit')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                    <span className="text-slate-500">{t('loss')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
+                    <span className="text-slate-500">{t('netProfit')} ({lang === 'bn' ? 'নেট রিভিউ' : 'Net Review'})</span>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 h-[350px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={dailyStats}>
+                    <defs>
+                      <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorLoss" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="date" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 12 }}
+                      dy={10}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 12 }}
+                      tickFormatter={(value) => {
+                        const absValue = Math.abs(value);
+                        const formatted = lang === 'bn' ? `৳${toBengaliNumber(absValue)}` : `৳${absValue.toLocaleString()}`;
+                        return value < 0 ? `-${formatted}` : formatted;
+                      }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                      formatter={(value: any, name: any) => {
+                        const absValue = Math.abs(Number(value));
+                        let displayName = name;
+                        if (name === 'profit') displayName = t('profit') || (lang === 'bn' ? 'লাভ' : 'Profit');
+                        else if (name === 'loss') displayName = t('loss') || (lang === 'bn' ? 'ক্ষতি' : 'Loss');
+                        else if (name === 'net') displayName = `${t('netProfit')} (${lang === 'bn' ? 'নিট লাভ' : 'Net'})`;
+                        
+                        if (name === 'net') {
+                          return [Number(value) < 0 ? `-${formatCurrency(absValue)}` : formatCurrency(absValue), displayName];
+                        }
+                        return [formatCurrency(absValue), displayName];
+                      }}
+                    />
+                    <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1.5} />
+                    <Bar 
+                      dataKey="profit" 
+                      fill="#10b981" 
+                      stackId="a"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={dailyStats.length === 1 ? 56 : 28}
+                    />
+                    <Bar 
+                      dataKey="loss" 
+                      fill="#ef4444" 
+                      stackId="a"
+                      radius={[0, 0, 4, 4]}
+                      maxBarSize={dailyStats.length === 1 ? 56 : 28}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="net" 
+                      stroke="#6366f1" 
+                      strokeWidth={3.5} 
+                      dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          )}
+
+          {hasPermission('sales', 'view') && (
+            <Card>
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="font-bold text-slate-900">Recent Sales</h3>
+                <Link to="/sales" className="text-sm text-emerald-600 font-medium hover:underline">View all</Link>
+              </div>
+              {(data?.sales || []).length > 0 ? (
+                <Table headers={['Customer', 'Date', 'Sales Price', 'Status']}>
+                  {(data?.sales || []).slice(-5).reverse().map((item: any) => (
+                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-slate-900">{item.customerName}</div>
+                        <div className="text-xs text-slate-500">INV-{item.id.slice(-4)}</div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-slate-900">{formatCurrency(item.total)}</div>
+                        {(() => {
+                          const sPL = calculateSalesProfitAndLoss([item], data.inventory);
+                          const net = sPL.totalSalesProfit - sPL.totalSalesLoss;
+                          if (net > 0) {
+                            return <div className="text-[11px] font-bold text-emerald-600">+{formatCurrency(net)} {lang === 'bn' ? 'লাভ' : 'Profit'}</div>;
+                          }
+                          if (net < 0) {
+                            return <div className="text-[11px] font-bold text-rose-600">-{formatCurrency(Math.abs(net))} {lang === 'bn' ? 'ক্ষতি' : 'Loss'}</div>;
+                          }
+                          return <div className="text-[11px] font-medium text-slate-400">±{formatCurrency(0)}</div>;
+                        })()}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full">Completed</span>
+                      </td>
+                    </tr>
+                  ))}
+                </Table>
+              ) : (
+                <EmptyState 
+                  icon={ShoppingCart} 
+                  title="No sales yet" 
+                  description="Your recent transactions will appear here once you start selling."
+                />
+              )}
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          {hasPermission('inventory', 'view') && (
+            <Card className="p-6">
+              <h3 className="font-bold text-slate-900 mb-6">Low Stock Alerts</h3>
+              {lowStockItems.length > 0 ? (
+              <div className="space-y-4">
+                {lowStockItems.slice(0, 3).map((item: any) => (
+                  <div key={item.id} className="flex items-center gap-4 p-3 rounded-xl bg-orange-50 border border-orange-100">
+                    <div className="w-10 h-10 rounded-lg bg-orange-500 flex items-center justify-center text-white shrink-0">
+                      <Package size={20} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate">
+                        {item.brand && <span className="text-[10px] text-slate-400 font-medium mr-1">{item.brand}</span>}
+                        {item.name}
+                      </p>
+                      <p className="text-xs text-orange-700 font-medium">Only {item.quantity} units left</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-sm text-slate-500">All stock levels are healthy.</p>
+              </div>
+            )}
+            <Link to="/inventory" className="block w-full mt-6 py-2 text-center text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-xl border border-slate-200 transition-colors">
+              View Inventory
+            </Link>
+          </Card>
+        )}
+      </div>
+    </div>
+  </div>
+);
+};
+
+const playBeep = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // High pleasant beep
+    gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+    
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.12);
+  } catch (e) {
+    console.log("Audio beep failed: ", e);
+  }
+};
+
+const playErrorBeep = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    oscillator.type = 'sawtooth';
+    oscillator.frequency.setValueAtTime(120, audioCtx.currentTime); // Low buzz
+    gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.22);
+    
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.22);
+  } catch (e) {
+    console.log("Audio beep failed: ", e);
+  }
+};
+
+const QRScanner = ({ onScan, onClose, inventory }: { onScan: (data: string) => string, onClose: () => void, inventory: any[] }) => {
+  const [scanMessage, setScanMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const lastScanRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
+
+  const stopCamera = async () => {
+    if (scannerRef.current) {
+      try {
+        const state = scannerRef.current.getState();
+        if (state === 2 || state === 3) { // SCANNING or PAUSED
+          await scannerRef.current.stop();
+        }
+        scannerRef.current.clear();
+      } catch (e) {
+        console.warn("Stop scanner error:", e);
+      } finally {
+        scannerRef.current = null;
+        setIsCameraActive(false);
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleClose = async () => {
+    await stopCamera();
+    onClose();
+  };
+
+  const startBackCamera = async () => {
+    setIsLoading(true);
+    setErrorMessage('');
+
+    try {
+      // Make sure any previous scanner instance is stopped cleanly
+      if (scannerRef.current) {
+        try {
+          const state = scannerRef.current.getState();
+          if (state === 2 || state === 3) {
+            await scannerRef.current.stop();
+          }
+          scannerRef.current.clear();
+        } catch (_) {}
+      }
+
+      const qr = new Html5Qrcode("qr-reader");
+      scannerRef.current = qr;
+
+      const config = {
+        fps: 15,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+      };
+
+      const onScanSuccess = (decodedText: string) => {
+        const now = Date.now();
+        // Cool-down to prevent double scan within 1.5 seconds
+        if (lastScanRef.current.code === decodedText && now - lastScanRef.current.time < 1500) {
+          return;
+        }
+
+        lastScanRef.current = { code: decodedText, time: now };
+
+        const product = inventory.find((p: any) => 
+          String(p.id) === String(decodedText) || 
+          p.serialNumber === decodedText || 
+          p.modelNumber === decodedText
+        );
+
+        if (!product) {
+          setErrorMessage("Product not found in Inventory!");
+          setScanMessage('');
+          playErrorBeep();
+          return;
+        }
+
+        if (product.quantity <= 0) {
+          setErrorMessage(`${product.name} is out of stock!`);
+          setScanMessage('');
+          playErrorBeep();
+          return;
+        }
+
+        const status = onScan(decodedText);
+        if (status === 'out_of_stock_exceeded') {
+          setErrorMessage(`Cannot exceed available stock of ${product.quantity} units for ${product.name}`);
+          setScanMessage('');
+          playErrorBeep();
+          return;
+        } else if (status === 'not_found' || status === 'out_of_stock') {
+          setErrorMessage(`${product.name} is out of stock or not found`);
+          setScanMessage('');
+          playErrorBeep();
+          return;
+        }
+
+        // Success feedback
+        playBeep();
+        setErrorMessage('');
+        const actionText = status === 'updated' ? 'Quantity +1' : 'Added to list';
+        setScanMessage(`Scanned: ${product.name} (${actionText})`);
+
+        // Clear message after 2.5 seconds
+        setTimeout(() => {
+          setScanMessage(prev => prev.includes(product.name) ? '' : prev);
+        }, 2500);
+      };
+
+      // Request Back Camera specifically using facingMode: "environment"
+      try {
+        await qr.start(
+          { facingMode: "environment" }, // Specifically Back Camera
+          config,
+          onScanSuccess,
+          () => {} // Silent frame scan
+        );
+      } catch (errEnvironment) {
+        console.warn("Direct facingMode: environment failed, checking cameras list...", errEnvironment);
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length > 0) {
+          // Select back camera if available by label, else default to rear/last or first camera
+          const backCam = cameras.find(c => {
+            const label = (c.label || '').toLowerCase();
+            return label.includes('back') || label.includes('rear') || label.includes('environment');
+          }) || (cameras.length > 1 ? cameras[cameras.length - 1] : cameras[0]);
+
+          await qr.start(
+            backCam.id,
+            config,
+            onScanSuccess,
+            () => {}
+          );
+        } else {
+          throw errEnvironment;
+        }
+      }
+
+      setIsCameraActive(true);
+    } catch (err: any) {
+      console.error("Failed to start back camera:", err);
+      const isPermissionErr = err?.name === 'NotAllowedError' || String(err).includes('Permission') || String(err).includes('NotAllowedError');
+      setErrorMessage(
+        isPermissionErr
+          ? "Camera permission was denied. Please allow camera access in your browser."
+          : "Could not activate back camera. Please verify your camera is connected."
+      );
+      setIsCameraActive(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        try {
+          const state = scannerRef.current.getState();
+          if (state === 2 || state === 3) {
+            scannerRef.current.stop().then(() => {
+              scannerRef.current?.clear();
+            }).catch(() => {});
+          } else {
+            scannerRef.current.clear();
+          }
+        } catch (_) {}
+      }
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden relative shadow-2xl border border-slate-100">
+        <button 
+          onClick={handleClose}
+          type="button"
+          className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 rounded-full z-20 transition-colors cursor-pointer"
+          title="Close"
+        >
+          <X size={20} />
+        </button>
+
+        <div className="p-6">
+          <h3 className="text-xl font-bold text-slate-900 mb-1 text-center">Scan Product QR Code</h3>
+          <p className="text-xs text-slate-500 text-center mb-4">Continuous scanning is active. Items add automatically.</p>
+          
+          <div className="w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 relative min-h-[300px] flex items-center justify-center shadow-inner">
+            {/* The mounting container for Html5Qrcode video */}
+            <div 
+              id="qr-reader" 
+              className="w-full"
+              style={{ minHeight: '300px' }}
+            />
+
+            {/* Clean Initial UI: Only Request Camera Permissions (No Scan Image File, No Info icon, No clutter) */}
+            {!isCameraActive && (
+              <div className="absolute inset-0 bg-slate-50 flex flex-col items-center justify-center p-6 text-center z-10">
+                <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center mb-5 text-slate-700">
+                  <Smartphone size={36} className="text-slate-700 stroke-[1.75]" />
+                </div>
+
+                <button
+                  type="button"
+                  id="btn-request-camera-permissions"
+                  onClick={startBackCamera}
+                  disabled={isLoading}
+                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-semibold rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-75"
+                >
+                  {isLoading ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      <span>Starting Back Camera...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera size={18} />
+                      <span>Request Camera Permissions</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Active Status & Stop Controller */}
+          {isCameraActive && (
+            <div className="mt-3 px-3 py-2 bg-slate-100 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span>Back Camera Active</span>
+              </div>
+              <button
+                type="button"
+                onClick={stopCamera}
+                className="text-xs text-slate-500 hover:text-red-600 font-medium transition-colors px-2 py-1 rounded-lg hover:bg-slate-200 cursor-pointer"
+              >
+                Stop Camera
+              </button>
+            </div>
+          )}
+
+          {/* Status Feedback Popups */}
+          {scanMessage && (
+            <div className="mt-4 p-3 bg-emerald-50 text-emerald-800 rounded-2xl border border-emerald-100 flex items-center gap-2 text-xs font-semibold animate-pulse">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></div>
+              <span>{scanMessage}</span>
+            </div>
+          )}
+          {errorMessage && (
+            <div className="mt-4 p-3 bg-red-50 text-red-800 rounded-2xl border border-red-100 flex items-center gap-2 text-xs font-semibold">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+              <span>{errorMessage}</span>
+            </div>
+          )}
+          
+          <p className="mt-4 text-xs text-slate-400 text-center font-medium">
+            Point camera at a product QR code to scan. Use [X] at the top to exit.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Web Audio API Beep Tone for instant barcode scan feedback
+const playBarcodeBeep = () => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(950, ctx.currentTime);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.16);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.16);
+  } catch (e) {
+    // ignore audio restriction
+  }
+};
+
+// --- INVENTORY CAMERA BARCODE SCANNER MODAL ---
+const InventoryCameraScannerModal = ({
+  isOpen,
+  onClose,
+  onScan,
+  inventory,
+  incrementStep = 1,
+  title,
+  subtitle,
+  mode = 'general'
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onScan: (code: string) => void;
+  inventory?: any[];
+  incrementStep?: number;
+  title?: string;
+  subtitle?: string;
+  mode?: 'general' | 'serial';
+}) => {
+  const [errorMessage, setErrorMessage] = useState('');
+  const [scanMessage, setScanMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const lastScanRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
+  const { lang } = useTranslation();
+
+  const stopCamera = async () => {
+    if (scannerRef.current) {
+      try {
+        const state = scannerRef.current.getState();
+        if (state === 2 || state === 3) {
+          await scannerRef.current.stop();
+        }
+        scannerRef.current.clear();
+      } catch (e) {
+        console.warn("Error stopping camera:", e);
+      }
+      setIsCameraActive(false);
+    }
+  };
+
+  const handleClose = async () => {
+    await stopCamera();
+    onClose();
+  };
+
+  const startBackCamera = async () => {
+    setIsLoading(true);
+    setErrorMessage('');
+    setScanMessage('');
+
+    try {
+      if (scannerRef.current) {
+        try {
+          const state = scannerRef.current.getState();
+          if (state === 2 || state === 3) {
+            await scannerRef.current.stop();
+          }
+          scannerRef.current.clear();
+        } catch (_) {}
+      }
+
+      const qr = new Html5Qrcode("inventory-camera-reader");
+      scannerRef.current = qr;
+
+      const config = {
+        fps: 20,
+        qrbox: { width: 280, height: 180 },
+        aspectRatio: 1.33
+      };
+
+      const onScanSuccess = (decodedText: string) => {
+        const now = Date.now();
+        if (lastScanRef.current.code === decodedText && now - lastScanRef.current.time < 1200) {
+          return;
+        }
+        lastScanRef.current = { code: decodedText, time: now };
+
+        onScan(decodedText);
+
+        if (mode === 'serial') {
+          setScanMessage(lang === 'bn' 
+            ? `সিরিয়াল শনাক্ত: "${decodedText}"` 
+            : `Serial Scanned: "${decodedText}"`);
+        } else {
+          const existing = (inventory || []).find((p: any) => 
+            String(p.barcode || '').trim().toLowerCase() === decodedText.trim().toLowerCase() ||
+            String(p.serialNumber || '').trim().toLowerCase() === decodedText.trim().toLowerCase() ||
+            String(p.modelNumber || '').trim().toLowerCase() === decodedText.trim().toLowerCase() ||
+            String(p.sku || '').trim().toLowerCase() === decodedText.trim().toLowerCase() ||
+            String(p.id || '').trim().toLowerCase() === decodedText.trim().toLowerCase()
+          );
+
+          if (existing) {
+            setScanMessage(lang === 'bn' 
+              ? `শনাক্ত: "${existing.name}" (স্টক +${incrementStep} বৃদ্ধি পেয়েছে)` 
+              : `Identified: "${existing.name}" (Stock +${incrementStep})`);
+          } else {
+            setScanMessage(lang === 'bn' 
+              ? `নতুন বারকোড: "${decodedText}" (ইনভেন্টরিতে অটো যোগ হয়েছে)` 
+              : `New Barcode: "${decodedText}" (Auto-added)`);
+          }
+        }
+
+        setTimeout(() => {
+          setScanMessage('');
+        }, 2800);
+      };
+
+      try {
+        await qr.start(
+          { facingMode: "environment" },
+          config,
+          onScanSuccess,
+          () => {}
+        );
+      } catch (errEnvironment) {
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length > 0) {
+          const backCam = cameras.find(c => {
+            const label = (c.label || '').toLowerCase();
+            return label.includes('back') || label.includes('rear') || label.includes('environment');
+          }) || (cameras.length > 1 ? cameras[cameras.length - 1] : cameras[0]);
+
+          await qr.start(
+            backCam.id,
+            config,
+            onScanSuccess,
+            () => {}
+          );
+        } else {
+          throw errEnvironment;
+        }
+      }
+
+      setIsCameraActive(true);
+    } catch (err: any) {
+      console.error("Failed to start camera:", err);
+      const isPermissionErr = err?.name === 'NotAllowedError' || String(err).includes('Permission');
+      setErrorMessage(
+        isPermissionErr
+          ? (lang === 'bn' ? "ক্যামেরা পারমিশন দেওয়া হয়নি। ব্রাউজার সেটিংসে ক্যামেরা পারমিশন এলাউ করুন।" : "Camera permission denied.")
+          : (lang === 'bn' ? "ক্যামেরা চালু করা যায়নি। ক্যামেরা সংযোগ পরীক্ষা করুন।" : "Could not activate camera.")
+      );
+      setIsCameraActive(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      startBackCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden relative shadow-2xl border border-slate-100 flex flex-col">
+        {/* Modal Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+              <Barcode size={22} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                {title || (lang === 'bn' ? 'মোবাইল ক্যামেরা বারকোড স্ক্যানার' : 'Mobile Camera Barcode Scanner')}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {subtitle || (lang === 'bn' ? 'প্রোডাক্টের বারকোড বা কিউআর কোডের সামনে ক্যামেরা ধরুন' : 'Point camera at product Barcode or QR')}
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={handleClose}
+            type="button"
+            className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors cursor-pointer text-slate-600"
+            title="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Video Camera Container */}
+        <div className="p-4 sm:p-5 flex flex-col items-center">
+          <div className="w-full rounded-2xl overflow-hidden border-2 border-emerald-500/40 bg-slate-950 relative min-h-[300px] flex items-center justify-center shadow-inner">
+            <div 
+              id="inventory-camera-reader" 
+              className="w-full"
+              style={{ minHeight: '300px' }}
+            />
+
+            {!isCameraActive && (
+              <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center p-6 text-center z-10 text-white">
+                <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center mb-4 text-emerald-400">
+                  <Camera size={30} />
+                </div>
+                <button
+                  type="button"
+                  onClick={startBackCamera}
+                  disabled={isLoading}
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-75"
+                >
+                  {isLoading ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>{lang === 'bn' ? 'ক্যামেরা চালু হচ্ছে...' : 'Starting Camera...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera size={15} />
+                      <span>{lang === 'bn' ? 'ক্যামেরা চালু করুন' : 'Start Camera'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Feedback Toasts */}
+          {scanMessage && (
+            <div className="w-full mt-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl flex items-center gap-2 text-xs font-bold animate-pulse">
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <span>{scanMessage}</span>
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="w-full mt-3 p-3 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl flex items-center gap-2 text-xs font-semibold">
+              <AlertCircle size={16} className="text-rose-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          <div className="w-full mt-4 flex items-center justify-between text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+            <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              {mode === 'serial' 
+                ? (lang === 'bn' ? 'সিরিয়াল স্ক্যান মোড সক্রিয়' : 'Serial scanning active')
+                : (lang === 'bn' ? `প্রতি স্ক্যানে বৃদ্ধি: +${incrementStep} টি` : `Increment: +${incrementStep}`)}
+            </span>
+            <span className="text-[11px] text-slate-400 font-medium">
+              {mode === 'serial'
+                ? (lang === 'bn' ? 'একই সিরিয়াল পুনরায় স্ক্যান করলে তা যুক্ত হবে না' : 'Duplicates are ignored')
+                : (lang === 'bn' ? 'পরপর একাধিক পণ্য স্ক্যান করুন' : 'Continuous scanning mode')}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Inventory = ({ data }: any) => {
+  const { hasPermission } = useAuth();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+  const [selectedQRItem, setSelectedQRItem] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [selectedProductSerialsModal, setSelectedProductSerialsModal] = useState<any>(null);
+  const [serialsSearchQuery, setSerialsSearchQuery] = useState('');
+
+  // Initial Form State
+  const initialNewItem = {
+    name: '',
+    category: '',
+    quantity: '0',
+    price: '',
+    minStock: '5',
+    modelNumber: '',
+    brand: '',
+    barcode: '',
+    serialNumber: '',
+    supplier: '',
+    warranty: 'No Warranty',
+    customWarranty: '',
+    trackingType: 'serial' as 'serial' | 'manual',
+    serialNumbers: [] as string[]
+  };
+
+  const [newItem, setNewItem] = useState(initialNewItem);
+  const [serialScanInput, setSerialScanInput] = useState('');
+  const [duplicateWarning, setDuplicateWarning] = useState('');
+  const [serialSuccessMessage, setSerialSuccessMessage] = useState('');
+  const [isModalCameraOpen, setIsModalCameraOpen] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCategory, setFilterCategory] = useState('All');
+  const [filterTrackingType, setFilterTrackingType] = useState('All');
+  const { formatCurrency } = useCurrency();
+  const { t, lang } = useTranslation();
+
+  // Barcode Station States
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [incrementStep, setIncrementStep] = useState<number>(1);
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  const [autoFocusScanner, setAutoFocusScanner] = useState(true);
+  const [lastScannedItem, setLastScannedItem] = useState<{
+    product: any;
+    oldQty: number;
+    newQty: number;
+    isNew: boolean;
+    time: string;
+  } | null>(null);
+  const [stationAlert, setStationAlert] = useState<{ type: 'success' | 'warning'; message: string } | null>(null);
+  const [sessionScanCount, setSessionScanCount] = useState<number>(0);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // --- REUSABLE PRODUCT PROFILES (Requirement 1) ---
+  // Gathers basic product information (Name, Brand, Category, Model, Supplier, Warranty)
+  // so users do not have to repeatedly enter this info for the same product.
+  const existingProductProfiles = React.useMemo(() => {
+    const map = new Map<string, any>();
+    (data.inventory || []).forEach((item: any) => {
+      const cleanName = (item.name || '').trim();
+      if (!cleanName) return;
+      const key = `${cleanName.toLowerCase()}|${(item.modelNumber || '').trim().toLowerCase()}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          name: cleanName,
+          brand: item.brand || '',
+          category: item.category || 'General',
+          modelNumber: item.modelNumber || '',
+          supplier: item.supplier || '',
+          warranty: item.warranty || 'No Warranty',
+          trackingType: item.trackingType || (Array.isArray(item.serialNumbers) && item.serialNumbers.length > 0 ? 'serial' : 'manual'),
+          price: item.price ? String(item.price) : ''
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [data.inventory]);
+
+  const applyProductProfile = (profile: any) => {
+    if (!profile) return;
+    setNewItem(prev => {
+      const isCustomW = !['No Warranty', '6 Months', '1 Year', '2 Years', '3 Years'].includes(profile.warranty);
+      return {
+        ...prev,
+        name: profile.name || prev.name,
+        brand: profile.brand || prev.brand,
+        category: profile.category || prev.category,
+        modelNumber: profile.modelNumber || prev.modelNumber,
+        supplier: profile.supplier || prev.supplier,
+        warranty: isCustomW ? 'Custom' : (profile.warranty || 'No Warranty'),
+        customWarranty: isCustomW ? profile.warranty : '',
+        trackingType: profile.trackingType || prev.trackingType,
+        price: profile.price || prev.price
+      };
+    });
+  };
+
+  // --- SERIAL NUMBER MANAGEMENT IN MODAL (Requirements 3 & 5) ---
+  const handleAddSerialNumber = (rawSN: string) => {
+    const cleanSN = (rawSN || '').trim();
+    if (!cleanSN) return;
+
+    // Duplicate Check: Same serial number already scanned in this product
+    const isDuplicate = newItem.serialNumbers.some(
+      s => s.trim().toLowerCase() === cleanSN.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      playBarcodeBeep();
+      setDuplicateWarning(
+        lang === 'bn'
+          ? `⚠️ ডুপ্লিকেট সিরিয়াল নম্বর! "${cleanSN}" ইতিমধ্যে যুক্ত আছে। কোয়ান্টিটি বৃদ্ধি পাবে না।`
+          : `⚠️ Duplicate Serial Number! "${cleanSN}" is already scanned. Quantity will not increase.`
+      );
+      setSerialSuccessMessage('');
+      return;
+    }
+
+    // Check if this serial number already belongs to another product in the database
+    const existingInDb = (data.inventory || []).find((p: any) => 
+      (!editingItem || p.id !== editingItem.id) &&
+      Array.isArray(p.serialNumbers) &&
+      p.serialNumbers.some((s: string) => String(s).trim().toLowerCase() === cleanSN.toLowerCase())
+    );
+
+    if (existingInDb) {
+      playBarcodeBeep();
+      setDuplicateWarning(
+        lang === 'bn'
+          ? `⚠️ সতর্কতা: এই সিরিয়াল নম্বরটি "${existingInDb.name}" প্রোডাক্টে ডাটাবেজে সংরক্ষিত আছে!`
+          : `⚠️ Warning: Serial number "${cleanSN}" is already registered under "${existingInDb.name}"!`
+      );
+      setSerialSuccessMessage('');
+      return;
+    }
+
+    playBarcodeBeep();
+    const updatedSerials = [...newItem.serialNumbers, cleanSN];
+    setNewItem(prev => ({
+      ...prev,
+      serialNumbers: updatedSerials,
+      quantity: updatedSerials.length.toString(),
+      barcode: prev.barcode || cleanSN,
+      serialNumber: cleanSN
+    }));
+
+    setDuplicateWarning('');
+    setSerialSuccessMessage(
+      lang === 'bn'
+        ? `✅ সিরিয়াল নম্বর "${cleanSN}" সফলভাবে যুক্ত হয়েছে (মোট ইউনিট: ${updatedSerials.length} টি)`
+        : `✅ Serial Number "${cleanSN}" added (Total Units: ${updatedSerials.length})`
+    );
+    setSerialScanInput('');
+  };
+
+  const handleRemoveSerialNumber = (snToRemove: string) => {
+    const updatedSerials = newItem.serialNumbers.filter(s => s !== snToRemove);
+    setNewItem(prev => ({
+      ...prev,
+      serialNumbers: updatedSerials,
+      quantity: updatedSerials.length.toString()
+    }));
+    setDuplicateWarning('');
+  };
+
+  // --- MAIN BARCODE STATION PROCESSING (Hardware Scanner & Camera) ---
+  const processBarcode = (rawCode: string) => {
+    const cleanCode = (rawCode || '').trim();
+    if (!cleanCode) return;
+
+    playBarcodeBeep();
+    setStationAlert(null);
+
+    const query = cleanCode.toLowerCase();
+    const foundIndex = (data.inventory || []).findIndex((p: any) => {
+      const pBarcode = String(p.barcode || '').trim().toLowerCase();
+      const pSerial = String(p.serialNumber || '').trim().toLowerCase();
+      const pModel = String(p.modelNumber || '').trim().toLowerCase();
+      const pSku = String(p.sku || '').trim().toLowerCase();
+      const pId = String(p.id || '').trim().toLowerCase();
+      const pName = String(p.name || '').trim().toLowerCase();
+      const hasSN = Array.isArray(p.serialNumbers) && p.serialNumbers.some((s: string) => String(s).trim().toLowerCase() === query);
+
+      return (
+        hasSN ||
+        (pBarcode && pBarcode === query) ||
+        (pSerial && pSerial === query) ||
+        (pModel && pModel === query) ||
+        (pSku && pSku === query) ||
+        (pId && pId === query) ||
+        (pId && pId.endsWith(query)) ||
+        (pName === query)
+      );
+    });
+
+    if (foundIndex !== -1) {
+      const existing = data.inventory[foundIndex];
+      const isSerialTracking = existing.trackingType === 'serial' || (Array.isArray(existing.serialNumbers) && existing.serialNumbers.length > 0);
+
+      if (isSerialTracking) {
+        // Serial Tracked Product: Check duplicate serial number
+        const currentSerials: string[] = Array.isArray(existing.serialNumbers) 
+          ? existing.serialNumbers 
+          : (existing.serialNumber ? [existing.serialNumber] : []);
+
+        const alreadyExists = currentSerials.some((s: string) => String(s).trim().toLowerCase() === query);
+
+        if (alreadyExists) {
+          // DUPLICATE PREVENTION: Do NOT increment quantity!
+          setStationAlert({
+            type: 'warning',
+            message: lang === 'bn'
+              ? `⚠️ ডুপ্লিকেট সিরিয়াল নম্বর! "${cleanCode}" ইতিমধ্যে "${existing.name}"-এ সংরক্ষিত। স্টক পরিবর্তন হয়নি।`
+              : `⚠️ Duplicate Serial Number! "${cleanCode}" already exists for "${existing.name}". Quantity unchanged.`
+          });
+          return;
+        }
+
+        // UNIQUE SCAN -> Automatically increase Quantity +1
+        const updatedSerials = [...currentSerials, cleanCode];
+        const newQty = updatedSerials.length;
+        const oldQty = Number(existing.quantity) || 0;
+
+        data.editItem('inventory', existing.id, {
+          serialNumbers: updatedSerials,
+          quantity: newQty,
+          serialNumber: cleanCode
+        }, data.setInventory);
+
+        setLastScannedItem({
+          product: { ...existing, quantity: newQty, serialNumbers: updatedSerials },
+          oldQty,
+          newQty,
+          isNew: false,
+          time: new Date().toLocaleTimeString()
+        });
+        setSessionScanCount(prev => prev + 1);
+        setStationAlert({
+          type: 'success',
+          message: lang === 'bn'
+            ? `✅ ইউনিক সিরিয়াল "${cleanCode}" যুক্ত হয়েছে! "${existing.name}" বর্তমান স্টক: ${newQty} টি`
+            : `✅ Unique Serial "${cleanCode}" added! "${existing.name}" Stock: ${newQty}`
+        });
+      } else {
+        // MANUAL QUANTITY PRODUCT: Increment by step
+        const oldQty = Number(existing.quantity) || 0;
+        const newQty = oldQty + incrementStep;
+
+        data.editItem('inventory', existing.id, {
+          quantity: newQty
+        }, data.setInventory);
+
+        setLastScannedItem({
+          product: { ...existing, quantity: newQty },
+          oldQty,
+          newQty,
+          isNew: false,
+          time: new Date().toLocaleTimeString()
+        });
+        setSessionScanCount(prev => prev + 1);
+        setStationAlert({
+          type: 'success',
+          message: lang === 'bn'
+            ? `✅ "${existing.name}" স্টক বৃদ্ধি পেয়েছে (+${incrementStep})`
+            : `✅ "${existing.name}" stock updated (+${incrementStep})`
+        });
+      }
+    } else {
+      // New Product Auto-creation fallback
+      const newId = `${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+      const autoProductName = `Product [${cleanCode}]`;
+      const newProduct = {
+        id: newId,
+        name: autoProductName,
+        barcode: cleanCode,
+        sku: `BC-${cleanCode.slice(-6)}`,
+        serialNumber: cleanCode,
+        modelNumber: cleanCode,
+        category: 'General',
+        quantity: incrementStep,
+        price: 0,
+        minStock: 5,
+        brand: '',
+        supplier: '',
+        warranty: 'No Warranty',
+        trackingType: 'manual',
+        serialNumbers: []
+      };
+
+      data.addInventory(newProduct);
+
+      setLastScannedItem({
+        product: newProduct,
+        oldQty: 0,
+        newQty: incrementStep,
+        isNew: true,
+        time: new Date().toLocaleTimeString()
+      });
+      setSessionScanCount(prev => prev + 1);
+    }
+  };
+
+  const handleBarcodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!barcodeInput.trim()) return;
+    processBarcode(barcodeInput.trim());
+    setBarcodeInput('');
+    if (autoFocusScanner) {
+      setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 50);
+    }
+  };
+
+  const adjustLastScannedQty = (delta: number) => {
+    if (!lastScannedItem) return;
+    const targetId = lastScannedItem.product.id;
+    const currentProd = data.inventory.find((p: any) => String(p.id) === String(targetId));
+    if (!currentProd) return;
+
+    if (currentProd.trackingType === 'serial') {
+      alert(lang === 'bn' 
+        ? "সিরিয়াল ট্র্যাকড পণ্যের স্টক শুধুমাত্র সিরিয়াল নম্বর স্ক্যান বা ডিলিটের মাধ্যমে পরিবর্তন সম্ভব।" 
+        : "Serial Tracked products quantity is strictly calculated from valid serial numbers.");
+      return;
+    }
+
+    const updatedQty = Math.max(0, (Number(currentProd.quantity) || 0) + delta);
+    data.editItem('inventory', currentProd.id, { quantity: updatedQty }, data.setInventory);
+    playBarcodeBeep();
+    setLastScannedItem(prev => prev ? {
+      ...prev,
+      oldQty: Number(currentProd.quantity) || 0,
+      newQty: updatedQty,
+      product: { ...currentProd, quantity: updatedQty },
+      time: new Date().toLocaleTimeString()
+    } : null);
+  };
+
+  // --- SAVE PRODUCT HANDLER ---
+  const handleAdd = (e: FormEvent) => {
+    e.preventDefault();
+    const cleanBarcode = (newItem.barcode || '').trim();
+    const cleanSerial = (newItem.serialNumber || cleanBarcode).trim();
+
+    const finalWarranty = newItem.warranty === 'Custom' 
+      ? (newItem.customWarranty.trim() || 'Custom Warranty') 
+      : newItem.warranty;
+
+    // Strict Rule: Serial Tracked Product quantity = serialNumbers.length
+    // Manual Quantity Product quantity = parseBanglaInt(newItem.quantity)
+    const finalQuantity = newItem.trackingType === 'serial'
+      ? newItem.serialNumbers.length
+      : parseBanglaInt(newItem.quantity);
+
+    const payload = {
+      ...newItem,
+      quantity: finalQuantity,
+      price: parseBanglaFloat(newItem.price),
+      minStock: parseBanglaInt(newItem.minStock),
+      barcode: cleanBarcode,
+      serialNumber: cleanSerial,
+      warranty: finalWarranty,
+      trackingType: newItem.trackingType,
+      serialNumbers: newItem.trackingType === 'serial' ? newItem.serialNumbers : []
+    };
+
+    if (editingItem) {
+      data.editItem('inventory', editingItem.id, payload, data.setInventory);
+    } else {
+      data.addInventory(payload);
+    }
+
+    setNewItem(initialNewItem);
+    setEditingItem(null);
+    setDuplicateWarning('');
+    setSerialSuccessMessage('');
+    setIsModalOpen(false);
+  };
+
+  const openEdit = (item: any) => {
+    setEditingItem(item);
+    const itemSerials = Array.isArray(item.serialNumbers) 
+      ? item.serialNumbers 
+      : (item.serialNumber ? [item.serialNumber] : []);
+    const itemTracking = item.trackingType || (itemSerials.length > 0 ? 'serial' : 'manual');
+    const isCustomW = !['No Warranty', '6 Months', '1 Year', '2 Years', '3 Years'].includes(item.warranty);
+
+    setNewItem({
+      name: item.name || '',
+      category: item.category || '',
+      quantity: (item.quantity !== undefined && item.quantity !== null) ? item.quantity.toString() : '0',
+      price: (item.price !== undefined && item.price !== null) ? item.price.toString() : '0',
+      minStock: (item.minStock !== undefined && item.minStock !== null) ? item.minStock.toString() : '5',
+      modelNumber: item.modelNumber || '',
+      brand: item.brand || '',
+      barcode: item.barcode || item.serialNumber || '',
+      serialNumber: item.serialNumber || item.barcode || '',
+      supplier: item.supplier || '',
+      warranty: isCustomW && item.warranty ? 'Custom' : (item.warranty || 'No Warranty'),
+      customWarranty: isCustomW ? (item.warranty || '') : '',
+      trackingType: itemTracking,
+      serialNumbers: itemSerials
+    });
+    setDuplicateWarning('');
+    setSerialSuccessMessage('');
+    setIsModalOpen(true);
+  };
+
+  const openQR = (item: any) => {
+    setSelectedQRItem(item);
+    setIsQRModalOpen(true);
+  };
+
+  const categories = ['All', ...new Set((data.inventory || []).map((item: any) => item.category || 'General'))];
+
+  const filteredInventory = (data.inventory || []).filter((item: any) => {
+    const name = (item.name || '').toLowerCase();
+    const category = (item.category || '').toLowerCase();
+    const barcode = (item.barcode || '').toLowerCase();
+    const sku = (item.sku || '').toLowerCase();
+    const model = (item.modelNumber || '').toLowerCase();
+    const brand = (item.brand || '').toLowerCase();
+    const supplier = (item.supplier || '').toLowerCase();
+    const hasMatchingSN = Array.isArray(item.serialNumbers) && item.serialNumbers.some((s: string) => String(s).toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const query = searchQuery.toLowerCase();
+    const matchesSearch = name.includes(query) || category.includes(query) || barcode.includes(query) || sku.includes(query) || model.includes(query) || brand.includes(query) || supplier.includes(query) || hasMatchingSN;
+    const matchesCategory = filterCategory === 'All' || item.category === filterCategory;
+    const matchesTracking = filterTrackingType === 'All' || 
+      (filterTrackingType === 'serial' && (item.trackingType === 'serial' || (item.serialNumbers?.length > 0))) ||
+      (filterTrackingType === 'manual' && item.trackingType !== 'serial' && (!item.serialNumbers || item.serialNumbers.length === 0));
+
+    return matchesSearch && matchesCategory && matchesTracking;
+  });
+
+  return (
+    <div className="space-y-6">
+      <PageHeader 
+        title="Inventory Management" 
+        description="Track and manage your stock levels." 
+        action={hasPermission('inventory', 'edit') ? "Add Item" : null} 
+        onAction={() => { 
+          setEditingItem(null); 
+          setNewItem(initialNewItem); 
+          setDuplicateWarning('');
+          setSerialSuccessMessage('');
+          setIsModalOpen(true); 
+        }}
+      />
+
+      {/* --- BARCODE SCANNING STATION (HARDWARE SCANNER & MOBILE CAMERA) --- */}
+      <div className="bg-gradient-to-r from-emerald-900/5 via-slate-50 to-emerald-900/10 border border-emerald-200/90 rounded-3xl p-4 sm:p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-md shadow-emerald-900/20 shrink-0">
+              <Barcode size={24} />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <span>{lang === 'bn' ? 'বারকোড ও সিরিয়াল স্ক্যানিং স্টেশন' : 'Barcode & Serial Scanning Station'}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  {lang === 'bn' ? 'স্মার্ট স্টক অটো-আপডেট' : 'Smart Stock Auto-Update'}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                {lang === 'bn' 
+                  ? 'বারকোড মেশিন বা মোবাইল ক্যামেরা দিয়ে সিরিয়াল স্ক্যান করলেই স্টক অটো +১ বাড়বে (ডুপ্লিকেট স্ক্যান প্রতিরোধ সক্রিয়)' 
+                  : 'Scan with Barcode Gun or Camera. Unique serial scans auto-add +1. Duplicates are safely rejected.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {sessionScanCount > 0 && (
+              <span className="px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-200 flex items-center gap-1.5">
+                <CheckCircle2 size={13} className="text-emerald-600" />
+                <span>{lang === 'bn' ? `মোট স্ক্যান: ${sessionScanCount} টি` : `Scans: ${sessionScanCount}`}</span>
+              </span>
+            )}
+            
+            <button
+              type="button"
+              onClick={() => setIsCameraScannerOpen(true)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-900/20 flex items-center gap-2 cursor-pointer"
+            >
+              <Camera size={16} />
+              <span>{lang === 'bn' ? 'মোবাইল ক্যামেরা স্ক্যানার' : 'Mobile Camera'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Machine Barcode Input & Step Controls */}
+        <div className="flex flex-col lg:flex-row gap-3 pt-1">
+          <form onSubmit={handleBarcodeSubmit} className="flex-1 flex gap-2">
+            <div className="relative flex-1">
+              <Barcode size={20} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
+              <input
+                ref={barcodeInputRef}
+                type="text"
+                value={barcodeInput}
+                onChange={e => setBarcodeInput(e.target.value)}
+                placeholder={lang === 'bn' 
+                  ? "বারকোড মেশিন দিয়ে স্ক্যান করুন বা সিরিয়াল নম্বর লিখে Enter চাপুন..." 
+                  : "Scan with Barcode Gun or type code (press Enter to auto-add)..."}
+                className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all shadow-xs"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <ScanLine size={16} />
+              <span>{lang === 'bn' ? 'স্ক্যান গ্রহণ করুন' : 'Process Code'}</span>
+            </button>
+          </form>
+
+          {/* Increment Step Buttons */}
+          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-2xl border border-slate-200/90 shadow-2xs self-start lg:self-auto shrink-0">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              {lang === 'bn' ? 'ম্যানুয়াল বৃদ্ধি:' : 'Manual Step:'}
+            </span>
+            {[1, 2, 5, 10].map(step => (
+              <button
+                key={step}
+                type="button"
+                onClick={() => setIncrementStep(step)}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-extrabold rounded-lg transition-all cursor-pointer",
+                  incrementStep === step 
+                    ? "bg-emerald-600 text-white shadow-xs" 
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                )}
+              >
+                +{step}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Station Alert Message Banner */}
+        {stationAlert && (
+          <div className={cn(
+            "p-3 rounded-xl border flex items-center gap-2 text-xs font-bold animate-in fade-in duration-200",
+            stationAlert.type === 'warning' 
+              ? "bg-amber-50 border-amber-200 text-amber-900" 
+              : "bg-emerald-50 border-emerald-200 text-emerald-900"
+          )}>
+            {stationAlert.type === 'warning' ? (
+              <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+            ) : (
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+            )}
+            <span>{stationAlert.message}</span>
+          </div>
+        )}
+
+        {/* Auto Focus Checkbox for Scanner Guns */}
+        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={autoFocusScanner}
+              onChange={e => setAutoFocusScanner(e.target.checked)}
+              className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500"
+            />
+            <span className="font-medium text-slate-600">
+              {lang === 'bn' ? 'অটো-ফোকাস ইনপুট সক্রিয় (হ্যান্ডহেল্ড বারকোড মেশিনের জন্য)' : 'Auto-focus input after scan (for Barcode guns)'}
+            </span>
+          </label>
+          <span className="text-slate-400 hidden sm:inline">
+            {lang === 'bn' ? 'সিরিয়াল ট্র্যাকিং পণ্যের ক্ষেত্রে ইউনিক স্ক্যানে স্টক +১ বাড়বে' : 'Serial products: 1 unique scan = +1 stock'}
+          </span>
+        </div>
+
+        {/* Last Scanned Item Card */}
+        {lastScannedItem && (
+          <div className="p-3.5 sm:p-4 bg-white border border-emerald-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-in fade-in duration-200">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 shadow-xs",
+                lastScannedItem.isNew ? "bg-indigo-600 text-white" : "bg-emerald-600 text-white"
+              )}>
+                {lastScannedItem.isNew ? <Plus size={20} /> : <CheckCircle2 size={20} />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-mono font-black text-emerald-950 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                    {lastScannedItem.product.barcode || lastScannedItem.product.id}
+                  </span>
+                  <span className="text-sm font-extrabold text-slate-900">
+                    {lastScannedItem.product.name}
+                  </span>
+                  {lastScannedItem.product.trackingType === 'serial' && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Serial Tracked
+                    </span>
+                  )}
+                  {lastScannedItem.isNew ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200">
+                      {lang === 'bn' ? 'নতুন প্রোডাক্ট' : 'New Product'}
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      {lang === 'bn' ? 'স্টক বৃদ্ধি' : 'Stock Updated'}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
+                  <span>{lang === 'bn' ? 'পূর্বের স্টক:' : 'Previous:'} <strong className="text-slate-800">{lastScannedItem.oldQty}</strong></span>
+                  <span>➔</span>
+                  <span>{lang === 'bn' ? 'বর্তমান স্টক:' : 'New Stock:'} <strong className="text-emerald-700 font-extrabold text-sm">{lastScannedItem.newQty} টি</strong></span>
+                  <span className="text-slate-400 text-[10px]">({lastScannedItem.time})</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              {lastScannedItem.product.trackingType !== 'serial' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => adjustLastScannedQty(1)}
+                    className="px-2.5 py-1.5 bg-slate-50 hover:bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-slate-200 hover:border-emerald-300 transition-all flex items-center gap-1 cursor-pointer"
+                    title="Add 1 more"
+                  >
+                    <Plus size={13} />
+                    <span>+1</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => adjustLastScannedQty(-1)}
+                    className="px-2.5 py-1.5 bg-slate-50 hover:bg-rose-50 text-rose-700 rounded-lg text-xs font-bold border border-slate-200 hover:border-rose-300 transition-all flex items-center gap-1 cursor-pointer"
+                    title="Decrease 1"
+                  >
+                    <span>-1</span>
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => openEdit(lastScannedItem.product)}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                {lang === 'bn' ? 'তথ্য সম্পাদনা' : 'Edit Item'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* --- INVENTORY LISTING CARD --- */}
+      <Card>
+        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search by name, brand, model, SN..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            />
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full md:w-auto flex-wrap">
+            {/* Tracking Type Filter */}
+            <select
+              value={filterTrackingType}
+              onChange={(e) => setFilterTrackingType(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-slate-700"
+            >
+              <option value="All">{lang === 'bn' ? 'সব ট্র্যাকিং টাইপ' : 'All Tracking Types'}</option>
+              <option value="serial">{lang === 'bn' ? 'সিরিয়াল নম্বর ট্র্যাকিং' : 'Serial Tracked Only'}</option>
+              <option value="manual">{lang === 'bn' ? 'ম্যানুয়াল কোয়ান্টিটি' : 'Manual Quantity Only'}</option>
+            </select>
+
+            {/* Category Filter */}
+            <select 
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-slate-700"
+            >
+              {categories.map(cat => (
+                <option key={cat as string} value={cat as string}>{cat as string}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {filteredInventory.length > 0 ? (
+          <Table headers={['Item Details', 'Tracking Type', 'Barcode / Model', 'Category', 'Stock Units', 'Buy Price', 'QR Code', 'Actions']}>
+            {filteredInventory.map((item: any) => {
+              const isSerial = item.trackingType === 'serial' || (Array.isArray(item.serialNumbers) && item.serialNumbers.length > 0);
+              const serialCount = Array.isArray(item.serialNumbers) ? item.serialNumbers.length : (item.serialNumber ? 1 : 0);
+
+              return (
+                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="font-extrabold text-slate-900 text-sm">{item.name}</div>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      {item.brand && (
+                        <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                          {item.brand}
+                        </span>
+                      )}
+                      {item.modelNumber && (
+                        <span className="text-[11px] font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md uppercase">
+                          Model: {item.modelNumber}
+                        </span>
+                      )}
+                      {item.supplier && (
+                        <span className="text-[10px] font-medium text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md">
+                          🏢 {item.supplier}
+                        </span>
+                      )}
+                      {item.warranty && item.warranty !== 'No Warranty' && (
+                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <ShieldCheck size={11} className="text-indigo-600" />
+                          {item.warranty}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Tracking Type Badge */}
+                  <td className="px-6 py-4">
+                    {isSerial ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedProductSerialsModal(item);
+                          setSerialsSearchQuery('');
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                        title="Click to view all Serial Numbers"
+                      >
+                        <Barcode size={13} className="text-emerald-700" />
+                        <span>SN Tracked ({serialCount})</span>
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold">
+                        <Layers size={13} className="text-slate-500" />
+                        <span>Manual Qty</span>
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1">
+                      {item.barcode ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200 px-2 py-0.5 rounded-md w-fit">
+                          <Barcode size={12} className="text-slate-500" />
+                          {item.barcode}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-mono text-slate-400">
+                          SKU-{item.id.slice(-4)}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+
+                  <td className="px-6 py-4 text-sm font-medium text-slate-600">{item.category}</td>
+
+                  {/* Stock Quantity */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className={cn(
+                        "font-extrabold text-base",
+                        item.quantity <= item.minStock ? "text-orange-600" : "text-emerald-800"
+                      )}>
+                        {item.quantity}
+                      </span>
+                      <span className="text-xs text-slate-400 font-medium">units</span>
+                      {isSerial && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" title="Synchronized with Serial Numbers" />
+                      )}
+                    </div>
+                  </td>
+
+                  <td className="px-6 py-4 font-bold text-slate-900">{formatCurrency(item.price)}</td>
+
+                  <td className="px-6 py-4">
+                    <button 
+                      onClick={() => openQR(item)}
+                      className="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                      title="View QR Code"
+                    >
+                      <QrCode size={18} className="text-slate-600" />
+                    </button>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      {hasPermission('inventory', 'edit') && (
+                        <button 
+                          onClick={() => openEdit(item)}
+                          className="text-emerald-600 hover:text-emerald-700 font-bold text-sm cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {hasPermission('inventory', 'delete') && (
+                        <button 
+                          onClick={() => data.deleteItem('inventory', item.id, data.setInventory)}
+                          className="text-red-600 hover:text-red-700 font-bold text-sm cursor-pointer"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </Table>
+        ) : (
+          <EmptyState 
+            icon={Package} 
+            title={searchQuery || filterCategory !== 'All' ? "No matching items" : "Your inventory is empty"} 
+            description={searchQuery || filterCategory !== 'All' ? "Try adjusting your search or filters." : "Add your first product to start tracking your stock levels."}
+            action={searchQuery || filterCategory !== 'All' ? null : "Add First Item"}
+            onAction={() => { 
+              setEditingItem(null); 
+              setNewItem(initialNewItem); 
+              setDuplicateWarning('');
+              setSerialSuccessMessage('');
+              setIsModalOpen(true); 
+            }}
+          />
+        )}
+      </Card>
+
+      {/* --- ADD / EDIT PRODUCT MODAL --- */}
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        title={editingItem ? (lang === 'bn' ? 'প্রোডাক্ট তথ্য সম্পাদনা' : "Edit Product") : (lang === 'bn' ? 'ইনভেন্টরিতে নতুন প্রোডাক্ট যুক্ত করুন' : "Add New Product to Inventory")}
+      >
+        <form onSubmit={handleAdd} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+          {/* Quick-fill from Existing Product Profile (Requirement 1) */}
+          {!editingItem && existingProductProfiles.length > 0 && (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700 flex items-center justify-between">
+                <span>{lang === 'bn' ? '📋 সংরক্ষিত প্রোডাক্ট প্রোফাইল থেকে পূরণ করুন:' : '📋 Auto-fill from Existing Product:'}</span>
+                <span className="text-[10px] text-slate-400 font-normal">{lang === 'bn' ? 'একই পণ্যের তথ্য বারবার টাইপ করতে হবে না' : 'Reuses basic info'}</span>
+              </label>
+              <select
+                onChange={e => {
+                  const found = existingProductProfiles.find(p => `${p.name.toLowerCase()}|${p.modelNumber.toLowerCase()}` === e.target.value);
+                  if (found) applyProductProfile(found);
+                }}
+                defaultValue=""
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20"
+              >
+                <option value="">{lang === 'bn' ? '-- পূর্বের কোনো সংরক্ষিত প্রোডাক্ট নির্বাচন করুন --' : '-- Select Existing Product Profile --'}</option>
+                {existingProductProfiles.map((p, idx) => (
+                  <option key={idx} value={`${p.name.toLowerCase()}|${p.modelNumber.toLowerCase()}`}>
+                    {p.name} {p.brand ? `[${p.brand}]` : ''} {p.modelNumber ? `(Model: ${p.modelNumber})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Product Name (Requirement 1) */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+              {lang === 'bn' ? 'প্রোডাক্টের নাম (Product Name) *' : 'Product Name *'}
+            </label>
+            <input 
+              type="text" required 
+              value={newItem.name} 
+              onChange={e => setNewItem({...newItem, name: e.target.value})}
+              placeholder="e.g. Dell Inspiron 15, iPhone 14 Pro, Samsung Galaxy"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm font-semibold" 
+            />
+          </div>
+
+          {/* Brand & Category & Model Row (Requirement 1) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                {lang === 'bn' ? 'ব্র্যান্ড (Brand Name)' : 'Brand Name'}
+              </label>
+              <input 
+                type="text" 
+                value={newItem.brand} 
+                onChange={e => setNewItem({...newItem, brand: e.target.value})}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm" 
+                placeholder="e.g. Dell, Apple, Sony"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                {lang === 'bn' ? 'ক্যাটাগরি (Category) *' : 'Category *'}
+              </label>
+              <input 
+                type="text" required 
+                value={newItem.category} 
+                onChange={e => setNewItem({...newItem, category: e.target.value})}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm" 
+                placeholder="e.g. Laptop, Mobile, Accessories"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                {lang === 'bn' ? 'মডেল নম্বর (Model Number)' : 'Model Number'}
+              </label>
+              <input 
+                type="text" 
+                value={newItem.modelNumber} 
+                onChange={e => setNewItem({...newItem, modelNumber: e.target.value})}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm font-mono" 
+                placeholder="e.g. A2890, Insp-3520"
+              />
+            </div>
+          </div>
+
+          {/* Supplier Selection (Requirement 6: Auto-loads pre-saved suppliers) */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+              <span>{lang === 'bn' ? 'সরবরাহকারী (Supplier Selection)' : 'Supplier Selection'}</span>
+              <span className="text-[11px] text-emerald-600 font-semibold lowercase">
+                {data.suppliers?.length > 0 ? `${data.suppliers.length} saved suppliers` : ''}
+              </span>
+            </label>
+            <div className="relative">
+              <select
+                value={newItem.supplier}
+                onChange={e => setNewItem({ ...newItem, supplier: e.target.value })}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm font-medium text-slate-800"
+              >
+                <option value="">{lang === 'bn' ? '-- সরবরাহকারী নির্বাচন করুন --' : '-- Select Supplier --'}</option>
+                {(data.suppliers || []).map((s: any) => (
+                  <option key={s.id || s.name} value={s.name}>
+                    {s.name} {s.contact ? `• ${s.contact}` : ''} {s.category ? `(${s.category})` : ''}
+                  </option>
+                ))}
+                <option value="__custom__">{lang === 'bn' ? '+ নতুন সরবরাহকারীর নাম লিখুন...' : '+ Type Custom Supplier Name...'}</option>
+              </select>
+            </div>
+            {newItem.supplier === '__custom__' && (
+              <input
+                type="text"
+                placeholder={lang === 'bn' ? 'নতুন সরবরাহকারীর নাম লিখুন' : 'Enter new supplier name'}
+                onChange={e => setNewItem({ ...newItem, supplier: e.target.value })}
+                className="mt-2 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm"
+                autoFocus
+              />
+            )}
+          </div>
+
+          {/* Warranty / Guarantee (Requirement 7) */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center gap-1.5">
+              <ShieldCheck size={14} className="text-emerald-600" />
+              <span>{lang === 'bn' ? 'ওয়ারেন্টি / গ্যারান্টি (Warranty / Guarantee)' : 'Warranty / Guarantee'}</span>
+            </label>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {['No Warranty', '6 Months', '1 Year', '2 Years', '3 Years', 'Custom'].map(period => (
+                <button
+                  key={period}
+                  type="button"
+                  onClick={() => setNewItem({ ...newItem, warranty: period })}
+                  className={cn(
+                    "px-2 py-2 text-xs font-bold rounded-xl border transition-all text-center cursor-pointer",
+                    newItem.warranty === period
+                      ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                  )}
+                >
+                  {period === 'No Warranty' ? (lang === 'bn' ? 'নেই' : 'None') : period}
+                </button>
+              ))}
+            </div>
+            {newItem.warranty === 'Custom' && (
+              <input
+                type="text"
+                value={newItem.customWarranty}
+                onChange={e => setNewItem({ ...newItem, customWarranty: e.target.value })}
+                placeholder={lang === 'bn' ? 'যেমন: 18 Months বা 5 Years গ্যারান্টি' : 'e.g. 18 Months, 5 Years Replacement'}
+                className="mt-2 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm font-medium"
+                autoFocus
+              />
+            )}
+          </div>
+
+          {/* Product Tracking Type (Requirement 2: Serial Tracking vs Manual Quantity) */}
+          <div className="space-y-1.5 pt-1">
+            <label className="block text-xs font-bold text-slate-700 uppercase">
+              {lang === 'bn' ? 'প্রোডাক্ট ট্র্যাকিং টাইপ (Product Tracking Type) *' : 'Product Tracking Type *'}
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Serial Number Tracking Option */}
+              <div
+                onClick={() => {
+                  setNewItem(prev => ({
+                    ...prev,
+                    trackingType: 'serial',
+                    quantity: prev.serialNumbers.length.toString()
+                  }));
+                }}
+                className={cn(
+                  "p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 relative",
+                  newItem.trackingType === 'serial'
+                    ? "border-emerald-600 bg-emerald-50/70 shadow-sm"
+                    : "border-slate-200 bg-slate-50/50 hover:border-slate-300"
+                )}
+              >
+                <div className={cn(
+                  "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold",
+                  newItem.trackingType === 'serial' ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-600"
+                )}>
+                  <Barcode size={18} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-900">
+                      Serial Number Tracking
+                    </span>
+                    {newItem.trackingType === 'serial' && (
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    {lang === 'bn'
+                      ? 'প্রতিটি ইউনিটের ইউনিক সিরিয়াল। প্রতি সফল স্ক্যানে স্টক অটো +১ বৃদ্ধি।'
+                      : 'Unique SN per unit. Each unique scan automatically adds +1.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Manual Quantity Option */}
+              <div
+                onClick={() => {
+                  setNewItem(prev => ({
+                    ...prev,
+                    trackingType: 'manual'
+                  }));
+                }}
+                className={cn(
+                  "p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 relative",
+                  newItem.trackingType === 'manual'
+                    ? "border-indigo-600 bg-indigo-50/70 shadow-sm"
+                    : "border-slate-200 bg-slate-50/50 hover:border-slate-300"
+                )}
+              >
+                <div className={cn(
+                  "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold",
+                  newItem.trackingType === 'manual' ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-600"
+                )}>
+                  <Layers size={18} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-900">
+                      Manual Quantity
+                    </span>
+                    {newItem.trackingType === 'manual' && (
+                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    {lang === 'bn'
+                      ? 'সিরিয়াল নম্বর প্রয়োজন নেই। সরাসরি কোয়ান্টিটি ইনপুট ও আপডেট।'
+                      : 'No serial numbers needed. Input quantity directly (e.g. 50 units).'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* IF SERIAL TRACKING: Serial Scan Box with Camera & Gun support (Requirements 3 & 5) */}
+          {newItem.trackingType === 'serial' ? (
+            <div className="p-4 bg-emerald-950/5 border border-emerald-300/80 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Barcode size={18} className="text-emerald-700" />
+                  <span className="text-xs font-extrabold text-slate-900 uppercase">
+                    {lang === 'bn' ? 'সিরিয়াল নম্বর স্ক্যানার (Unique Serial Input)' : 'Serial Scanner'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 bg-emerald-100 text-emerald-900 rounded-lg text-xs font-black border border-emerald-300">
+                    {lang === 'bn' ? `মোট ইউনিট: ${newItem.serialNumbers.length} টি` : `Total Units: ${newItem.serialNumbers.length}`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsModalCameraOpen(true)}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer"
+                  >
+                    <Camera size={14} />
+                    <span>{lang === 'bn' ? 'ক্যামেরা স্ক্যান' : 'Camera Scan'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Input for Barcode Gun or Manual Typing */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <ScanLine size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={serialScanInput}
+                    onChange={e => setSerialScanInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddSerialNumber(serialScanInput);
+                      }
+                    }}
+                    placeholder={lang === 'bn' 
+                      ? "বারকোড গান দিয়ে স্ক্যান করুন বা সিরিয়াল নম্বর লিখে Enter চাপুন..." 
+                      : "Scan with gun or type serial number & press Enter..."}
+                    className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAddSerialNumber(serialScanInput)}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer"
+                >
+                  {lang === 'bn' ? '+ যোগ করুন' : '+ Add Unit'}
+                </button>
+              </div>
+
+              {/* Duplicate Serial Warning Banner */}
+              {duplicateWarning && (
+                <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs font-bold flex items-center gap-2 animate-bounce">
+                  <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+                  <span>{duplicateWarning}</span>
+                </div>
+              )}
+
+              {/* Success Notification */}
+              {serialSuccessMessage && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                  <span>{serialSuccessMessage}</span>
+                </div>
+              )}
+
+              {/* Scanned Serial Numbers Chips */}
+              {newItem.serialNumbers.length > 0 ? (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                    <span>{lang === 'bn' ? 'সংরক্ষিত সিরিয়াল নম্বর তালিকা:' : 'Scanned Serial Numbers:'}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewItem(prev => ({ ...prev, serialNumbers: [], quantity: '0' }));
+                      }}
+                      className="text-rose-600 hover:underline font-bold cursor-pointer"
+                    >
+                      {lang === 'bn' ? 'সব মুছুন' : 'Clear All'}
+                    </button>
+                  </div>
+                  <div className="max-h-36 overflow-y-auto p-2 bg-white rounded-xl border border-slate-200 flex flex-wrap gap-1.5">
+                    {newItem.serialNumbers.map((sn, idx) => (
+                      <span
+                        key={sn + idx}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 rounded-lg text-xs font-mono font-medium transition-colors"
+                      >
+                        <span className="text-[10px] text-slate-400 font-sans font-bold">#{idx + 1}</span>
+                        <span>{sn}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSerialNumber(sn)}
+                          className="text-slate-400 hover:text-rose-600 font-bold ml-0.5 cursor-pointer"
+                          title="Remove this serial number"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400 italic">
+                  {lang === 'bn' ? 'এখনো কোনো সিরিয়াল নম্বর স্ক্যান করা হয়নি।' : 'No serial numbers scanned yet.'}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          {/* Quantity & Buy Price Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                <span>{lang === 'bn' ? 'কোয়ান্টিটি (Quantity)' : 'Quantity'}</span>
+                {newItem.trackingType === 'serial' ? (
+                  <span className="text-[10px] font-bold text-emerald-700 lowercase">
+                    {lang === 'bn' ? 'অটো-ক্যালকুলেটেড' : 'auto-calculated'}
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-indigo-700 lowercase">
+                    {lang === 'bn' ? 'ম্যানুয়াল ইনপুট' : 'manual input'}
+                  </span>
+                )}
+              </label>
+              {newItem.trackingType === 'serial' ? (
+                <div>
+                  <input 
+                    type="number" 
+                    readOnly 
+                    disabled
+                    value={newItem.serialNumbers.length} 
+                    className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-extrabold cursor-not-allowed outline-none" 
+                  />
+                  <p className="text-[10px] text-emerald-700 mt-1 font-semibold">
+                    {lang === 'bn' 
+                      ? 'ইউনিক সিরিয়াল স্ক্যানের মাধ্যমে কোয়ান্টিটি স্বয়ংক্রিয়ভাবে বাড়বে।' 
+                      : 'Quantity is strictly auto-calculated from unique serial scans.'}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <input 
+                    type="number" 
+                    required 
+                    min="0"
+                    value={newItem.quantity} 
+                    onChange={e => setNewItem({...newItem, quantity: e.target.value})}
+                    placeholder="e.g. 50"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none font-bold" 
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {lang === 'bn' ? 'সরাসরি সংখ্যা টাইপ করুন (যেমন: ৫০ টি)' : 'Enter stock count directly (e.g. 50 units)'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                {lang === 'bn' ? 'ক্রয়মূল্য (Buy Price Per Unit) *' : 'Buy Price *'}
+              </label>
+              <input 
+                type="number" step="0.01" required 
+                value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})}
+                placeholder="0.00"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none font-bold text-slate-900" 
+              />
+            </div>
+          </div>
+
+          {/* Barcode and Min Stock */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                {lang === 'bn' ? 'মাস্টার বারকোড / SKU (ঐচ্ছিক)' : 'Master Barcode / SKU (Optional)'}
+              </label>
+              <input 
+                type="text" 
+                value={newItem.barcode} 
+                onChange={e => setNewItem({...newItem, barcode: e.target.value})}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs outline-none" 
+                placeholder="Product barcode"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                {lang === 'bn' ? 'ন্যূনতম স্টক অ্যালার্ট (Min Stock Alert)' : 'Min Stock Alert'}
+              </label>
+              <input 
+                type="number" 
+                value={newItem.minStock} 
+                onChange={e => setNewItem({...newItem, minStock: e.target.value})}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none" 
+              />
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            className="w-full py-3 bg-emerald-600 text-white rounded-xl font-extrabold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-900/10 cursor-pointer mt-4"
+          >
+            {editingItem ? (lang === 'bn' ? "প্রোডাক্ট আপডেট করুন" : "Update Product") : (lang === 'bn' ? "প্রোডাক্ট ইনভেন্টরিতে সেভ করুন" : "Save Product")}
+          </button>
+        </form>
+      </Modal>
+
+      {/* --- PRODUCT SERIAL NUMBERS MODAL --- */}
+      <Modal
+        isOpen={Boolean(selectedProductSerialsModal)}
+        onClose={() => setSelectedProductSerialsModal(null)}
+        title={lang === 'bn' ? `সিরিয়াল নম্বর তালিকা: ${selectedProductSerialsModal?.name || ''}` : `Serial Numbers: ${selectedProductSerialsModal?.name || ''}`}
+      >
+        {selectedProductSerialsModal && (() => {
+          const serials: string[] = Array.isArray(selectedProductSerialsModal.serialNumbers)
+            ? selectedProductSerialsModal.serialNumbers
+            : (selectedProductSerialsModal.serialNumber ? [selectedProductSerialsModal.serialNumber] : []);
+
+          const filteredSerials = serials.filter(s => 
+            String(s).toLowerCase().includes(serialsSearchQuery.toLowerCase())
+          );
+
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900">{selectedProductSerialsModal.name}</h4>
+                  <p className="text-xs text-slate-500">
+                    {selectedProductSerialsModal.modelNumber && `Model: ${selectedProductSerialsModal.modelNumber} • `}
+                    {lang === 'bn' ? `মোট ইউনিক সিরিয়াল: ${serials.length} টি` : `Total Units: ${serials.length}`}
+                  </p>
+                </div>
+                {serials.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(serials.join('\n'));
+                      alert(lang === 'bn' ? 'সব সিরিয়াল নম্বর ক্লিপবোর্ডে কপি করা হয়েছে!' : 'All serial numbers copied to clipboard!');
+                    }}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <Copy size={13} />
+                    <span>{lang === 'bn' ? 'কপি করুন' : 'Copy All'}</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Search Within Serials */}
+              {serials.length > 5 && (
+                <div className="relative">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={serialsSearchQuery}
+                    onChange={e => setSerialsSearchQuery(e.target.value)}
+                    placeholder={lang === 'bn' ? 'নির্দিষ্ট সিরিয়াল নম্বর খুঁজুন...' : 'Search serial numbers...'}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+              )}
+
+              {/* Serials List */}
+              {filteredSerials.length > 0 ? (
+                <div className="max-h-72 overflow-y-auto space-y-1.5 p-2 bg-slate-50/50 rounded-2xl border border-slate-100">
+                  {filteredSerials.map((sn, idx) => (
+                    <div 
+                      key={sn + idx}
+                      className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-sans font-black flex items-center justify-center">
+                          #{idx + 1}
+                        </span>
+                        <span className="font-bold">{sn}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(sn);
+                        }}
+                        className="text-slate-400 hover:text-emerald-700 transition-colors p-1"
+                        title="Copy Serial Number"
+                      >
+                        <Copy size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-slate-400 text-xs italic">
+                  {lang === 'bn' ? 'কোনো সিরিয়াল নম্বর পাওয়া যায়নি।' : 'No serial numbers found.'}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </Modal>
+
+      {/* --- PRODUCT QR CODE MODAL --- */}
+      <Modal isOpen={isQRModalOpen} onClose={() => setIsQRModalOpen(false)} title="Product QR Code">
+        {selectedQRItem && (
+          <div className="flex flex-col items-center justify-center p-8 space-y-6">
+            <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100">
+              <QRCodeCanvas 
+                value={selectedQRItem.id} 
+                size={200}
+                level="H"
+                includeMargin={true}
+              />
+            </div>
+            <div className="text-center">
+              <h3 className="text-xl font-bold text-slate-900">{selectedQRItem.name}</h3>
+              {selectedQRItem.modelNumber && (
+                <p className="text-xs font-bold text-emerald-700 uppercase mt-0.5">Model: {selectedQRItem.modelNumber}</p>
+              )}
+              <p className="text-sm text-slate-500">SKU: SKU-{selectedQRItem.id.slice(-4)}</p>
+              {selectedQRItem.warranty && selectedQRItem.warranty !== 'No Warranty' && (
+                <p className="text-xs text-indigo-600 font-bold mt-1">Warranty: {selectedQRItem.warranty}</p>
+              )}
+              <p className="text-lg font-bold text-emerald-600 mt-2">{formatCurrency(selectedQRItem.price)}</p>
+            </div>
+            <button 
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all cursor-pointer"
+            >
+              <Printer size={18} /> Print Label
+            </button>
+          </div>
+        )}
+      </Modal>
+
+      {/* Main Station Camera Barcode Scanner Modal */}
+      <InventoryCameraScannerModal
+        isOpen={isCameraScannerOpen}
+        onClose={() => setIsCameraScannerOpen(false)}
+        onScan={processBarcode}
+        inventory={data.inventory}
+        incrementStep={incrementStep}
+      />
+
+      {/* Modal Serial Entry Camera Scanner */}
+      <InventoryCameraScannerModal
+        isOpen={isModalCameraOpen}
+        onClose={() => setIsModalCameraOpen(false)}
+        onScan={(code) => {
+          handleAddSerialNumber(code);
+        }}
+        mode="serial"
+        title={lang === 'bn' ? `সিরিয়াল নম্বর স্ক্যান (${newItem.name || 'পণ্য'})` : `Scan Serial Number (${newItem.name || 'Product'})`}
+        subtitle={lang === 'bn' ? 'ক্যামেরার সামনে পণ্যের সিরিয়াল নম্বর বা বারকোড ধরুন' : 'Point camera at serial number barcode / QR'}
+      />
+    </div>
+  );
+};
+
+const InvoiceContent = ({ sale, user, contentRef }: { sale: any, user: any, contentRef?: any }) => {
+  const { formatCurrency } = useCurrency();
+  if (!sale) return null;
+  const invoiceId = String(sale?.id || sale?.invoiceNumber || '000000').slice(-6).toUpperCase();
+  return (
+    <div 
+      ref={contentRef} 
+    className="p-8 bg-white border border-slate-200 rounded-xl shadow-sm invoice-content" 
+    style={{ 
+      backgroundColor: '#ffffff', 
+      color: '#0f172a',
+      fontFamily: 'Inter, sans-serif',
+      width: '100%',
+      maxWidth: '800px',
+      margin: '0 auto'
+    }}
+  >
+    <div className="flex justify-between items-start mb-8 border-b-2 border-slate-100 pb-6">
+      <div className="flex items-center gap-4">
+        {user?.logo && <img src={user.logo} alt="Logo" className="w-16 h-16 object-contain" />}
+        <div>
+          <h3 className="text-2xl font-black" style={{ color: '#0f172a', margin: 0, letterSpacing: '-0.025em' }}>{user?.businessName || 'GreensStock'}</h3>
+          <div className="text-[12px] font-semibold text-slate-600 mt-2 uppercase tracking-tight leading-relaxed">
+            {user?.address && <div><span className="text-slate-400 font-bold">Address:</span> {user.address}</div>}
+            <div className="flex flex-wrap gap-x-4">
+              {user?.email && <span><span className="text-slate-400 font-bold">Email:</span> {user.email}</span>}
+              {user?.phoneNumber && <span><span className="text-slate-400 font-bold">Phone:</span> {user.phoneNumber}</span>}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="text-right">
+        <h2 className="text-3xl font-black mb-1" style={{ color: '#0f172a', margin: 0 }}>INVOICE</h2>
+        <p className="font-bold text-sm" style={{ color: '#64748b', margin: 0 }}>#INV-{invoiceId}</p>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-2 gap-8 mb-10" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+      <div>
+        <h4 className="text-[10px] font-bold uppercase tracking-widest mb-3 border-b border-slate-100 pb-1 w-fit" style={{ color: '#94a3b8' }}>Bill To:</h4>
+        <div className="font-black text-slate-900" style={{ fontSize: '1.4rem', marginBottom: '0.45rem' }}>{sale.customerName}</div>
+        <div className="text-[13px] font-semibold text-slate-600 space-y-1">
+          {sale.customerPhone && <div className="flex items-center gap-1"><span className="text-slate-400 font-bold">Phone:</span> {sale.customerPhone}</div>}
+          {sale.customerEmail && <div className="flex items-center gap-1"><span className="text-slate-400 font-bold">Email:</span> {sale.customerEmail}</div>}
+          {sale.customerAddress && <div className="flex items-start gap-1 pt-1 leading-snug max-w-[250px]"><span className="text-slate-400 font-bold">Address:</span> {sale.customerAddress}</div>}
+        </div>
+      </div>
+      <div className="text-right flex flex-col items-end justify-center">
+        <div className="pt-4 flex flex-col items-end gap-1">
+          <span className="text-[10px] font-bold uppercase text-slate-400">Invoice Date</span>
+          <span className="font-bold text-slate-700">{(sale.date || '').split('T')[0]}</span>
+        </div>
+      </div>
+    </div>
+
+    <div className="py-4 mb-8" style={{ borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+      <table className="w-full text-left" style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+            <th style={{ paddingBottom: '1rem', textAlign: 'left' }}>Description</th>
+            <th style={{ paddingBottom: '1rem', textAlign: 'center' }}>Qty</th>
+            <th style={{ paddingBottom: '1rem', textAlign: 'right' }}>Price</th>
+            <th style={{ paddingBottom: '1rem', textAlign: 'right' }}>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sale.items ? (
+            sale.items.map((item: any, idx: number) => {
+              const itemQty = Number(item.quantity) || 1;
+              const unitPrice = Number(item.unitPrice) > 0 ? Number(item.unitPrice) : (itemQty > 0 ? (Number(item.total) / itemQty) : Number(item.total));
+              return (
+                <tr key={idx} style={{ borderBottom: idx !== sale.items.length - 1 ? '1px solid #f8fafc' : 'none' }}>
+                  <td style={{ padding: '1rem 0' }}>
+                    <div className="font-bold" style={{ color: '#0f172a' }}>
+                      {item.brand && <span className="text-[10px] text-slate-400 font-medium block leading-none mb-0.5">{item.brand}</span>}
+                      {item.productName}
+                    </div>
+                    <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {item.productCategory}</div>
+                    {item.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {item.serialNumber}</div>}
+                    {Number(item.taxPercent) > 0 && (
+                      <div className="text-[11px] font-semibold" style={{ color: '#059669', fontSize: '0.75rem' }}>
+                        Tax: {item.taxPercent}%
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155', fontWeight: 'bold' }}>{itemQty}</td>
+                  <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>{formatCurrency(unitPrice)}</td>
+                  <td style={{ padding: '1rem 0', textAlign: 'right', fontStyle: 'normal', fontWeight: 'bold', color: '#0f172a' }}>{formatCurrency(item.total)}</td>
+                </tr>
+              );
+            })
+          ) : (
+            (() => {
+              const saleQty = Number(sale.quantity) || 1;
+              const unitPrice = Number(sale.unitPrice) > 0 ? Number(sale.unitPrice) : (saleQty > 0 ? (Number(sale.total) / saleQty) : Number(sale.total));
+              return (
+                <tr>
+                  <td style={{ padding: '1rem 0' }}>
+                    <div className="font-bold" style={{ color: '#0f172a' }}>
+                      {sale.brand && <span className="text-[10px] text-slate-400 font-medium block leading-none mb-0.5">{sale.brand}</span>}
+                      {sale.productName}
+                    </div>
+                    <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {sale.productCategory}</div>
+                    {sale.serialNumber && <div className="text-xs font-mono" style={{ color: '#059669', fontSize: '0.75rem' }}>SN: {sale.serialNumber}</div>}
+                  </td>
+                  <td style={{ padding: '1rem 0', textAlign: 'center', color: '#334155', fontWeight: 'bold' }}>{saleQty}</td>
+                  <td style={{ padding: '1rem 0', textAlign: 'right', color: '#334155' }}>{formatCurrency(unitPrice)}</td>
+                  <td style={{ padding: '1rem 0', textAlign: 'right', fontStyle: 'normal', fontWeight: 'bold', color: '#0f172a' }}>{formatCurrency(sale.total)}</td>
+                </tr>
+              );
+            })()
+          )}
+        </tbody>
+      </table>
+    </div>
+
+    {(() => {
+      const subtotalVal = sale.subtotal !== undefined 
+        ? Number(sale.subtotal) 
+        : (sale.items 
+            ? sale.items.reduce((sum: number, it: any) => sum + ((Number(it.unitPrice) || (Number(it.total) / (1 + (Number(it.taxPercent) || 0) / 100))) * (Number(it.quantity) || 1)), 0)
+            : Number(sale.total));
+      const taxVal = sale.totalTax !== undefined 
+        ? Number(sale.totalTax) 
+        : Math.max(0, Number(sale.total) - subtotalVal);
+
+      const saleDue = sale.due !== undefined ? Number(sale.due) : 0;
+      const salePaid = sale.paid !== undefined ? Number(sale.paid) : (Number(sale.total) - saleDue);
+
+      return (
+        <div className="flex justify-end" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ width: '250px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.5rem' }}>
+              <span>Subtotal</span>
+              <span>{formatCurrency(subtotalVal)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.5rem' }}>
+              <span>Tax</span>
+              <span>{formatCurrency(taxVal)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0', marginTop: '0.5rem' }}>
+              <span>Total</span>
+              <span style={{ color: '#059669' }}>{formatCurrency(sale.total)}</span>
+            </div>
+            {saleDue > 0 ? (
+              <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669', fontWeight: '600', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                  <span>Paid Amount</span>
+                  <span>{formatCurrency(salePaid)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626', fontWeight: 'bold', fontSize: '1rem' }}>
+                  <span>Due Amount</span>
+                  <span>{formatCurrency(saleDue)}</span>
+                </div>
+                {sale.dueDate && (
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'right', marginTop: '0.25rem' }}>
+                    Due Date: {sale.dueDate}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669', fontSize: '0.875rem', fontWeight: '600', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1' }}>
+                <span>Paid (Full)</span>
+                <span>{formatCurrency(sale.total)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    })()}
+
+    <div className="mt-16" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '4rem' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ width: '180px', borderBottom: '1px solid #cbd5e1', marginBottom: '0.5rem' }}></div>
+        <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem', margin: 0 }}>Customer Signature</p>
+      </div>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ width: '180px', borderBottom: '1px solid #cbd5e1', marginBottom: '0.5rem' }}></div>
+        <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem', margin: 0 }}>Seller Signature</p>
+      </div>
+    </div>
+
+    <div className="mt-12 text-center" style={{ marginTop: '3rem', textAlign: 'center' }}>
+      <div style={{ display: 'inline-block', padding: '1rem 2rem', backgroundColor: '#f8fafc', borderRadius: '1rem' }}>
+        <p className="font-medium" style={{ color: '#475569', margin: 0 }}>Thank you for your business!</p>
+        <p className="text-[10px] uppercase tracking-tighter" style={{ color: '#94a3b8', fontSize: '0.625rem', marginTop: '0.25rem', margin: 0 }}>Generated by {user?.businessName || 'GreensStock'}</p>
+      </div>
+    </div>
+  </div>
+);
+};
+
+const InvoiceModal = ({ isOpen, onClose, sale }: { isOpen: boolean, onClose: () => void, sale: any }) => {
+  const { user } = useAuth();
+  const componentRef = useRef<HTMLDivElement>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handlePrint = () => {
+    if (!componentRef.current) return;
+    
+    setIsGenerating(true);
+    setError(null);
+    
+    try {
+      const content = componentRef.current.innerHTML;
+      const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+        .map(style => style.outerHTML)
+        .join('\n');
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Invoice-${sale?.id?.slice(-4) || '0000'}</title>
+              ${styles}
+              <style>
+                body { background: white !important; margin: 0; padding: 20px; color: #0f172a !important; }
+                .no-print { display: none !important; }
+                .invoice-content { border: none !important; box-shadow: none !important; width: 100% !important; max-width: none !important; }
+                * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              </style>
+            </head>
+            <body>
+              ${content}
+              <script>
+                window.onload = () => {
+                  setTimeout(() => {
+                    window.print();
+                    window.close();
+                  }, 800);
+                };
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      } else {
+        // Fallback for blocked popups
+        const printContainer = document.createElement('div');
+        printContainer.id = 'print-mode-container';
+        printContainer.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:white;z-index:999999;padding:40px;overflow:auto;';
+        
+        const clone = componentRef.current.cloneNode(true) as HTMLElement;
+        printContainer.appendChild(clone);
+        document.body.appendChild(printContainer);
+        document.body.classList.add('is-printing');
+
+        setTimeout(() => {
+          window.print();
+          document.body.removeChild(printContainer);
+          document.body.classList.remove('is-printing');
+        }, 1000);
+      }
+    } catch (err) {
+      console.error("Print error:", err);
+      setError("Printing issue. Please use the browser's print option.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const downloadPDF = async () => {
+    if (!componentRef.current || isGenerating) return;
+    
+    try {
+      setIsGenerating(true);
+      setError(null);
+      
+      const element = componentRef.current;
+      
+      // @ts-ignore
+      const h2pdf = window.html2pdf || html2pdf;
+      
+      if (!h2pdf) {
+        throw new Error("PDF library not loaded");
+      }
+
+      const opt = {
+        margin: 10,
+        filename: `Invoice-${sale?.id?.slice(-4) || '0000'}.pdf`,
+        image: { type: 'jpeg', quality: 1.0 },
+        html2canvas: { 
+          scale: 3, 
+          useCORS: true, 
+          logging: false,
+          backgroundColor: '#ffffff',
+          letterRendering: true,
+          allowTaint: true
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      const pdfBlob = await h2pdf().from(element).set(opt).output('blob');
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Invoice-${sale?.id?.slice(-4) || '0000'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+      
+    } catch (err) {
+      console.error('PDF Generation Error:', err);
+      
+      // Fallback to manual capture
+      try {
+        const canvas = await html2canvas(componentRef.current, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          allowTaint: true
+        });
+        const imgData = canvas.toDataURL('image/jpeg', 1.0);
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const width = pdf.internal.pageSize.getWidth();
+        const height = (canvas.height * width) / canvas.width;
+        pdf.addImage(imgData, 'JPEG', 0, 0, width, height);
+        
+        const blob = pdf.output('blob');
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Invoice-${sale?.id?.slice(-4) || '0000'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      } catch (fallbackErr) {
+        console.error('Fallback PDF Error:', fallbackErr);
+        setError('PDF download issue. Please use the print button and select "Save as PDF".');
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const openInNewTab = () => {
+    if (!componentRef.current) return;
+    
+    const content = componentRef.current.innerHTML;
+    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(style => style.outerHTML)
+      .join('\n');
+
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(`
+        <html>
+          <head>
+            <title>Invoice-${sale?.id?.slice(-4) || '0000'}</title>
+            ${styles}
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+            <style>
+              body { background: white !important; margin: 0; padding: 40px; color: #0f172a !important; font-family: sans-serif; }
+              .no-print-window { display: none !important; }
+              .invoice-content { border: none !important; box-shadow: none !important; width: 100% !important; max-width: 800px !important; margin: 0 auto !important; }
+              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              @media print {
+                body { padding: 0; }
+                .invoice-content { max-width: none !important; }
+                .no-print-window-ui { display: none !important; }
+              }
+              .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-right: 10px; transition: opacity 0.2s; }
+              .btn:hover { opacity: 0.9; }
+              .btn-print { background: #059669; color: white; }
+              .btn-pdf { background: #0284c7; color: white; }
+              .btn-img { background: #7c3aed; color: white; }
+              .btn-close { background: #64748b; color: white; }
+            </style>
+          </head>
+          <body>
+            <div class="no-print-window-ui" style="margin-bottom: 30px; text-align: center; padding: 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 100;">
+              <button onclick="window.print()" class="btn btn-print">Print Invoice</button>
+              <button id="download-pdf-btn" class="btn btn-pdf">Download PDF</button>
+              <button id="download-img-btn" class="btn btn-img">Download Image</button>
+              <button onclick="window.close()" class="btn btn-close">Close Tab</button>
+            </div>
+            <div id="invoice-to-download">
+              ${content}
+            </div>
+            <script>
+              document.getElementById('download-pdf-btn').onclick = function() {
+                const element = document.getElementById('invoice-to-download');
+                const opt = {
+                  margin: 10,
+                  filename: 'Invoice-${sale?.id?.slice(-4) || '0000'}.pdf',
+                  image: { type: 'jpeg', quality: 1.0 },
+                  html2canvas: { scale: 3, useCORS: true, backgroundColor: '#ffffff' },
+                  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().from(element).set(opt).save();
+              };
+
+              document.getElementById('download-img-btn').onclick = function() {
+                const element = document.getElementById('invoice-to-download');
+                html2canvas(element, { scale: 3, useCORS: true, backgroundColor: '#ffffff' }).then(canvas => {
+                  const link = document.createElement('a');
+                  link.href = canvas.toDataURL('image/png');
+                  link.download = 'Invoice-${sale?.id?.slice(-4) || '0000'}.png';
+                  link.click();
+                });
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+    } else {
+      alert("Pop-up blocked. Please allow pop-ups in your browser.");
+    }
+  };
+
+  const downloadImage = async () => {
+    if (!componentRef.current || isGenerating) return;
+    
+    try {
+      setIsGenerating(true);
+      setError(null);
+      
+      const canvas = await html2canvas(componentRef.current, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      
+      const url = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Invoice-${sale?.id?.slice(-4) || '0000'}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+    } catch (err) {
+      console.error('Image Generation Error:', err);
+      setError('Image download issue.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  if (!sale) return null;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Sales Invoice" maxWidth="max-w-3xl">
+      <div className="space-y-6">
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center">
+            {error}
+          </div>
+        )}
+        <div className="flex justify-center mb-6 no-print">
+          <button 
+            onClick={openInNewTab}
+            className="flex items-center gap-3 px-8 py-4 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all font-bold shadow-xl shadow-emerald-100 scale-105 active:scale-100"
+          >
+            <Printer size={24} /> Open in New Tab & Print/Download
+          </button>
+        </div>
+
+        <InvoiceContent sale={sale} user={user} contentRef={componentRef} />
+      </div>
+    </Modal>
+  );
+};
+
+// --- QUOTATION PREVIEW & PRINT DOCUMENT COMPONENT ---
+const QuotationContent = ({ quotation, user, contentRef }: { quotation: any, user: any, contentRef?: any }) => {
+  const { formatCurrency } = useCurrency();
+  const { lang } = useTranslation();
+
+  if (!quotation) return null;
+
+  const subtotal = Number(quotation.subtotal) || 0;
+  const discountAmt = Number(quotation.discountAmount) || 0;
+  const taxAmt = Number(quotation.taxAmount) || 0;
+  const total = Number(quotation.total) || 0;
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Accepted':
+        return { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0', label: 'Accepted' };
+      case 'Sent':
+        return { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe', label: 'Sent' };
+      case 'Converted':
+        return { bg: '#f5f3ff', text: '#6d28d9', border: '#ddd6fe', label: 'Converted' };
+      default:
+        return { bg: '#fffbeb', text: '#b45309', border: '#fde68a', label: 'Draft' };
+    }
+  };
+
+  const statusBadge = getStatusBadge(quotation.status || 'Draft');
+
+  return (
+    <div 
+      ref={contentRef} 
+      className="p-8 bg-white border border-slate-200 rounded-xl shadow-sm quotation-content" 
+      style={{ 
+        backgroundColor: '#ffffff', 
+        color: '#0f172a',
+        fontFamily: 'Inter, sans-serif',
+        width: '100%',
+        maxWidth: '800px',
+        margin: '0 auto'
+      }}
+    >
+      {/* Top Header */}
+      <div className="flex justify-between items-start mb-8 border-b-2 border-slate-100 pb-6">
+        <div className="flex items-center gap-4">
+          {user?.logo && <img src={user.logo} alt="Logo" className="w-16 h-16 object-contain" />}
+          <div>
+            <h3 className="text-2xl font-black" style={{ color: '#0f172a', margin: 0, letterSpacing: '-0.025em' }}>
+              {user?.businessName || 'GreensStock'}
+            </h3>
+            <div className="text-[12px] font-semibold text-slate-600 mt-2 uppercase tracking-tight leading-relaxed">
+              {user?.address && <div><span className="text-slate-400 font-bold">Address:</span> {user.address}</div>}
+              <div className="flex flex-wrap gap-x-4">
+                {user?.email && <span><span className="text-slate-400 font-bold">Email:</span> {user.email}</span>}
+                {user?.phoneNumber && <span><span className="text-slate-400 font-bold">Phone:</span> {user.phoneNumber}</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase mb-2" style={{ backgroundColor: statusBadge.bg, color: statusBadge.text, border: `1px solid ${statusBadge.border}` }}>
+            {statusBadge.label}
+          </div>
+          <h2 className="text-3xl font-black mb-1" style={{ color: '#4338ca', margin: 0 }}>
+            QUOTATION
+          </h2>
+          <p className="font-bold text-sm" style={{ color: '#64748b', margin: 0 }}>
+            #{quotation.quotationNo || (quotation.id ? `QT-${quotation.id.slice(-6).toUpperCase()}` : 'QT-0000')}
+          </p>
+        </div>
+      </div>
+
+      {/* Bill To & Quotation Dates Grid */}
+      <div className="grid grid-cols-2 gap-8 mb-8" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+        <div>
+          <h4 className="text-[10px] font-bold uppercase tracking-widest mb-2 border-b border-slate-100 pb-1 w-fit" style={{ color: '#94a3b8' }}>
+            Quotation For:
+          </h4>
+          <div className="font-black text-slate-900" style={{ fontSize: '1.3rem', marginBottom: '0.35rem' }}>
+            {quotation.customerName || 'Valued Customer'}
+          </div>
+          <div className="text-[13px] font-semibold text-slate-600 space-y-1">
+            {quotation.customerPhone && (
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-bold">Phone:</span> {quotation.customerPhone}
+              </div>
+            )}
+            {quotation.customerEmail && (
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-bold">Email:</span> {quotation.customerEmail}
+              </div>
+            )}
+            {quotation.customerAddress && (
+              <div className="flex items-start gap-1 pt-1 leading-snug max-w-[280px]">
+                <span className="text-slate-400 font-bold">Address:</span> {quotation.customerAddress}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="text-right flex flex-col items-end justify-center">
+          <div className="space-y-2">
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] font-bold uppercase text-slate-400">
+                Quotation Date
+              </span>
+              <span className="font-bold text-slate-800 text-sm">{(quotation.date || '').split('T')[0]}</span>
+            </div>
+            {quotation.validUntil && (
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] font-bold uppercase text-slate-400">
+                  Valid Until
+                </span>
+                <span className="font-bold text-amber-700 text-sm bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  {quotation.validUntil}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Line Items Table */}
+      <div className="py-4 mb-6" style={{ borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+        <table className="w-full text-left" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'left' }}>#</th>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'left' }}>Description</th>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'center' }}>Qty</th>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'right' }}>Unit Price</th>
+              <th style={{ paddingBottom: '0.75rem', textAlign: 'right' }}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(quotation.items || []).map((item: any, idx: number) => {
+              const itemQty = Number(item.quantity) || 1;
+              const unitPrice = Number(item.unitPrice) || 0;
+              return (
+                <tr key={idx} style={{ borderBottom: idx !== (quotation.items.length - 1) ? '1px solid #f8fafc' : 'none' }}>
+                  <td style={{ padding: '0.75rem 0', color: '#94a3b8', fontSize: '0.8rem', width: '24px' }}>{idx + 1}</td>
+                  <td style={{ padding: '0.75rem 0' }}>
+                    <div className="font-bold" style={{ color: '#0f172a' }}>
+                      {item.brand && <span className="text-[10px] text-slate-400 font-medium block leading-none mb-0.5">{item.brand}</span>}
+                      {item.productName || 'Product'}
+                    </div>
+                    {item.productCategory && <div className="text-xs" style={{ color: '#64748b', fontSize: '0.75rem' }}>Category: {item.productCategory}</div>}
+                    {item.serialNumber && <div className="text-xs font-mono" style={{ color: '#4338ca', fontSize: '0.75rem' }}>SN/Model: {item.serialNumber}</div>}
+                    {Number(item.taxPercent) > 0 && (
+                      <div className="text-[11px] font-semibold" style={{ color: '#059669', fontSize: '0.75rem' }}>
+                        Tax: {item.taxPercent}%
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.75rem 0', textAlign: 'center', color: '#334155', fontWeight: 'bold' }}>{itemQty}</td>
+                  <td style={{ padding: '0.75rem 0', textAlign: 'right', color: '#334155' }}>{formatCurrency(unitPrice)}</td>
+                  <td style={{ padding: '0.75rem 0', textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>{formatCurrency(item.total)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Totals Summary */}
+      <div className="flex justify-end mb-8" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ width: '280px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.4rem', fontSize: '0.875rem' }}>
+            <span>Subtotal</span>
+            <span>{formatCurrency(subtotal)}</span>
+          </div>
+          {discountAmt > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ea580c', marginBottom: '0.4rem', fontSize: '0.875rem' }}>
+              <span>Discount</span>
+              <span>-{formatCurrency(discountAmt)}</span>
+            </div>
+          )}
+          {taxAmt > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', marginBottom: '0.4rem', fontSize: '0.875rem' }}>
+              <span>Tax / VAT</span>
+              <span>+{formatCurrency(taxAmt)}</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', paddingTop: '0.6rem', borderTop: '2px solid #e2e8f0', marginTop: '0.4rem' }}>
+            <span>Total Estimated</span>
+            <span style={{ color: '#4338ca' }}>{formatCurrency(total)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Notes & Terms & Conditions */}
+      {quotation.notes && (
+        <div className="mb-8 p-4 bg-slate-50 border border-slate-200/60 rounded-xl" style={{ backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '0.75rem', marginBottom: '2rem' }}>
+          <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2" style={{ margin: '0 0 0.5rem 0', fontSize: '0.75rem', fontWeight: 'bold', color: '#64748b' }}>
+            Terms & Conditions:
+          </h5>
+          <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed" style={{ margin: 0, fontSize: '0.8rem', lineHeight: '1.5', whiteSpace: 'pre-line' }}>
+            {quotation.notes}
+          </p>
+        </div>
+      )}
+
+      {/* Signatures */}
+      <div className="mt-14" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '3.5rem' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: '180px', borderBottom: '1px solid #cbd5e1', marginBottom: '0.5rem' }}></div>
+          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem', margin: 0 }}>
+            Customer Acceptance
+          </p>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: '180px', borderBottom: '1px solid #cbd5e1', marginBottom: '0.5rem' }}></div>
+          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8', fontSize: '0.75rem', margin: 0 }}>
+            Authorized Signature
+          </p>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="mt-10 text-center" style={{ marginTop: '2.5rem', textAlign: 'center' }}>
+        <div style={{ display: 'inline-block', padding: '0.75rem 2rem', backgroundColor: '#f8fafc', borderRadius: '1rem' }}>
+          <p className="font-medium text-xs" style={{ color: '#475569', margin: 0 }}>
+            Thank you for your business inquiry!
+          </p>
+          <p className="text-[10px] uppercase tracking-tighter" style={{ color: '#94a3b8', fontSize: '0.625rem', marginTop: '0.25rem', margin: 0 }}>
+            Generated by {user?.businessName || 'GreensStock'}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- QUOTATION MODAL WITH PRINT, PDF, SHARE & CONVERT ---
+const QuotationModal = ({
+  isOpen, 
+  onClose, 
+  quotation, 
+  onConvertToSale 
+}: { 
+  isOpen: boolean, 
+  onClose: () => void, 
+  quotation: any, 
+  onConvertToSale?: (quo: any) => void 
+}) => {
+  const { user } = useAuth();
+  const componentRef = useRef<HTMLDivElement>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { lang } = useTranslation();
+  const { formatCurrency } = useCurrency();
+
+  if (!quotation) return null;
+
+  const getQuotationSummaryText = () => {
+    const qNo = quotation.quotationNo || (quotation.id ? String(quotation.id).slice(-6).toUpperCase() : '');
+    const itemsText = (quotation.items || []).map((it: any, i: number) => {
+      return `${i + 1}. ${it.productName || 'Product'} (x${it.quantity}) - ${formatCurrency(it.total)}`;
+    }).join('\n');
+
+    return `*QUOTATION #${qNo}*\n` +
+      `Business: ${user?.businessName || 'GreensStock'}\n` +
+      `Customer: ${quotation.customerName || 'N/A'}\n` +
+      `Date: ${(quotation.date || '').split('T')[0]}\n` +
+      (quotation.validUntil ? `Valid Until: ${quotation.validUntil}\n` : '') +
+      `\n*Items:*\n${itemsText}\n\n` +
+      `*Total Amount: ${formatCurrency(quotation.total)}*\n\n` +
+      `${user?.phoneNumber ? `Contact: ${user.phoneNumber}` : ''}`;
+  };
+
+  const handleShareWhatsApp = () => {
+    const text = getQuotationSummaryText();
+    const phone = (quotation.customerPhone || '').replace(/[^0-9]/g, '');
+    const url = phone.length >= 10
+      ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleShareEmail = () => {
+    const text = getQuotationSummaryText();
+    const subject = `Quotation #${quotation.quotationNo || ''} from ${user?.businessName || 'GreensStock'}`;
+    const mailto = `mailto:${quotation.customerEmail || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    window.location.href = mailto;
+  };
+
+  const handleCopyText = async () => {
+    try {
+      const text = getQuotationSummaryText();
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (_) {
+      alert('Failed to copy');
+    }
+  };
+
+  const downloadPDF = async () => {
+    if (!componentRef.current || isGenerating) return;
+    try {
+      setIsGenerating(true);
+      setError(null);
+      const element = componentRef.current;
+      // @ts-ignore
+      const h2pdf = window.html2pdf || html2pdf;
+      if (!h2pdf) throw new Error("PDF library not loaded");
+
+      const opt = {
+        margin: 10,
+        filename: `Quotation-${quotation?.quotationNo || quotation?.id?.slice(-4) || '0000'}.pdf`,
+        image: { type: 'jpeg', quality: 1.0 },
+        html2canvas: { 
+          scale: 3, 
+          useCORS: true, 
+          logging: false,
+          backgroundColor: '#ffffff'
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await h2pdf().from(element).set(opt).save();
+    } catch (err: any) {
+      console.error('PDF error:', err);
+      setError('PDF download issue. Please use the Print option.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const openInNewTab = () => {
+    if (!componentRef.current) return;
+    const content = componentRef.current.innerHTML;
+    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(style => style.outerHTML)
+      .join('\n');
+
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(`
+        <html>
+          <head>
+            <title>Quotation-${quotation?.quotationNo || quotation?.id?.slice(-4) || '0000'}</title>
+            ${styles}
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+            <style>
+              body { background: white !important; margin: 0; padding: 40px; color: #0f172a !important; font-family: sans-serif; }
+              .no-print-window { display: none !important; }
+              .quotation-content { border: none !important; box-shadow: none !important; width: 100% !important; max-width: 800px !important; margin: 0 auto !important; }
+              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              @media print {
+                body { padding: 0; }
+                .quotation-content { max-width: none !important; }
+                .no-print-window-ui { display: none !important; }
+              }
+              .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-right: 10px; transition: opacity 0.2s; }
+              .btn:hover { opacity: 0.9; }
+              .btn-print { background: #4f46e5; color: white; }
+              .btn-pdf { background: #0284c7; color: white; }
+              .btn-close { background: #64748b; color: white; }
+            </style>
+          </head>
+          <body>
+            <div class="no-print-window-ui" style="margin-bottom: 30px; text-align: center; padding: 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 100;">
+              <button onclick="window.print()" class="btn btn-print">Print Quotation</button>
+              <button id="download-pdf-btn" class="btn btn-pdf">Download PDF</button>
+              <button onclick="window.close()" class="btn btn-close">Close Tab</button>
+            </div>
+            <div id="quotation-to-download">
+              ${content}
+            </div>
+            <script>
+              document.getElementById('download-pdf-btn').onclick = function() {
+                const element = document.getElementById('quotation-to-download');
+                const opt = {
+                  margin: 10,
+                  filename: 'Quotation-${quotation?.quotationNo || quotation?.id?.slice(-4) || '0000'}.pdf',
+                  image: { type: 'jpeg', quality: 1.0 },
+                  html2canvas: { scale: 3, useCORS: true, backgroundColor: '#ffffff' },
+                  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().from(element).set(opt).save();
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+    } else {
+      alert("Pop-up blocked. Please allow pop-ups in your browser.");
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Quotation Preview" maxWidth="max-w-4xl">
+      <div className="space-y-6">
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center">
+            {error}
+          </div>
+        )}
+
+        {/* Top Action Bar with Print, Download, Share, and Convert */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-slate-50 border border-slate-200/80 rounded-2xl no-print">
+          <div className="flex flex-wrap items-center gap-2">
+            <button 
+              onClick={openInNewTab}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-indigo-100 cursor-pointer"
+            >
+              <Printer size={16} />
+              <span>Print / Download</span>
+            </button>
+
+            <button 
+              onClick={downloadPDF}
+              disabled={isGenerating}
+              className="flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-sky-100 cursor-pointer disabled:opacity-60"
+            >
+              <Download size={16} />
+              <span>{isGenerating ? 'Generating...' : 'PDF'}</span>
+            </button>
+
+            <button 
+              onClick={handleShareWhatsApp}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-emerald-100 cursor-pointer"
+              title="Share via WhatsApp"
+            >
+              <Send size={16} />
+              <span>WhatsApp</span>
+            </button>
+
+            <button 
+              onClick={handleShareEmail}
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              title="Share via Email"
+            >
+              <Mail size={16} />
+              <span>Email</span>
+            </button>
+
+            <button 
+              onClick={handleCopyText}
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              title="Copy details"
+            >
+              {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
+              <span>{copied ? 'Copied!' : 'Copy'}</span>
+            </button>
+          </div>
+
+          {/* Direct Convert to Sale action button */}
+          {onConvertToSale && (
+            <div>
+              {quotation.status === 'Converted' ? (
+                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold">
+                  <CheckCircle2 size={16} />
+                  <span>Converted to Sale</span>
+                </span>
+              ) : (
+                <button
+                  onClick={() => onConvertToSale(quotation)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-100 transition-all cursor-pointer"
+                >
+                  <TrendingUp size={16} />
+                  <span>Convert to Sale</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Renderable Printable Quotation Document */}
+        <QuotationContent quotation={quotation} user={user} contentRef={componentRef} />
+      </div>
+    </Modal>
+  );
+};
+
+const Sales = ({ data }: any) => {
+  const { hasPermission } = useAuth();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [selectedSale, setSelectedSale] = useState<any>(null);
+  const { t, lang } = useTranslation();
+  const { formatCurrency, toBengaliNumber, currency } = useCurrency();
+  const [newSale, setNewSale] = useState({ 
+    customerName: '', 
+    customerPhone: '',
+    customerEmail: '',
+    customerAddress: '',
+    items: [{ 
+      productId: '', 
+      productCategory: '', 
+      serialNumber: '', 
+      quantity: '1', 
+      unitPrice: 0,
+      taxPercent: '0',
+      total: '0',
+      buyPrice: 0,
+      productName: '',
+      brand: ''
+    }],
+    paidAmount: '',
+    dueAmount: '0',
+    paymentMethod: 'Cash',
+    dueDate: '',
+    date: getTodayStr() 
+  });
+  const [paymentType, setPaymentType] = useState<'full_paid' | 'partial_due' | 'full_due'>('full_paid');
+
+  // --- QUOTATION STATES ---
+  const [activeSalesTab, setActiveSalesTab] = useState<'sales' | 'quotations'>('sales');
+  const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
+  const [isQuotationPreviewModalOpen, setIsQuotationPreviewModalOpen] = useState(false);
+  const [selectedQuotation, setSelectedQuotation] = useState<any>(null);
+  const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
+  const [quotationSearch, setQuotationSearch] = useState('');
+  const [quotationStatusFilter, setQuotationStatusFilter] = useState('All');
+  const [isQuotationScannerOpen, setIsQuotationScannerOpen] = useState(false);
+
+  const defaultQuotationNotes = '1. This quotation is valid until the specified validity date.\n2. Delivery will be processed upon order confirmation.\n3. Standard manufacturer warranty and terms apply.';
+
+  const [newQuotation, setNewQuotation] = useState({
+    quotationNo: '',
+    customerName: '',
+    customerPhone: '',
+    customerEmail: '',
+    customerAddress: '',
+    items: [{
+      productId: '',
+      productCategory: '',
+      productName: '',
+      brand: '',
+      serialNumber: '',
+      quantity: '1',
+      unitPrice: 0,
+      taxPercent: '0',
+      total: '0'
+    }],
+    discountType: 'percentage' as 'percentage' | 'flat',
+    discountValue: '0',
+    taxPercent: '0',
+    date: getTodayStr(),
+    validUntil: '',
+    validDays: '15',
+    status: 'Draft' as 'Draft' | 'Sent' | 'Accepted' | 'Converted',
+    notes: defaultQuotationNotes
+  });
+
+  const calculateQuotationSubtotal = (items: any[]) => {
+    return items.reduce((sum, item) => {
+      const q = parseBanglaInt(item.quantity, 1);
+      const p = parseBanglaFloat(item.unitPrice, 0);
+      return sum + (q * p);
+    }, 0);
+  };
+
+  const calculateQuotationTax = (items: any[], globalTaxPercent: string) => {
+    const itemTax = items.reduce((sum, item) => {
+      const q = parseBanglaInt(item.quantity, 1);
+      const p = parseBanglaFloat(item.unitPrice, 0);
+      const tRate = parseBanglaFloat(item.taxPercent, 0);
+      return sum + (q * p * (tRate / 100));
+    }, 0);
+    const gTax = parseBanglaFloat(globalTaxPercent, 0);
+    const sub = calculateQuotationSubtotal(items);
+    return itemTax + (gTax > 0 ? (sub * (gTax / 100)) : 0);
+  };
+
+  const calculateQuotationDiscount = (subtotal: number, discType: 'percentage' | 'flat', discVal: string) => {
+    const val = parseBanglaFloat(discVal, 0);
+    if (discType === 'percentage') {
+      return (subtotal * Math.min(100, Math.max(0, val))) / 100;
+    }
+    return Math.min(subtotal, Math.max(0, val));
+  };
+
+  const handleOpenNewQuotation = () => {
+    const today = getTodayStr();
+    const d = new Date();
+    d.setDate(d.getDate() + 15);
+    const validUntilDefault = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
+    setEditingQuotationId(null);
+    setNewQuotation({
+      quotationNo: `QT-${Date.now().toString().slice(-6)}`,
+      customerName: '',
+      customerPhone: '',
+      customerEmail: '',
+      customerAddress: '',
+      items: [{
+        productId: '',
+        productCategory: '',
+        productName: '',
+        brand: '',
+        serialNumber: '',
+        quantity: '1',
+        unitPrice: 0,
+        taxPercent: '0',
+        total: '0'
+      }],
+      discountType: 'percentage',
+      discountValue: '0',
+      taxPercent: '0',
+      date: today,
+      validUntil: validUntilDefault,
+      validDays: '15',
+      status: 'Draft',
+      notes: defaultQuotationNotes
+    });
+    setIsQuotationModalOpen(true);
+  };
+
+  const handleEditQuotation = (quo: any) => {
+    setEditingQuotationId(quo.id);
+    setNewQuotation({
+      quotationNo: quo.quotationNo || `QT-${quo.id.slice(-6)}`,
+      customerName: quo.customerName || '',
+      customerPhone: quo.customerPhone || '',
+      customerEmail: quo.customerEmail || '',
+      customerAddress: quo.customerAddress || '',
+      items: (quo.items && quo.items.length > 0) ? quo.items.map((i: any) => ({
+        ...i,
+        quantity: String(i.quantity || '1'),
+        unitPrice: Number(i.unitPrice) || 0,
+        taxPercent: String(i.taxPercent || '0'),
+        total: String(i.total || '0')
+      })) : [{
+        productId: '',
+        productCategory: '',
+        productName: '',
+        brand: '',
+        serialNumber: '',
+        quantity: '1',
+        unitPrice: 0,
+        taxPercent: '0',
+        total: '0'
+      }],
+      discountType: quo.discountType || 'percentage',
+      discountValue: String(quo.discountPercent || quo.discountAmount || '0'),
+      taxPercent: String(quo.taxPercent || '0'),
+      date: (quo.date || '').split('T')[0] || getTodayStr(),
+      validUntil: quo.validUntil || '',
+      validDays: '15',
+      status: quo.status || 'Draft',
+      notes: quo.notes || defaultQuotationNotes
+    });
+    setIsQuotationModalOpen(true);
+  };
+
+  const addQuotationItem = () => {
+    setNewQuotation(prev => ({
+      ...prev,
+      items: [...prev.items, {
+        productId: '',
+        productCategory: '',
+        productName: '',
+        brand: '',
+        serialNumber: '',
+        quantity: '1',
+        unitPrice: 0,
+        taxPercent: '0',
+        total: '0'
+      }]
+    }));
+  };
+
+  const removeQuotationItem = (index: number) => {
+    if (newQuotation.items.length > 1) {
+      const items = [...newQuotation.items];
+      items.splice(index, 1);
+      setNewQuotation(prev => ({ ...prev, items }));
+    }
+  };
+
+  const updateQuotationItem = (index: number, field: string, value: any) => {
+    const items = [...newQuotation.items];
+    const item = { ...items[index], [field]: value };
+
+    if (field === 'productId') {
+      const product = data.inventory.find((p: any) => String(p.id) === String(value));
+      if (product) {
+        item.productId = product.id;
+        item.productName = product.name;
+        item.brand = product.brand || '';
+        item.productCategory = product.category || '';
+        item.unitPrice = product.price;
+        item.total = calculateItemPriceWithTax(product.price, item.quantity, item.taxPercent);
+      } else {
+        item.productId = '';
+        item.productName = '';
+        item.unitPrice = 0;
+        item.total = '0';
+      }
+    } else if (field === 'quantity') {
+      const uPrice = Number(item.unitPrice) || 0;
+      if (uPrice > 0) {
+        item.total = calculateItemPriceWithTax(uPrice, value, item.taxPercent);
+      }
+    } else if (field === 'unitPrice') {
+      const uPrice = parseBanglaFloat(value, 0);
+      item.unitPrice = uPrice;
+      item.total = calculateItemPriceWithTax(uPrice, item.quantity, item.taxPercent);
+    } else if (field === 'taxPercent') {
+      const uPrice = Number(item.unitPrice) || 0;
+      if (uPrice > 0) {
+        item.total = calculateItemPriceWithTax(uPrice, item.quantity, value);
+      }
+    }
+
+    items[index] = item;
+    setNewQuotation(prev => ({ ...prev, items }));
+  };
+
+  const handleQuotationScan = (decodedText: string): string => {
+    const product = data.inventory.find((p: any) => 
+      String(p.id) === String(decodedText) || 
+      p.serialNumber === decodedText || 
+      p.modelNumber === decodedText ||
+      p.barcode === decodedText ||
+      p.sku === decodedText
+    );
+    if (!product) return 'not_found';
+
+    const existingIndex = newQuotation.items.findIndex((item: any) => String(item.productId) === String(product.id));
+    if (existingIndex !== -1) {
+      const currentQty = parseInt(newQuotation.items[existingIndex].quantity) || 0;
+      const newQty = currentQty + 1;
+      const updatedItems = [...newQuotation.items];
+      const taxRate = parseBanglaFloat(updatedItems[existingIndex].taxPercent, 0);
+      const withTax = calculateItemPriceWithTax(product.price, newQty, taxRate);
+      updatedItems[existingIndex] = {
+        ...updatedItems[existingIndex],
+        quantity: newQty.toString(),
+        unitPrice: product.price,
+        total: withTax
+      };
+      setNewQuotation({ ...newQuotation, items: updatedItems });
+      return 'updated';
+    } else {
+      const newItemEntry = {
+        productId: product.id,
+        productCategory: product.category,
+        productName: product.name,
+        brand: product.brand || '',
+        serialNumber: product.serialNumber || '',
+        quantity: '1',
+        unitPrice: product.price,
+        taxPercent: '0',
+        total: product.price.toString()
+      };
+      const lastItem = newQuotation.items[newQuotation.items.length - 1];
+      if (!lastItem.productId && !lastItem.productName) {
+        const newItems = [...newQuotation.items];
+        newItems[newQuotation.items.length - 1] = newItemEntry;
+        setNewQuotation({ ...newQuotation, items: newItems });
+      } else {
+        setNewQuotation({ ...newQuotation, items: [...newQuotation.items, newItemEntry] });
+      }
+      return 'added';
+    }
+  };
+
+  const handleSaveQuotation = (e: FormEvent) => {
+    e.preventDefault();
+    const validItems = newQuotation.items.filter(i => i.productName || i.productId);
+    if (validItems.length === 0) {
+      alert(lang === 'bn' ? 'অনুগ্রহ করে অন্তত একটি পণ্য নির্বাচন বা নাম লিখুন' : 'Please select or name at least one product');
+      return;
+    }
+
+    const subtotal = calculateQuotationSubtotal(validItems);
+    const discountAmt = calculateQuotationDiscount(subtotal, newQuotation.discountType, newQuotation.discountValue);
+    const taxAmt = calculateQuotationTax(validItems, newQuotation.taxPercent);
+    const total = Math.max(0, subtotal - discountAmt + taxAmt);
+
+    const validUntilDate = newQuotation.validUntil || (() => {
+      const d = new Date(newQuotation.date || getTodayStr());
+      d.setDate(d.getDate() + (parseInt(newQuotation.validDays) || 15));
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
+
+    const quotationData = {
+      quotationNo: newQuotation.quotationNo || `QT-${Date.now().toString().slice(-6)}`,
+      customerName: newQuotation.customerName.trim() || 'Valued Customer',
+      customerPhone: newQuotation.customerPhone,
+      customerEmail: newQuotation.customerEmail,
+      customerAddress: newQuotation.customerAddress,
+      items: validItems.map(i => ({
+        ...i,
+        quantity: parseBanglaInt(i.quantity, 1),
+        unitPrice: parseBanglaFloat(i.unitPrice, 0),
+        taxPercent: parseBanglaFloat(i.taxPercent, 0),
+        total: parseBanglaFloat(i.total, 0)
+      })),
+      subtotal: Number(subtotal.toFixed(2)),
+      discountType: newQuotation.discountType,
+      discountPercent: newQuotation.discountType === 'percentage' ? parseBanglaFloat(newQuotation.discountValue, 0) : 0,
+      discountAmount: Number(discountAmt.toFixed(2)),
+      taxPercent: parseBanglaFloat(newQuotation.taxPercent, 0),
+      taxAmount: Number(taxAmt.toFixed(2)),
+      total: Number(total.toFixed(2)),
+      date: newQuotation.date || getTodayStr(),
+      validUntil: validUntilDate,
+      status: newQuotation.status || 'Draft',
+      notes: newQuotation.notes
+    };
+
+    if (editingQuotationId) {
+      data.editItem('quotations', editingQuotationId, quotationData, data.setQuotations);
+    } else {
+      data.addQuotation(quotationData);
+    }
+
+    setIsQuotationModalOpen(false);
+    setEditingQuotationId(null);
+  };
+
+  const handleConvertToSale = (quo: any) => {
+    if (!quo) return;
+    const qNo = quo.quotationNo || (quo.id ? String(quo.id).slice(-6).toUpperCase() : '000000');
+
+    // 1. Check stock
+    const outOfStockItems = (quo.items || []).filter((item: any) => {
+      if (!item.productId) return false;
+      const prod = data.inventory.find((p: any) => String(p.id) === String(item.productId));
+      const reqQty = parseBanglaInt(item.quantity, 1);
+      return prod && reqQty > (Number(prod.quantity) || 0);
+    });
+
+    if (outOfStockItems.length > 0) {
+      const itemNames = outOfStockItems.map((i: any) => i.productName || 'Item').join(', ');
+      let proceed = true;
+      try {
+        proceed = window.confirm(
+          `Warning: Insufficient stock for: ${itemNames}. Do you still want to convert to sale?`
+        );
+      } catch (e) {
+        proceed = true;
+      }
+      if (!proceed) return;
+    } else {
+      let proceed = true;
+      try {
+        proceed = window.confirm(
+          `Do you want to convert Quotation #${qNo} into a Sale? This will adjust stock and create a new invoice.`
+        );
+      } catch (e) {
+        proceed = true;
+      }
+      if (!proceed) return;
+    }
+
+    // 2. Build Sale
+    const saleItems = (quo.items || []).map((item: any) => {
+      const qty = parseBanglaInt(item.quantity, 1);
+      const uPrice = Number(item.unitPrice) || 0;
+      const taxRate = parseBanglaFloat(item.taxPercent, 0);
+      const base = uPrice * qty;
+      const taxAmt = base * (taxRate / 100);
+      const prod = (data.inventory || []).find((p: any) => String(p.id) === String(item.productId));
+      const bPrice = prod ? parseBanglaFloat(prod.price, 0) : 0;
+      return {
+        ...item,
+        quantity: qty,
+        unitPrice: uPrice,
+        buyPrice: bPrice,
+        taxPercent: taxRate,
+        taxAmount: Number(taxAmt.toFixed(2)),
+        total: parseBanglaFloat(item.total, 0)
+      };
+    });
+
+    const saleId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+
+    const finalSale = {
+      id: saleId,
+      invoiceNumber: invoiceNumber,
+      customerName: (quo.customerName || '').trim() || (lang === 'bn' ? 'Walk-in Customer' : 'Walk-in Customer'),
+      customerPhone: quo.customerPhone || '',
+      customerEmail: quo.customerEmail || '',
+      customerAddress: quo.customerAddress || '',
+      items: saleItems,
+      quantity: saleItems.reduce((acc: number, item: any) => acc + (parseBanglaInt(item.quantity, 1)), 0),
+      subtotal: Number(quo.subtotal) || 0,
+      totalTax: Number(quo.taxAmount) || 0,
+      total: Number(quo.total) || 0,
+      paid: Number(quo.total) || 0,
+      due: 0,
+      paymentMethod: 'Cash',
+      paymentStatus: 'Paid',
+      date: getTodayStr(),
+      notes: `Converted from Quotation #${qNo}`
+    };
+
+    // 3. Add Sale
+    data.addSale(finalSale);
+
+    // 4. Update Inventory
+    saleItems.forEach((item: any) => {
+      if (item.productId) {
+        const prod = data.inventory.find((p: any) => String(p.id) === String(item.productId));
+        if (prod) {
+          data.editItem('inventory', item.productId, {
+            quantity: Math.max(0, (Number(prod.quantity) || 0) - (parseBanglaInt(item.quantity, 1)))
+          }, data.setInventory);
+        }
+      }
+    });
+
+    // 5. Update Customer
+    const custName = (quo.customerName || '').trim();
+    if (custName) {
+      const existingCustomer = data.customers.find((c: any) => 
+        (c.name || '').trim().toLowerCase() === custName.toLowerCase()
+      );
+      if (existingCustomer) {
+        data.editItem('customers', existingCustomer.id, {
+          orders: (Number(existingCustomer.orders) || 0) + 1,
+          spent: (Number(existingCustomer.spent) || 0) + Number(quo.total),
+          phone: quo.customerPhone || existingCustomer.phone,
+          email: quo.customerEmail || existingCustomer.email,
+          address: quo.customerAddress || existingCustomer.address
+        }, data.setCustomers);
+      } else {
+        data.addCustomer({
+          name: custName,
+          email: quo.customerEmail || '',
+          phone: quo.customerPhone || '',
+          address: quo.customerAddress || '',
+          orders: 1,
+          spent: Number(quo.total),
+          due: 0
+        });
+      }
+    }
+
+    // 6. Mark quotation as Converted
+    if (quo.id) {
+      data.editItem('quotations', quo.id, {
+        status: 'Converted'
+      }, data.setQuotations);
+    }
+
+    // 7. Close preview modal if open and open invoice modal
+    setIsQuotationPreviewModalOpen(false);
+    setSelectedSale(finalSale);
+    setIsInvoiceModalOpen(true);
+    setActiveSalesTab('sales');
+  };
+
+  const calculateItemPriceWithTax = (price: number, qty: any, taxRate: any) => {
+    const q = parseBanglaInt(qty, 1);
+    const tRate = parseBanglaFloat(taxRate, 0);
+    const base = price * q;
+    const withTax = base + (base * (tRate / 100));
+    return Number(withTax.toFixed(2)).toString();
+  };
+
+  const handleScan = (decodedText: string): string => {
+    const product = data.inventory.find((p: any) => 
+      String(p.id) === String(decodedText) || 
+      p.serialNumber === decodedText || 
+      p.modelNumber === decodedText
+    );
+    if (!product) {
+      return 'not_found';
+    }
+    if (product.quantity <= 0) {
+      return 'out_of_stock';
+    }
+    
+    const existingIndex = newSale.items.findIndex((item: any) => String(item.productId) === String(product.id));
+    if (existingIndex !== -1) {
+      const currentQty = parseInt(newSale.items[existingIndex].quantity) || 0;
+      const newQty = currentQty + 1;
+      if (newQty > product.quantity) {
+        return 'out_of_stock_exceeded';
+      }
+      const updatedItems = [...newSale.items];
+      const taxRate = parseBanglaFloat(updatedItems[existingIndex].taxPercent, 0);
+      const withTax = calculateItemPriceWithTax(product.price, newQty, taxRate);
+      updatedItems[existingIndex] = {
+        ...updatedItems[existingIndex],
+        quantity: newQty.toString(),
+        unitPrice: product.price,
+        total: withTax
+      };
+      setNewSale({ ...newSale, items: updatedItems });
+      return 'updated';
+    } else {
+      const newItemEntry = {
+        productId: product.id,
+        productCategory: product.category,
+        productName: product.name,
+        brand: product.brand || '',
+        serialNumber: '',
+        quantity: '1',
+        unitPrice: product.price,
+        taxPercent: '0',
+        buyPrice: product.price,
+        total: product.price.toString()
+      };
+      
+      const lastItem = newSale.items[newSale.items.length - 1];
+      if (!lastItem.productId) {
+        const newItems = [...newSale.items];
+        newItems[newSale.items.length - 1] = newItemEntry;
+        setNewSale({ ...newSale, items: newItems });
+      } else {
+        setNewSale({ ...newSale, items: [...newSale.items, newItemEntry] });
+      }
+      return 'added';
+    }
+  };
+
+  const categories = ['All', ...new Set(data.inventory.map((item: any) => item.category))];
+
+  const addItem = () => {
+    setNewSale({
+      ...newSale,
+      items: [...newSale.items, { 
+        productId: '', 
+        productCategory: '', 
+        serialNumber: '', 
+        quantity: '1', 
+        unitPrice: 0,
+        taxPercent: '0',
+        total: '0',
+        buyPrice: 0,
+        productName: '',
+        brand: ''
+      }]
+    });
+  };
+
+  const removeItem = (index: number) => {
+    if (newSale.items.length > 1) {
+      const newItems = [...newSale.items];
+      newItems.splice(index, 1);
+      setNewSale({ ...newSale, items: newItems });
+    }
+  };
+
+  const updateItem = (index: number, field: string, value: any) => {
+    const newItems = [...newSale.items];
+    const item = { ...newItems[index], [field]: value };
+
+    if (field === 'productCategory') {
+      item.brand = '';
+      item.productId = '';
+      item.productName = '';
+      item.total = '0';
+      item.buyPrice = 0;
+      item.unitPrice = 0;
+    } else if (field === 'brand') {
+      item.productId = '';
+      item.productName = '';
+      item.total = '0';
+      item.buyPrice = 0;
+      item.unitPrice = 0;
+    } else if (field === 'productId') {
+      const product = data.inventory.find((p: any) => String(p.id) === String(value));
+      if (product) {
+        item.productId = product.id;
+        item.productName = product.name;
+        item.brand = product.brand || item.brand || '';
+        item.productCategory = product.category || item.productCategory || '';
+        item.buyPrice = product.price;
+        item.unitPrice = product.price;
+        item.total = calculateItemPriceWithTax(product.price, item.quantity, item.taxPercent);
+      } else {
+        item.productId = '';
+        item.productName = '';
+        item.buyPrice = 0;
+        item.unitPrice = 0;
+        item.total = '0';
+      }
+    } else if (field === 'quantity') {
+      const uPrice = Number(item.unitPrice) || Number(item.buyPrice) || 0;
+      if (uPrice > 0) {
+        item.total = calculateItemPriceWithTax(uPrice, value, item.taxPercent);
+      }
+    } else if (field === 'taxPercent') {
+      const uPrice = Number(item.unitPrice) || Number(item.buyPrice) || 0;
+      if (uPrice > 0) {
+        item.total = calculateItemPriceWithTax(uPrice, item.quantity, value);
+      }
+    } else if (field === 'unitPrice') {
+      const uPrice = parseBanglaFloat(value, 0);
+      item.unitPrice = uPrice;
+      // Authentic buyPrice is preserved from inventory cost, not overwritten with selling price!
+      item.total = calculateItemPriceWithTax(uPrice, item.quantity, item.taxPercent);
+    } else if (field === 'buyPrice') {
+      item.buyPrice = parseBanglaFloat(value, 0);
+    }
+
+    newItems[index] = item;
+    setNewSale({ ...newSale, items: newItems });
+  };
+
+  const calculatedSubtotal = newSale.items.reduce((acc, item) => {
+    const qty = parseBanglaInt(item.quantity, 1);
+    const uPrice = Number(item.unitPrice) || Number(item.buyPrice) || 0;
+    return acc + (uPrice * qty);
+  }, 0);
+
+  const calculatedTax = newSale.items.reduce((acc, item) => {
+    const qty = parseBanglaInt(item.quantity, 1);
+    const uPrice = Number(item.unitPrice) || Number(item.buyPrice) || 0;
+    const taxRate = parseBanglaFloat(item.taxPercent, 0);
+    return acc + (uPrice * qty * (taxRate / 100));
+  }, 0);
+
+  const totalAmount = newSale.items.reduce((acc, item) => acc + (parseFloat(item.total) || 0), 0);
+
+  // Dynamic Payment & Due Calculations
+  const effectivePaid = paymentType === 'full_paid'
+    ? totalAmount
+    : paymentType === 'full_due'
+      ? 0
+      : Math.min(totalAmount, Math.max(0, parseFloat(newSale.paidAmount) || 0));
+  const effectiveDue = Math.max(0, totalAmount - effectivePaid);
+
+  const handlePaymentTypeChange = (type: 'full_paid' | 'partial_due' | 'full_due') => {
+    setPaymentType(type);
+    if (type === 'full_paid') {
+      setNewSale(prev => ({
+        ...prev,
+        paidAmount: totalAmount > 0 ? totalAmount.toFixed(2) : '',
+        dueAmount: '0'
+      }));
+    } else if (type === 'full_due') {
+      setNewSale(prev => ({
+        ...prev,
+        paidAmount: '0',
+        dueAmount: totalAmount > 0 ? totalAmount.toFixed(2) : ''
+      }));
+    } else {
+      const currentPaid = parseFloat(newSale.paidAmount) || 0;
+      const initialPaid = currentPaid > 0 && currentPaid < totalAmount 
+        ? currentPaid 
+        : Math.round((totalAmount / 2) * 100) / 100;
+      const initialDue = Math.max(0, totalAmount - initialPaid);
+      setNewSale(prev => ({
+        ...prev,
+        paidAmount: initialPaid > 0 ? initialPaid.toString() : '',
+        dueAmount: initialDue > 0 ? initialDue.toFixed(2) : '0'
+      }));
+    }
+  };
+
+  const handlePaidAmountChange = (val: string) => {
+    const num = parseFloat(val) || 0;
+    const clampedPaid = Math.min(totalAmount, Math.max(0, num));
+    const calculatedDue = Math.max(0, totalAmount - clampedPaid);
+    
+    setNewSale(prev => ({
+      ...prev,
+      paidAmount: val,
+      dueAmount: calculatedDue.toFixed(2)
+    }));
+
+    if (calculatedDue <= 0.001) {
+      setPaymentType('full_paid');
+    } else if (clampedPaid <= 0.001) {
+      setPaymentType('full_due');
+    } else {
+      setPaymentType('partial_due');
+    }
+  };
+
+  const handleDueAmountChange = (val: string) => {
+    const num = parseFloat(val) || 0;
+    const clampedDue = Math.min(totalAmount, Math.max(0, num));
+    const calculatedPaid = Math.max(0, totalAmount - clampedDue);
+
+    setNewSale(prev => ({
+      ...prev,
+      dueAmount: val,
+      paidAmount: calculatedPaid.toFixed(2)
+    }));
+
+    if (clampedDue <= 0.001) {
+      setPaymentType('full_paid');
+    } else if (calculatedPaid <= 0.001) {
+      setPaymentType('full_due');
+    } else {
+      setPaymentType('partial_due');
+    }
+  };
+
+  const handleAdd = (e: FormEvent) => {
+    e.preventDefault();
+    
+    // Validation
+    for (const item of newSale.items) {
+      if (!item.productId) {
+        alert(lang === 'bn' ? 'অনুগ্রহ করে সকল আইটেমের জন্য প্রোডাক্ট নির্বাচন করুন' : 'Please select a product for all items');
+        return;
+      }
+      const product = data.inventory.find((p: any) => String(p.id) === String(item.productId));
+      const qty = parseBanglaInt(item.quantity, 1);
+      if (product && qty > (Number(product.quantity) || 0)) {
+        alert(lang === 'bn' 
+          ? `পণ্য "${product.name}" এর পর্যাপ্ত স্টক নেই। মাত্র ${product.quantity} টি পণ্য অবশিষ্ট আছে।`
+          : `Not enough stock for ${product.name}. Only ${product.quantity} units available.`);
+        return;
+      }
+    }
+
+    const finalPaid = Number(effectivePaid.toFixed(2));
+    const finalDue = Number(effectiveDue.toFixed(2));
+    const paymentStatus = finalDue <= 0 ? 'Paid' : (finalPaid > 0 ? 'Partial' : 'Due');
+
+    // 1. Add Sale with correct authentic purchase cost, selling price, and Due tracking
+    data.addSale({
+      customerName: newSale.customerName.trim() || 'Walk-in Customer',
+      customerPhone: newSale.customerPhone,
+      customerEmail: newSale.customerEmail,
+      customerAddress: newSale.customerAddress,
+      items: newSale.items.map(item => {
+        const qty = parseBanglaInt(item.quantity) || 1;
+        const uPrice = Number(item.unitPrice) || 0;
+        const taxRate = parseBanglaFloat(item.taxPercent) || 0;
+        const base = uPrice * qty;
+        const taxAmt = base * (taxRate / 100);
+        const prod = (data.inventory || []).find((p: any) => String(p.id) === String(item.productId));
+        const bPrice = (item.buyPrice !== undefined && item.buyPrice !== null && !isNaN(Number(item.buyPrice)))
+          ? parseBanglaFloat(item.buyPrice, 0)
+          : (prod ? parseBanglaFloat(prod.price, 0) : 0);
+        return {
+          ...item,
+          quantity: qty,
+          unitPrice: uPrice,
+          buyPrice: bPrice,
+          taxPercent: taxRate,
+          taxAmount: Number(taxAmt.toFixed(2)),
+          total: parseBanglaFloat(item.total)
+        };
+      }),
+      quantity: newSale.items.reduce((acc, item) => acc + (parseBanglaInt(item.quantity) || 1), 0),
+      subtotal: calculatedSubtotal,
+      totalTax: calculatedTax,
+      total: totalAmount,
+      paid: finalPaid,
+      due: finalDue,
+      paymentMethod: newSale.paymentMethod || 'Cash',
+      paymentStatus: paymentStatus,
+      dueDate: finalDue > 0 ? newSale.dueDate : '',
+      date: newSale.date
+    });
+
+    // 2. Update Inventory for each item
+    newSale.items.forEach(item => {
+      const product = data.inventory.find((p: any) => String(p.id) === String(item.productId));
+      if (product) {
+        data.editItem('inventory', item.productId, {
+          quantity: (Number(product.quantity) || 0) - (parseBanglaInt(item.quantity) || 0)
+        }, data.setInventory);
+      }
+    });
+
+    // 3. Update/Add Customer (with due balance tracking)
+    const custName = newSale.customerName.trim();
+    if (custName) {
+      const searchName = custName.toLowerCase();
+      
+      const existingCustomer = data.customers.find((c: any) => 
+        (c.name || '').trim().toLowerCase() === searchName
+      );
+
+      if (existingCustomer) {
+        data.editItem('customers', existingCustomer.id, {
+          orders: (Number(existingCustomer.orders) || 0) + 1,
+          spent: (Number(existingCustomer.spent) || 0) + totalAmount,
+          due: (Number(existingCustomer.due) || 0) + finalDue,
+          phone: newSale.customerPhone || existingCustomer.phone,
+          email: newSale.customerEmail || existingCustomer.email,
+          address: newSale.customerAddress || existingCustomer.address
+        }, data.setCustomers);
+      } else {
+        data.addCustomer({
+          name: custName,
+          email: newSale.customerEmail,
+          phone: newSale.customerPhone,
+          address: newSale.customerAddress,
+          orders: 1,
+          spent: totalAmount,
+          due: finalDue
+        });
+      }
+    }
+
+    setNewSale({ 
+      customerName: '', 
+      customerPhone: '',
+      customerEmail: '',
+      customerAddress: '',
+      items: [{ 
+        productId: '', 
+        productCategory: '', 
+        serialNumber: '', 
+        quantity: '1', 
+        unitPrice: 0,
+        taxPercent: '0',
+        total: '0',
+        buyPrice: 0,
+        productName: '',
+        brand: ''
+      }],
+      paidAmount: '',
+      dueAmount: '0',
+      paymentMethod: 'Cash',
+      dueDate: '',
+      date: getTodayStr() 
+    });
+    setPaymentType('full_paid');
+    setIsModalOpen(false);
+  };
+
+  const filteredQuotations = (data.quotations || []).filter((quo: any) => {
+    const qSearch = quotationSearch.toLowerCase().trim();
+    const matchSearch = !qSearch || 
+      (quo.quotationNo && String(quo.quotationNo).toLowerCase().includes(qSearch)) ||
+      (quo.id && String(quo.id).toLowerCase().includes(qSearch)) ||
+      (quo.customerName && String(quo.customerName).toLowerCase().includes(qSearch)) ||
+      (quo.customerPhone && String(quo.customerPhone).toLowerCase().includes(qSearch));
+    
+    const matchStatus = quotationStatusFilter === 'All' || (quo.status || 'Draft') === quotationStatusFilter;
+    return matchSearch && matchStatus;
+  }).sort((a: any, b: any) => (b.id || '').localeCompare(a.id || ''));
+
+  return (
+    <div className="space-y-6">
+      {/* Top Nav Switcher & Action Buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {/* Navigation Tabs between Sales & Quotations */}
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl w-fit border border-slate-200/60">
+          <button
+            type="button"
+            onClick={() => setActiveSalesTab('sales')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+              activeSalesTab === 'sales'
+                ? 'bg-white text-emerald-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ShoppingCart size={16} />
+            <span>Sales Invoices</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+              activeSalesTab === 'sales' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+            }`}>
+              {data.sales.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSalesTab('quotations')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+              activeSalesTab === 'quotations'
+                ? 'bg-white text-indigo-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <FileText size={16} />
+            <span>Quotations</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+              activeSalesTab === 'quotations' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-600'
+            }`}>
+              {(data.quotations || []).length}
+            </span>
+          </button>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          {hasPermission('sales', 'edit') && (
+            <>
+              <button
+                type="button"
+                onClick={handleOpenNewQuotation}
+                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-sm font-bold transition-all shadow-sm shadow-indigo-100 cursor-pointer"
+              >
+                <Plus size={16} />
+                <span>New Quotation</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-sm font-bold transition-all shadow-sm shadow-emerald-100 cursor-pointer"
+              >
+                <Plus size={16} />
+                <span>New Sale</span>
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <PageHeader 
+        title={activeSalesTab === 'sales' ? "Sales Invoices" : "Quotations"} 
+        description={activeSalesTab === 'sales' ? "View and manage your business sales transactions and invoices." : "Create, preview, print, download, share, and convert quotations into sales."} 
+        action={null}
+      />
+
+      {activeSalesTab === 'sales' ? (
+        <Card>
+          {data.sales.length > 0 ? (
+            <Table headers={['Invoice #', 'Customer', 'Items', 'Date', 'Total Amount', 'Actions']}>
+              {[...data.sales].sort((a: any, b: any) => b.id.localeCompare(a.id)).map((item: any) => (
+                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-slate-900">#INV-{item.id.slice(-4)}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    <div className="font-medium">{item.customerName}</div>
+                    {item.customerPhone && <div className="text-xs text-slate-400">{item.customerPhone}</div>}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    {item.items ? (
+                      (() => {
+                        const totalQty = item.items.reduce((sum: number, i: any) => sum + (Number(i.quantity) || 1), 0);
+                        const qtyLabel = `${totalQty} ${totalQty === 1 ? 'Product' : 'Products'}`;
+                        const detailText = item.items.map((i: any) => {
+                          const name = i.brand ? `${i.brand} ${i.productName}` : i.productName;
+                          const q = Number(i.quantity) || 1;
+                          return `${name}${q > 1 ? ` (x${q})` : ''}`;
+                        }).join(', ');
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <span className="font-bold text-emerald-600">{qtyLabel}</span>
+                            <span className="text-[10px] text-slate-400 truncate max-w-[200px]" title={detailText}>
+                              {detailText}
+                            </span>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      (() => {
+                        const totalQty = Number(item.quantity) || 1;
+                        const qtyLabel = `${totalQty} ${totalQty === 1 ? 'Product' : 'Products'}`;
+                        const name = item.brand ? `${item.brand} ${item.productName}` : item.productName;
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <span className="font-bold text-emerald-600">{qtyLabel}</span>
+                            <span className="text-[10px] text-slate-400">
+                              {name}{totalQty > 1 ? ` (x${totalQty})` : ''}
+                            </span>
+                          </div>
+                        );
+                      })()
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{(item.date || '').split('T')[0]}</td>
+                  <td className="px-6 py-4">
+                    <div className="font-semibold text-slate-900">{formatCurrency(item.total)}</div>
+                    {/* Due / Paid Badge */}
+                    {item.due !== undefined && Number(item.due) > 0 ? (
+                      <div className="flex flex-col gap-0.5 mt-1">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200/60 px-2 py-0.5 rounded-md w-fit">
+                          <AlertCircle size={10} />
+                          {`Due: ${formatCurrency(item.due)}`}
+                        </span>
+                        {Number(item.paid) > 0 && (
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            {`Paid: ${formatCurrency(item.paid)}`}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md mt-1 w-fit">
+                        <CheckCircle2 size={10} />
+                        Paid in Full
+                      </span>
+                    )}
+                    {(() => {
+                      const sPL = calculateSalesProfitAndLoss([item], data.inventory);
+                      const net = sPL.totalSalesProfit - sPL.totalSalesLoss;
+                      if (net > 0) {
+                        return <div className="text-[11px] font-bold text-emerald-600 mt-1">+{formatCurrency(net)} Profit</div>;
+                      }
+                      if (net < 0) {
+                        return <div className="text-[11px] font-bold text-rose-600 mt-1">-{formatCurrency(Math.abs(net))} Loss</div>;
+                      }
+                      return null;
+                    })()}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => {
+                          setSelectedSale(item);
+                          setIsInvoiceModalOpen(true);
+                        }}
+                        className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-1 cursor-pointer"
+                      >
+                        <FileText size={14} /> Invoice
+                      </button>
+                      {hasPermission('sales', 'delete') && (
+                        <button 
+                          onClick={() => data.deleteItem('sales', item.id, data.setSales)}
+                          className="text-red-600 hover:text-red-700 font-medium text-sm cursor-pointer"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          ) : (
+            <EmptyState 
+              icon={ShoppingCart} 
+              title="No sales recorded" 
+              description="Track your business revenue by recording your first sale."
+              action="Add New Sale"
+              onAction={() => setIsModalOpen(true)}
+            />
+          )}
+        </Card>
+      ) : (
+        /* Quotations View */
+        <div className="space-y-4">
+          {/* Quotations Filter & Search Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                type="text"
+                value={quotationSearch}
+                onChange={e => setQuotationSearch(e.target.value)}
+                placeholder="Search quotation #, customer or phone..."
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status:</span>
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                {['All', 'Draft', 'Sent', 'Accepted', 'Converted'].map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setQuotationStatusFilter(st)}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      quotationStatusFilter === st
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <Card>
+            {filteredQuotations.length > 0 ? (
+              <Table headers={[
+                'Quotation #',
+                'Customer',
+                'Items',
+                'Date & Validity',
+                'Total Amount',
+                'Status',
+                'Actions'
+              ]}>
+                {filteredQuotations.map((quo: any) => {
+                  const totalQty = (quo.items || []).reduce((sum: number, it: any) => sum + (Number(it.quantity) || 1), 0);
+                  const itemsSummary = (quo.items || []).map((it: any) => {
+                    const n = it.brand ? `${it.brand} ${it.productName}` : (it.productName || 'Product');
+                    const q = Number(it.quantity) || 1;
+                    return `${n}${q > 1 ? ` (x${q})` : ''}`;
+                  }).join(', ');
+
+                  const isExpired = quo.validUntil && new Date(quo.validUntil) < new Date(getTodayStr());
+
+                  return (
+                    <tr key={quo.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 font-bold text-indigo-700">
+                        #{quo.quotationNo || (quo.id ? `QT-${quo.id.slice(-6).toUpperCase()}` : 'QT-0000')}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700">
+                        <div className="font-semibold text-slate-900">{quo.customerName}</div>
+                        {quo.customerPhone && <div className="text-xs text-slate-500">{quo.customerPhone}</div>}
+                        {quo.customerEmail && <div className="text-[11px] text-slate-400">{quo.customerEmail}</div>}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-bold text-indigo-600 text-xs">
+                            {`${totalQty} Items`}
+                          </span>
+                          <span className="text-[11px] text-slate-400 truncate max-w-[200px]" title={itemsSummary}>
+                            {itemsSummary}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        <div className="flex flex-col gap-1">
+                          <div className="text-xs font-medium text-slate-800">
+                            {(quo.date || '').split('T')[0]}
+                          </div>
+                          {quo.validUntil && (
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded w-fit ${
+                              isExpired 
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200' 
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>
+                              <Clock size={10} />
+                              {`Valid: ${quo.validUntil}`}
+                              {isExpired && ' (Expired)'}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-slate-900">{formatCurrency(quo.total)}</div>
+                        {Number(quo.discountAmount) > 0 && (
+                          <div className="text-[10px] text-amber-600 font-medium">
+                            {`Disc: ${formatCurrency(quo.discountAmount)}`}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                          quo.status === 'Converted'
+                            ? 'bg-purple-100 text-purple-700'
+                            : quo.status === 'Accepted'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : quo.status === 'Sent'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {quo.status === 'Converted' ? <CheckCircle2 size={12} /> : null}
+                          {quo.status === 'Accepted' ? <Check size={12} /> : null}
+                          {quo.status === 'Sent' ? <Send size={12} /> : null}
+                          {quo.status || 'Draft'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          {/* Preview Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedQuotation(quo);
+                              setIsQuotationPreviewModalOpen(true);
+                            }}
+                            className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                            title="Preview & Print"
+                          >
+                            <Eye size={16} />
+                          </button>
+
+                          {/* Share Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedQuotation(quo);
+                              setIsQuotationPreviewModalOpen(true);
+                            }}
+                            className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                            title="Share Quotation"
+                          >
+                            <Share2 size={16} />
+                          </button>
+
+                          {/* Convert to Sale Button */}
+                          {quo.status !== 'Converted' && (
+                            <button
+                              type="button"
+                              onClick={() => handleConvertToSale(quo)}
+                              className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-emerald-100 active:scale-95 cursor-pointer"
+                              title="Convert to Sale"
+                            >
+                              <TrendingUp size={12} />
+                              <span>Convert</span>
+                            </button>
+                          )}
+
+                          {/* Edit Button */}
+                          {quo.status !== 'Converted' && hasPermission('sales', 'edit') && (
+                            <button
+                              type="button"
+                              onClick={() => handleEditQuotation(quo)}
+                              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                              title="Edit"
+                            >
+                              <Edit size={16} />
+                            </button>
+                          )}
+
+                          {/* Delete Button */}
+                          {hasPermission('sales', 'delete') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm('Are you sure you want to delete this quotation?')) {
+                                  data.deleteItem('quotations', quo.id, data.setQuotations);
+                                }
+                              }}
+                              className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </Table>
+            ) : (
+              <EmptyState 
+                icon={FileText} 
+                title="No quotations found" 
+                description="Create quotations to give customized price proposals to your customers."
+                action="Create New Quotation"
+                onAction={handleOpenNewQuotation}
+              />
+            )}
+          </Card>
+        </div>
+      )}
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Record New Sale (Sales Invoice)" maxWidth="max-w-4xl">
+        <form onSubmit={handleAdd} className="space-y-6 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar">
+          {/* Customer Info Section */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Customer Information</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Customer Name (Optional)
+                </label>
+                <input 
+                  type="text" 
+                  value={newSale.customerName} onChange={e => setNewSale({...newSale, customerName: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                  placeholder="Walk-in Customer"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Phone Number</label>
+                <input 
+                  type="tel" 
+                  value={newSale.customerPhone} onChange={e => setNewSale({...newSale, customerPhone: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                  placeholder="017XXXXXXXX"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-500 mb-1">Address</label>
+                <input 
+                  type="text" 
+                  value={newSale.customerAddress} onChange={e => setNewSale({...newSale, customerAddress: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                  placeholder="Customer address"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Items Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sale Items</h4>
+              <div className="flex items-center gap-2">
+                <button 
+                  type="button" 
+                  onClick={() => setIsScannerOpen(true)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <QrCode size={14} /> Scan QR
+                </button>
+                <button 
+                  type="button" 
+                  onClick={addItem}
+                  className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <PlusCircle size={14} /> Add Item
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {newSale.items.map((item, index) => {
+                const qty = parseBanglaInt(item.quantity, 1);
+                const taxRate = parseBanglaFloat(item.taxPercent, 0);
+                const uPrice = Number(item.unitPrice) || Number(item.buyPrice) || 0;
+                const basePrice = uPrice * qty;
+                const taxAmount = basePrice * (taxRate / 100);
+
+                return (
+                  <div key={index} className="p-4 border border-slate-100 rounded-2xl relative group bg-white shadow-sm space-y-3">
+                    {newSale.items.length > 1 && (
+                      <button 
+                        type="button"
+                        onClick={() => removeItem(index)}
+                        className="absolute -top-2 -right-2 p-1.5 bg-red-50 text-red-500 rounded-full border border-red-100 hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 z-10"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                    
+                    {/* Top Row: Category, Brand, Product */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          Category
+                        </label>
+                        <select 
+                          required
+                          value={item.productCategory}
+                          onChange={(e) => updateItem(index, 'productCategory', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                        >
+                          <option value="">Select Category</option>
+                          {categories.filter(c => c !== 'All').map(cat => (
+                            <option key={cat as string} value={cat as string}>{cat as string}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('brandName')}</label>
+                        <select 
+                          value={item.brand}
+                          onChange={(e) => updateItem(index, 'brand', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                        >
+                          <option value="">Select Brand</option>
+                          {Array.from(new Set(data.inventory
+                            .filter((p: any) => !item.productCategory || p.category === item.productCategory)
+                            .map((p: any) => p.brand)
+                            .filter(Boolean)
+                          )).map((brand: any) => (
+                            <option key={brand} value={brand}>{brand}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          Product
+                        </label>
+                        <select 
+                          required
+                          value={item.productId}
+                          onChange={(e) => updateItem(index, 'productId', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-medium text-slate-800"
+                        >
+                          <option value="">-- Select Product --</option>
+                          {data.inventory
+                            .filter((p: any) => (!item.productCategory || p.category === item.productCategory) && (!item.brand || p.brand === item.brand))
+                            .map((p: any) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} {p.brand ? `[${p.brand}]` : ''} — {formatCurrency(p.price)} (Stock: {p.quantity})
+                              </option>
+                            ))
+                          }
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Bottom Row: Quantity, Buy Price, Unit Price, Tax %, Serial Number */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          Quantity
+                        </label>
+                        <input 
+                          type="number" required min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(index, 'quantity', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-semibold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          Buy Cost
+                        </label>
+                        <input 
+                          type="number" step="0.01" min="0"
+                          placeholder="0.00"
+                          value={item.buyPrice !== undefined && item.buyPrice !== null ? item.buyPrice : ''}
+                          onChange={(e) => updateItem(index, 'buyPrice', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-semibold text-slate-600"
+                          title="Purchase cost per unit"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          Unit Price
+                        </label>
+                        <input 
+                          type="number" step="0.01" min="0"
+                          placeholder="0.00"
+                          value={item.unitPrice || ''}
+                          onChange={(e) => updateItem(index, 'unitPrice', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-semibold text-slate-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          Tax (%)
+                        </label>
+                        <div className="relative">
+                          <input 
+                            type="number" 
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            placeholder="0"
+                            value={item.taxPercent || ''}
+                            onChange={(e) => updateItem(index, 'taxPercent', e.target.value)}
+                            className="w-full pl-3 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-bold text-emerald-700"
+                          />
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                            %
+                          </span>
+                        </div>
+                        {/* Quick Tax % Presets */}
+                        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                          {[0, 5, 7.5, 10, 15].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => updateItem(index, 'taxPercent', preset.toString())}
+                              className={`px-1.5 py-0.5 text-[9px] font-bold rounded-md border transition-all ${
+                                Number(item.taxPercent) === preset
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                  : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                              }`}
+                            >
+                              {preset}%
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                          Serial Number (Optional)
+                        </label>
+                        <input 
+                          type="text"
+                          list="serial-list"
+                          value={item.serialNumber}
+                          onChange={(e) => updateItem(index, 'serialNumber', e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                          placeholder="SN-XXXXX"
+                        />
+                        <datalist id="serial-list">
+                          {Array.from(new Set(data.sales.flatMap((s: any) => (s.items || []).map((i: any) => i.serialNumber)).filter(Boolean))).map((sn: any) => (
+                            <option key={sn} value={sn} />
+                          ))}
+                        </datalist>
+                      </div>
+                    </div>
+
+                    {/* Live Calculated Price with Tax Breakdown & Profit/Loss Indicator */}
+                    {uPrice > 0 && (() => {
+                      const itemBuyPrice = Number(item.buyPrice) || 0;
+                      const itemTotalCost = itemBuyPrice * qty;
+                      const itemProfitDiff = basePrice - itemTotalCost;
+                      const isProfit = itemProfitDiff > 0;
+                      const isLoss = itemProfitDiff < 0;
+
+                      return (
+                        <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="space-y-1 text-xs text-slate-600">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-slate-700">
+                                  Base Total:
+                                </span>
+                                <span className="font-bold text-slate-900">{formatCurrency(basePrice)}</span>
+                                <span className="text-slate-400 text-[11px]">({formatCurrency(uPrice)} × {qty})</span>
+                              </div>
+                              {itemBuyPrice > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-slate-500">
+                                    Cost:
+                                  </span>
+                                  <span className="font-medium text-slate-700">{formatCurrency(itemTotalCost)}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
+                              {/* Live Item Profit or Loss Badge */}
+                              {itemBuyPrice > 0 && (
+                                isProfit ? (
+                                  <div className="flex items-center gap-1 text-emerald-700 font-bold bg-emerald-100/90 px-2 py-0.5 rounded-md text-[11px]">
+                                    <TrendingUp size={12} />
+                                    <span>Profit: +{formatCurrency(itemProfitDiff)}</span>
+                                  </div>
+                                ) : isLoss ? (
+                                  <div className="flex items-center gap-1 text-rose-700 font-bold bg-rose-100/90 px-2 py-0.5 rounded-md text-[11px]">
+                                    <ArrowDownRight size={12} />
+                                    <span>Loss: -{formatCurrency(Math.abs(itemProfitDiff))}</span>
+                                  </div>
+                                ) : (
+                                  <div className="text-[11px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">
+                                    Break-even (0 P/L)
+                                  </div>
+                                )
+                              )}
+
+                              {taxRate > 0 ? (
+                                <div className="flex items-center gap-1 text-emerald-800">
+                                  <span className="font-semibold">
+                                    Tax ({taxRate}% added):
+                                  </span>
+                                  <span className="font-bold text-emerald-700">+{formatCurrency(taxAmount)}</span>
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-slate-400">
+                                  No tax applied (0%)
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 bg-white px-3.5 py-1.5 rounded-xl border border-emerald-200 shadow-xs self-start sm:self-auto">
+                            <div className="text-right">
+                              <span className="block text-[9px] font-extrabold text-emerald-800 uppercase tracking-wider">
+                                Price with Tax
+                              </span>
+                              <span className="text-lg font-black text-emerald-600">
+                                {formatCurrency(parseFloat(item.total) || (basePrice + taxAmount))}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100">
+            <div className="mb-6 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-700 pb-2 border-b border-emerald-200/50">
+                <span>Subtotal (Before Tax):</span>
+                <span className="font-semibold">{formatCurrency(calculatedSubtotal)}</span>
+              </div>
+
+              {/* Estimated Total Profit / Loss for this entire sale */}
+              {(() => {
+                const totalCostVal = newSale.items.reduce((acc, item) => {
+                  const q = parseBanglaInt(item.quantity, 1);
+                  const bPrice = parseBanglaFloat(item.buyPrice, 0);
+                  return acc + (bPrice * q);
+                }, 0);
+                const estimatedDiff = calculatedSubtotal - totalCostVal;
+                if (totalCostVal > 0) {
+                  return (
+                    <div className="flex items-center justify-between text-xs pb-2 border-b border-emerald-200/50">
+                      <span className="font-medium text-slate-700">
+                        Est. Profit / Loss:
+                      </span>
+                      {estimatedDiff > 0 ? (
+                        <span className="font-bold text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <TrendingUp size={12} />
+                          +{formatCurrency(estimatedDiff)} (Profit)
+                        </span>
+                      ) : estimatedDiff < 0 ? (
+                        <span className="font-bold text-rose-700 bg-rose-100/90 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <ArrowDownRight size={12} />
+                          -{formatCurrency(Math.abs(estimatedDiff))} (Loss)
+                        </span>
+                      ) : (
+                        <span className="font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                          {formatCurrency(0)} (Break-even)
+                        </span>
+                      )}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {calculatedTax > 0 && (
+                <div className="flex items-center justify-between text-xs text-emerald-800 pb-2 border-b border-emerald-200/50">
+                  <span>Total Tax:</span>
+                  <span className="font-semibold">+{formatCurrency(calculatedTax)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-900">Grand Total</span>
+                <span className="text-2xl font-black text-emerald-600">{formatCurrency(totalAmount)}</span>
+              </div>
+            </div>
+
+            {/* Payment & Due Amount Section */}
+            <div className="mb-6 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200/90 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                    <CreditCard size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-800">
+                      Payment & Due Details
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Manage payment received and credit due
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <CurrencySelector />
+
+                  {/* Quick Presets */}
+                  <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => handlePaymentTypeChange('full_paid')}
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
+                        paymentType === 'full_paid' 
+                          ? "bg-white text-emerald-700 shadow-xs" 
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      Full Paid
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePaymentTypeChange('partial_due')}
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
+                        paymentType === 'partial_due' 
+                          ? "bg-white text-amber-700 shadow-xs" 
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      Partial Due
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePaymentTypeChange('full_due')}
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
+                        paymentType === 'full_due' 
+                          ? "bg-white text-rose-700 shadow-xs" 
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      Full Due
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+                {/* Payment Method */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    Payment Method
+                  </label>
+                  <select
+                    value={newSale.paymentMethod}
+                    onChange={e => setNewSale({ ...newSale, paymentMethod: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="bKash">bKash</option>
+                    <option value="Nagad">Nagad</option>
+                    <option value="Rocket">Rocket</option>
+                    <option value="Bank">Bank Transfer</option>
+                    <option value="Card">Card</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                {/* Paid Amount */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    Paid Amount
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={totalAmount}
+                      value={paymentType === 'full_paid' ? (totalAmount > 0 ? totalAmount.toFixed(2) : '') : newSale.paidAmount}
+                      onChange={e => handlePaidAmountChange(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full pl-3 pr-7 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-emerald-700 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                      {currency.symbol}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Due Amount Form Input */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center justify-between">
+                    <span>Due Amount</span>
+                    {effectiveDue > 0 && (
+                      <span className="text-[10px] text-rose-600 font-black uppercase">
+                        Due
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={totalAmount}
+                      value={paymentType === 'full_due' ? (totalAmount > 0 ? totalAmount.toFixed(2) : '') : (paymentType === 'full_paid' ? '0' : (newSale.dueAmount !== undefined ? newSale.dueAmount : effectiveDue.toFixed(2)))}
+                      onChange={e => handleDueAmountChange(e.target.value)}
+                      placeholder="0.00"
+                      className={cn(
+                        "w-full pl-3 pr-7 py-2 bg-white border rounded-xl text-sm font-bold focus:ring-2 outline-none transition-all",
+                        effectiveDue > 0 
+                          ? "border-rose-400 text-rose-700 focus:ring-rose-500/20 bg-rose-50/40" 
+                          : "border-slate-200 text-slate-700 focus:ring-emerald-500/20"
+                      )}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                      {currency.symbol}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Due Payment Date (Promise Date) */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newSale.dueDate}
+                    onChange={e => setNewSale({ ...newSale, dueDate: e.target.value })}
+                    disabled={effectiveDue <= 0}
+                    className={cn(
+                      "w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all",
+                      effectiveDue > 0 
+                        ? "bg-white border-slate-200 focus:ring-2 focus:ring-amber-500/20 text-slate-800" 
+                        : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Dynamic Due Banner Notification */}
+              {effectiveDue > 0 && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-rose-800">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle size={17} className="text-rose-600 shrink-0" />
+                    <span>
+                      <strong>Due Notice:</strong>{' '}
+                      {`This order has a remaining due amount of ${formatCurrency(effectiveDue)}.`}
+                      {!newSale.customerName && (
+                        <span className="block text-[11px] text-rose-600 font-semibold mt-0.5">
+                          ⚠️ Please add customer name or phone above to keep track of this due.
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                    <span className="font-bold bg-rose-200/90 text-rose-900 px-2.5 py-1 rounded-lg text-xs">
+                      Due: {formatCurrency(effectiveDue)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Date
+                </label>
+                <input 
+                  type="date" required 
+                  value={newSale.date} onChange={e => setNewSale({...newSale, date: e.target.value})}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                />
+              </div>
+              <div className="flex items-end">
+                <button type="submit" className="w-full py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10 flex items-center justify-center gap-2">
+                  <CheckCircle2 size={16} />
+                  Confirm Sale / Generate Invoice
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </Modal>
+
+      {/* --- CREATE / EDIT QUOTATION MODAL --- */}
+      <Modal 
+        isOpen={isQuotationModalOpen} 
+        onClose={() => setIsQuotationModalOpen(false)} 
+        title={editingQuotationId ? "Edit Quotation" : "Create New Quotation"} 
+        maxWidth="max-w-4xl"
+      >
+        <form onSubmit={handleSaveQuotation} className="space-y-6 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar">
+          {/* Customer Information & Quick Customer Select */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Customer Information
+              </h4>
+              {data.customers && data.customers.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-slate-500 font-medium">Existing Customer:</span>
+                  <select
+                    className="text-xs px-2.5 py-1 bg-white border border-slate-200 rounded-lg outline-none text-slate-700"
+                    onChange={(e) => {
+                      const cust = data.customers.find((c: any) => String(c.id) === e.target.value);
+                      if (cust) {
+                        setNewQuotation(prev => ({
+                          ...prev,
+                          customerName: cust.name || '',
+                          customerPhone: cust.phone || '',
+                          customerEmail: cust.email || '',
+                          customerAddress: cust.address || ''
+                        }));
+                      }
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="">-- Select Customer --</option>
+                    {data.customers.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Customer Name *
+                </label>
+                <input 
+                  type="text" 
+                  required
+                  value={newQuotation.customerName} 
+                  onChange={e => setNewQuotation({...newQuotation, customerName: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
+                  placeholder="Enter customer name"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Phone Number
+                </label>
+                <input 
+                  type="tel" 
+                  value={newQuotation.customerPhone} 
+                  onChange={e => setNewQuotation({...newQuotation, customerPhone: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
+                  placeholder="017XXXXXXXX"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Email
+                </label>
+                <input 
+                  type="email" 
+                  value={newQuotation.customerEmail} 
+                  onChange={e => setNewQuotation({...newQuotation, customerEmail: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
+                  placeholder="customer@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Address
+                </label>
+                <input 
+                  type="text" 
+                  value={newQuotation.customerAddress} 
+                  onChange={e => setNewQuotation({...newQuotation, customerAddress: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
+                  placeholder="Customer address"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Quotation Metadata: Quo No, Date, Validity, Status */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Quotation Info
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Quotation #
+                </label>
+                <input 
+                  type="text" 
+                  value={newQuotation.quotationNo} 
+                  onChange={e => setNewQuotation({...newQuotation, quotationNo: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-mono font-bold text-indigo-700" 
+                  placeholder="QT-000001"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Date
+                </label>
+                <input 
+                  type="date" 
+                  required
+                  value={newQuotation.date} 
+                  onChange={e => setNewQuotation({...newQuotation, date: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Valid Until
+                </label>
+                <input 
+                  type="date" 
+                  value={newQuotation.validUntil} 
+                  onChange={e => setNewQuotation({...newQuotation, validUntil: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm" 
+                />
+                <div className="flex items-center gap-1 mt-1.5">
+                  {[7, 15, 30].map(days => (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(newQuotation.date || getTodayStr());
+                        d.setDate(d.getDate() + days);
+                        const vStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                        setNewQuotation(prev => ({ ...prev, validUntil: vStr, validDays: String(days) }));
+                      }}
+                      className="text-[10px] font-bold px-2 py-0.5 bg-slate-200/80 hover:bg-indigo-100 hover:text-indigo-700 text-slate-700 rounded transition-colors"
+                    >
+                      +{days}d
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Status
+                </label>
+                <select
+                  value={newQuotation.status}
+                  onChange={e => setNewQuotation({...newQuotation, status: e.target.value as any})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-semibold"
+                >
+                  <option value="Draft">Draft</option>
+                  <option value="Sent">Sent</option>
+                  <option value="Accepted">Accepted</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Quotation Items Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Quotation Items
+              </h4>
+              <div className="flex items-center gap-2">
+                <button 
+                  type="button" 
+                  onClick={() => setIsQuotationScannerOpen(true)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                >
+                  <QrCode size={14} /> Scan QR/Barcode
+                </button>
+                <button 
+                  type="button" 
+                  onClick={addQuotationItem}
+                  className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                >
+                  <PlusCircle size={14} /> Add Item
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {newQuotation.items.map((item, index) => {
+                const qty = parseBanglaInt(item.quantity, 1);
+                const taxRate = parseBanglaFloat(item.taxPercent, 0);
+                const uPrice = Number(item.unitPrice) || 0;
+                const basePrice = uPrice * qty;
+                const taxAmount = basePrice * (taxRate / 100);
+                const lineTotal = basePrice + taxAmount;
+
+                return (
+                  <div key={index} className="p-4 border border-slate-200/90 rounded-2xl relative group bg-white shadow-sm space-y-3">
+                    {newQuotation.items.length > 1 && (
+                      <button 
+                        type="button"
+                        onClick={() => removeQuotationItem(index)}
+                        className="absolute top-3 right-3 text-slate-300 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                        title="Remove Item"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                      {/* Product Selection */}
+                      <div className="sm:col-span-5 space-y-2">
+                        <label className="block text-xs font-medium text-slate-500">
+                          Product Select / Name
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <select 
+                            value={item.productId || ''} 
+                            onChange={e => updateQuotationItem(index, 'productId', e.target.value)}
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20"
+                          >
+                            <option value="">-- From Inventory --</option>
+                            {data.inventory.map((p: any) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} {p.brand ? `[${p.brand}]` : ''} - {formatCurrency(p.price)} (Stock: {p.quantity})
+                              </option>
+                            ))}
+                          </select>
+                          <input 
+                            type="text" 
+                            value={item.productName} 
+                            onChange={e => updateQuotationItem(index, 'productName', e.target.value)}
+                            placeholder="Custom Product Name"
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 font-medium"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Quantity */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-slate-500 mb-1">
+                          Quantity
+                        </label>
+                        <input 
+                          type="number" 
+                          min="1" 
+                          value={item.quantity} 
+                          onChange={e => updateQuotationItem(index, 'quantity', e.target.value)}
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold text-center" 
+                        />
+                      </div>
+
+                      {/* Unit Price */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-slate-500 mb-1">
+                          Unit Price
+                        </label>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          value={item.unitPrice || ''} 
+                          onChange={e => updateQuotationItem(index, 'unitPrice', e.target.value)}
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold" 
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      {/* Tax % */}
+                      <div className="sm:col-span-1">
+                        <label className="block text-[11px] font-medium text-slate-500 mb-1">Tax%</label>
+                        <input 
+                          type="number" 
+                          value={item.taxPercent} 
+                          onChange={e => updateQuotationItem(index, 'taxPercent', e.target.value)}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none text-center" 
+                          placeholder="0"
+                        />
+                      </div>
+
+                      {/* Item Total */}
+                      <div className="sm:col-span-2 text-right">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase">Total</div>
+                        <div className="text-sm font-black text-indigo-700 mt-1">
+                          {formatCurrency(lineTotal)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Discount & Calculation Breakdown */}
+          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Summary & Discount
+            </h4>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Discount Type
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewQuotation(prev => ({ ...prev, discountType: 'percentage' }))}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      newQuotation.discountType === 'percentage'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    Percentage (%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewQuotation(prev => ({ ...prev, discountType: 'flat' }))}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      newQuotation.discountType === 'flat'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    Flat Amount
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Discount Value
+                </label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={newQuotation.discountValue} 
+                  onChange={e => setNewQuotation({...newQuotation, discountValue: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-bold" 
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Global Tax %
+                </label>
+                <input 
+                  type="number" 
+                  value={newQuotation.taxPercent} 
+                  onChange={e => setNewQuotation({...newQuotation, taxPercent: e.target.value})}
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-bold" 
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            {/* Calculated Values Summary Cards */}
+            {(() => {
+              const validItems = newQuotation.items.filter(i => i.productName || i.productId);
+              const subtotal = calculateQuotationSubtotal(validItems);
+              const discountAmt = calculateQuotationDiscount(subtotal, newQuotation.discountType, newQuotation.discountValue);
+              const taxAmt = calculateQuotationTax(validItems, newQuotation.taxPercent);
+              const grandTotal = Math.max(0, subtotal - discountAmt + taxAmt);
+
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-200">
+                  <div className="bg-white p-3 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Subtotal</span>
+                    <span className="text-sm font-bold text-slate-800">{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-amber-500 font-bold uppercase block">Discount</span>
+                    <span className="text-sm font-bold text-amber-600">-{formatCurrency(discountAmt)}</span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Tax/VAT</span>
+                    <span className="text-sm font-bold text-slate-800">+{formatCurrency(taxAmt)}</span>
+                  </div>
+                  <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-200/80">
+                    <span className="text-[10px] text-indigo-700 font-bold uppercase block">Total Amount</span>
+                    <span className="text-base font-black text-indigo-700">{formatCurrency(grandTotal)}</span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Terms & Conditions / Notes */}
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Terms & Conditions / Notes
+            </label>
+            <textarea 
+              rows={3} 
+              value={newQuotation.notes} 
+              onChange={e => setNewQuotation({...newQuotation, notes: e.target.value})}
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-xs leading-relaxed" 
+              placeholder="Terms and conditions..."
+            />
+          </div>
+
+          {/* Form Actions */}
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+            <button 
+              type="button" 
+              onClick={() => setIsQuotationModalOpen(false)}
+              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-100 active:scale-95 transition-all cursor-pointer"
+            >
+              <CheckCircle2 size={16} />
+              <span>{editingQuotationId ? 'Update Quotation' : 'Save Quotation'}</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* --- QUOTATION BARCODE SCANNER --- */}
+      {isQuotationScannerOpen && (
+        <QRScanner 
+          onScan={(code) => {
+            const res = handleQuotationScan(code);
+            if (res === 'added' || res === 'updated') {
+              setIsQuotationScannerOpen(false);
+            }
+            return res;
+          }} 
+          onClose={() => setIsQuotationScannerOpen(false)} 
+          inventory={data.inventory} 
+        />
+      )}
+
+      {/* --- QUOTATION PREVIEW & ACTIONS MODAL --- */}
+      <QuotationModal 
+        isOpen={isQuotationPreviewModalOpen} 
+        onClose={() => setIsQuotationPreviewModalOpen(false)} 
+        quotation={selectedQuotation} 
+        onConvertToSale={handleConvertToSale}
+      />
+
+      {isScannerOpen && (
+        <QRScanner onScan={handleScan} onClose={() => setIsScannerOpen(false)} inventory={data.inventory} />
+      )}
+
+      <InvoiceModal 
+        isOpen={isInvoiceModalOpen} 
+        onClose={() => setIsInvoiceModalOpen(false)} 
+        sale={selectedSale} 
+      />
+    </div>
+  );
+};
+
+const Suppliers = ({ data }: any) => {
+  const { hasPermission } = useAuth();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
+  const [newSupplier, setNewSupplier] = useState({ name: '', category: '', contact: '', address: '' });
+  const { formatCurrency } = useCurrency();
+
+  const handleAdd = (e: FormEvent) => {
+    e.preventDefault();
+    data.addSupplier(newSupplier);
+    setNewSupplier({ name: '', category: '', contact: '', address: '' });
+    setIsModalOpen(false);
+  };
+
+  const handleView = (supplier: any) => {
+    setSelectedSupplier(supplier);
+    setIsViewModalOpen(true);
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader 
+        title="Suppliers" 
+        description="Manage your supply chain partners." 
+        action={hasPermission('suppliers', 'edit') ? "Add Supplier" : null} 
+        onAction={() => setIsModalOpen(true)}
+      />
+      {data.suppliers.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {data.suppliers.map((item: any) => (
+            <Card key={item.id} className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Truck size={24} />
+                </div>
+                {hasPermission('suppliers', 'delete') && (
+                  <button 
+                    onClick={() => data.deleteItem('suppliers', item.id, data.setSuppliers)}
+                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <h4 className="font-bold text-lg text-slate-900">{item.name}</h4>
+              <p className="text-sm text-slate-500 mb-4">{item.category}</p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Users size={14} className="shrink-0" /> <span>Contact: {item.contact}</span>
+                </div>
+                {item.address && (
+                  <div className="flex items-start gap-2 text-sm text-slate-600">
+                    <MapPin size={14} className="mt-1 shrink-0" /> 
+                    <span>{item.address}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-6">
+                <button 
+                  onClick={() => handleView(item)}
+                  className="flex-1 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors"
+                >
+                  View Details
+                </button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <EmptyState 
+            icon={Truck} 
+            title="No suppliers yet" 
+            description="Keep track of your vendors and supply chain partners here."
+            action={hasPermission('suppliers', 'edit') ? "Add Supplier" : null}
+            onAction={() => setIsModalOpen(true)}
+          />
+        </Card>
+      )}
+
+      {/* View Supplier Modal */}
+      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Supplier Details">
+        {selectedSupplier && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="w-16 h-16 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-2xl font-bold">
+                <Truck size={32} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">{selectedSupplier.name}</h3>
+                <p className="text-sm text-slate-500">{selectedSupplier.category}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Contact Information</p>
+                <div className="flex items-center gap-2 text-slate-700">
+                  <Users size={16} className="text-blue-500" />
+                  <span>{selectedSupplier.contact}</span>
+                </div>
+              </div>
+              
+              {selectedSupplier.address && (
+                <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Office Address</p>
+                  <div className="flex items-start gap-2 text-slate-700">
+                    <MapPin size={16} className="text-blue-500 mt-1" />
+                    <span>{selectedSupplier.address}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="pt-4 border-t border-slate-100">
+              <button 
+                onClick={() => setIsViewModalOpen(false)}
+                className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Supplier">
+        <form onSubmit={handleAdd} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Supplier Name</label>
+            <input 
+              type="text" required 
+              value={newSupplier.name} onChange={e => setNewSupplier({...newSupplier, name: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              placeholder="Enter supplier name"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+            <input 
+              type="text" required 
+              value={newSupplier.category} onChange={e => setNewSupplier({...newSupplier, category: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              placeholder="e.g. Electronics, Furniture"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Contact Info</label>
+            <input 
+              type="text" required 
+              value={newSupplier.contact} onChange={e => setNewSupplier({...newSupplier, contact: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              placeholder="Phone or Email"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+            <textarea 
+              rows={3}
+              value={newSupplier.address} onChange={e => setNewSupplier({...newSupplier, address: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none resize-none" 
+              placeholder="Enter supplier address"
+            />
+          </div>
+          <button type="submit" className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all mt-4">
+            Save Supplier
+          </button>
+        </form>
+      </Modal>
+    </div>
+  );
+};
+
+const Customers = ({ data }: any) => {
+  const { hasPermission } = useAuth();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [newCustomer, setNewCustomer] = useState({ name: '', email: '', phone: '', address: '', orders: '0', spent: '0' });
+  const { t, lang } = useTranslation();
+  const { formatCurrency, toBengaliNumber } = useCurrency();
+
+  const handleAdd = (e: FormEvent) => {
+    e.preventDefault();
+    data.addCustomer({
+      ...newCustomer,
+      orders: parseInt(newCustomer.orders),
+      spent: parseFloat(newCustomer.spent)
+    });
+    setNewCustomer({ name: '', email: '', phone: '', address: '', orders: '0', spent: '0' });
+    setIsModalOpen(false);
+  };
+
+  const handleView = (customer: any) => {
+    setSelectedCustomer(customer);
+    setIsViewModalOpen(true);
+  };
+
+  const customerSales = selectedCustomer 
+    ? data.sales.filter((s: any) => s.customerName === selectedCustomer.name || s.customerPhone === selectedCustomer.phone)
+    : [];
+
+  return (
+    <div className="space-y-6">
+      <PageHeader 
+        title="Customers" 
+        description="Build and maintain customer relationships." 
+        action={hasPermission('customers', 'edit') ? "Add Customer" : null} 
+        onAction={() => setIsModalOpen(true)}
+      />
+      <Card>
+        {data.customers.length > 0 ? (
+          <Table headers={['Customer Name', 'Contact Info', 'Total Orders', 'Total Spent', 'Due Amount', 'Actions']}>
+            {[...data.customers].sort((a: any, b: any) => b.id.localeCompare(a.id)).map((item: any) => (
+              <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold">{(item.name || 'U')[0]}</div>
+                    <div className="font-medium text-slate-900">{item.name}</div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-sm text-slate-600">
+                  <div>{item.email}</div>
+                  <div>{item.phone}</div>
+                  {item.address && <div className="text-xs text-slate-400 italic">{item.address}</div>}
+                </td>
+                <td className="px-6 py-4 text-sm text-slate-600">{item.orders}</td>
+                <td className="px-6 py-4 font-semibold text-slate-900">{formatCurrency(item.spent)}</td>
+                <td className="px-6 py-4">
+                  {Number(item.due) > 0 ? (
+                    <span className="inline-flex items-center gap-1 font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md text-xs">
+                      <AlertCircle size={10} />
+                      {formatCurrency(item.due)}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-400 font-medium">{formatCurrency(0)}</span>
+                  )}
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => handleView(item)}
+                      className="text-emerald-600 hover:text-emerald-700 font-medium text-sm"
+                    >
+                      View
+                    </button>
+                    {hasPermission('customers', 'delete') && (
+                      <button 
+                        onClick={() => data.deleteItem('customers', item.id, data.setCustomers)}
+                        className="text-red-600 hover:text-red-700 font-medium text-sm"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </Table>
+        ) : (
+          <EmptyState 
+            icon={Users} 
+            title="No customers yet" 
+            description="Your customer database will grow as you record more sales."
+            action="Add Customer"
+            onAction={() => setIsModalOpen(true)}
+          />
+        )}
+      </Card>
+
+      {/* View Customer Modal */}
+      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Customer Details">
+        {selectedCustomer && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl font-bold">
+                {selectedCustomer.name[0]}
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">{selectedCustomer.name}</h3>
+                <p className="text-sm text-slate-500">{selectedCustomer.email}</p>
+                <p className="text-sm text-slate-500">{selectedCustomer.phone}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Orders</p>
+                <p className="text-2xl font-bold text-slate-900">{selectedCustomer.orders}</p>
+              </div>
+              <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Spent</p>
+                <p className="text-2xl font-bold text-emerald-600">{formatCurrency(selectedCustomer.spent)}</p>
+              </div>
+            </div>
+
+            {selectedCustomer.address && (
+              <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Address</p>
+                <p className="text-sm text-slate-600">{selectedCustomer.address}</p>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Purchase History</h4>
+              {customerSales.length > 0 ? (
+                <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                  {customerSales.map((sale: any) => (
+                    <div key={sale.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">Invoice #{sale.id.slice(-6).toUpperCase()}</p>
+                        <p className="text-xs text-slate-500">{sale.date}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-emerald-600">{formatCurrency(sale.total)}</p>
+                        <p className="text-[10px] text-slate-400">
+                          {sale.items 
+                            ? sale.items.reduce((s: number, i: any) => s + (Number(i.quantity) || 1), 0)
+                            : (Number(sale.quantity) || 1)} {lang === 'bn' ? 'টি পণ্য' : 'items'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400 italic">No purchase history found.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Customer">
+        <form onSubmit={handleAdd} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Customer Name</label>
+            <input 
+              type="text" required 
+              value={newCustomer.name} onChange={e => setNewCustomer({...newCustomer, name: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+            <input 
+              type="email" required 
+              value={newCustomer.email} onChange={e => setNewCustomer({...newCustomer, email: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+            <input 
+              type="text" required 
+              value={newCustomer.phone} onChange={e => setNewCustomer({...newCustomer, phone: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+            <input 
+              type="text" 
+              value={newCustomer.address} onChange={e => setNewCustomer({...newCustomer, address: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              placeholder="Enter customer address"
+            />
+          </div>
+          <button type="submit" className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all mt-4">
+            Save Customer
+          </button>
+        </form>
+      </Modal>
+    </div>
+  );
+};
+
+const Expenses = ({ data }: any) => {
+  const { hasPermission } = useAuth();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { formatCurrency } = useCurrency();
+  const [newExpense, setNewExpense] = useState({ 
+    category: '', 
+    description: '', 
+    amount: '', 
+    date: getTodayStr(),
+    employeeName: '',
+    employeePhone: ''
+  });
+
+  const handleAdd = (e: FormEvent) => {
+    e.preventDefault();
+    data.addExpense({
+      ...newExpense,
+      amount: parseFloat(newExpense.amount)
+    });
+    setNewExpense({ 
+      category: '', 
+      description: '', 
+      amount: '', 
+      date: getTodayStr(),
+      employeeName: '',
+      employeePhone: ''
+    });
+    setIsModalOpen(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader 
+        title="Expenses" 
+        description="Track your business spending and overhead." 
+        action={hasPermission('expenses', 'edit') ? "Add Expense" : null} 
+        onAction={() => setIsModalOpen(true)}
+      />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <Card>
+            {data.expenses.length > 0 ? (
+              <Table headers={['Date', 'Category', 'Description', 'Amount', 'Actions']}>
+                {[...data.expenses].sort((a: any, b: any) => b.id.localeCompare(a.id)).map((item: any) => (
+                  <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
+                    <td className="px-6 py-4">
+                      <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full">{item.category}</span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      <div>{item.description}</div>
+                      {item.category === 'Salaries' && (item.employeeName || item.employeePhone) && (
+                        <div className="text-xs text-slate-400 mt-1">
+                          {item.employeeName && <span>Emp: {item.employeeName}</span>}
+                          {item.employeePhone && <span className="ml-2">({item.employeePhone})</span>}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 font-semibold text-red-600">-{formatCurrency(item.amount)}</td>
+                    <td className="px-6 py-4">
+                      {hasPermission('expenses', 'delete') && (
+                        <button 
+                          onClick={() => data.deleteItem('expenses', item.id, data.setExpenses)}
+                          className="text-red-600 hover:text-red-700 font-medium text-sm"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+            ) : (
+              <EmptyState 
+                icon={Receipt} 
+                title="No expenses recorded" 
+                description="Keep your finances in check by tracking your business overhead."
+                action="Add Expense"
+                onAction={() => setIsModalOpen(true)}
+              />
+            )}
+          </Card>
+        </div>
+        <Card className="p-6">
+          <h3 className="font-bold text-slate-900 mb-4">Expense Breakdown</h3>
+          {data.expenses.length > 0 ? (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                <span className="text-sm text-slate-600 font-medium">Total Expenses</span>
+                <span className="text-lg font-bold text-red-600">-{formatCurrency(data.expenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0))}</span>
+              </div>
+              <div className="pt-4 border-t border-slate-100">
+                <p className="text-xs text-slate-400 uppercase font-bold mb-3 tracking-wider">By Category</p>
+                <div className="space-y-3">
+                  {Object.entries(
+                    data.expenses.reduce((acc: any, e: any) => {
+                      acc[e.category] = (acc[e.category] || 0) + e.amount;
+                      return acc;
+                    }, {})
+                  ).map(([category, amount]: [string, any]) => (
+                    <div key={category} className="flex justify-between text-sm">
+                      <span className="text-slate-600">{category}</span>
+                      <span className="font-semibold text-slate-900">{formatCurrency(amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-sm text-slate-500">No data to display.</p>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Record New Expense">
+        <form onSubmit={handleAdd} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+            <select 
+              required 
+              value={newExpense.category} onChange={e => setNewExpense({...newExpense, category: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none"
+            >
+              <option value="">Select Category</option>
+              <option value="Rent">Rent</option>
+              <option value="Utilities">Utilities</option>
+              <option value="Salaries">Salaries</option>
+              <option value="Supplies">Supplies</option>
+              <option value="Marketing">Marketing</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+            <input 
+              type="text" required 
+              value={newExpense.description} onChange={e => setNewExpense({...newExpense, description: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              placeholder={newExpense.category === 'Salaries' ? "e.g. March Salary" : "Expense description"}
+            />
+          </div>
+          {newExpense.category === 'Salaries' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Employee Name</label>
+                <input 
+                  type="text" required={newExpense.category === 'Salaries'}
+                  value={newExpense.employeeName} onChange={e => setNewExpense({...newExpense, employeeName: e.target.value})}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                  placeholder="Enter employee name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Employee Phone</label>
+                <input 
+                  type="tel" 
+                  value={newExpense.employeePhone} onChange={e => setNewExpense({...newExpense, employeePhone: e.target.value})}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                  placeholder="017XXXXXXXX"
+                />
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
+              <input 
+                type="number" step="0.01" required 
+                value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: e.target.value})}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+              <input 
+                type="date" required 
+                value={newExpense.date} onChange={e => setNewExpense({...newExpense, date: e.target.value})}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              />
+            </div>
+          </div>
+          <button type="submit" className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all mt-4">
+            Save Expense
+          </button>
+        </form>
+      </Modal>
+    </div>
+  );
+};
+
+const Returns = ({ data }: any) => {
+  const { t, lang } = useTranslation();
+  const { hasPermission } = useAuth();
+  const [invoiceNo, setInvoiceNo] = useState('');
+  const [foundSale, setFoundSale] = useState<any>(null);
+  const [searchError, setSearchError] = useState('');
+  const [returnType, setReturnType] = useState<'Return' | 'Replace'>('Return');
+  const [reason, setReason] = useState('');
+  const [replaceAmount, setReplaceAmount] = useState('0');
+  const [replacementProduct, setReplacementProduct] = useState('');
+  const [replacementSerial, setReplacementSerial] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { formatCurrency, toBengaliNumber } = useCurrency();
+
+  const handleSearch = () => {
+    setSearchError('');
+    setFoundSale(null);
+    const cleanInp = invoiceNo.replace('INV-', '').toUpperCase();
+    const sale = data.sales.find((s: any) => 
+      (s.invoiceNo && s.invoiceNo.toUpperCase().includes(cleanInp)) || 
+      s.id.toUpperCase().endsWith(cleanInp) ||
+      s.id === invoiceNo
+    );
+    if (sale) {
+      setFoundSale(sale);
+    } else {
+      setSearchError('Invoice not found. Search by last 4-6 digits of Invoice #');
+    }
+  };
+
+  const handleProcess = async () => {
+    if (!foundSale) return;
+    setIsProcessing(true);
+    
+    try {
+      const returnId = `${Date.now()}`;
+      // Negative for money out (Refund), Positive for money in (Extra)
+      const amount = returnType === 'Return' ? -foundSale.total : parseFloat(replaceAmount);
+      
+      const returnData = {
+        id: returnId,
+        invoiceNo: foundSale.invoiceNo || foundSale.id,
+        customerName: foundSale.customerName,
+        totalAmount: amount,
+        reason,
+        type: returnType,
+        replacementProduct: returnType === 'Replace' ? replacementProduct : '',
+        replacementSerial: returnType === 'Replace' ? replacementSerial : '',
+        date: getTodayStr()
+      };
+
+      await data.addReturn(returnData);
+
+      alert(`${returnType} processed successfully! Full refund of ${formatCurrency(amount)} has been recorded.`);
+      setFoundSale(null);
+      setInvoiceNo('');
+      setReason('');
+      setReplaceAmount('0');
+      setReplacementProduct('');
+      setReplacementSerial('');
+      if (data.fetchData) data.fetchData();
+    } catch (e) {
+      alert('Error processing return.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader 
+        title={t('returns')} 
+        description="Handle customer returns and product replacements." 
+      />
+      
+      {!foundSale && (
+        <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl mb-6 flex items-center gap-3 text-blue-700">
+          <AlertCircle size={20} />
+          <p className="text-sm font-medium">
+            {lang === 'bn' 
+              ? "ইনভয়েস নম্বর দিয়ে সার্চ করুন - এরপর আপনি রিটার্ন বা রিপ্লেস অপশনগুলো দেখতে পাবেন।" 
+              : t('searchInvoice') + " to see return/replace options."}
+          </p>
+        </div>
+      )}
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          <Card className="p-6">
+            <h3 className="font-bold text-slate-900 mb-4">{t('searchInvoice')}</h3>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input 
+                  type="text" 
+                  placeholder={t('searchInvoice') + "..."} 
+                  value={invoiceNo}
+                  onChange={(e) => setInvoiceNo(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
+              <button 
+                onClick={handleSearch}
+                className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+              >
+                {t('process')}
+              </button>
+            </div>
+            {searchError && <p className="text-xs text-red-500 mt-2 font-medium">{searchError}</p>}
+          </Card>
+
+          {foundSale && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <Card className="p-6 border-l-4 border-l-emerald-500">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900">{foundSale.customerName}</h3>
+                    <p className="text-sm text-slate-500">Invoice: #{foundSale.id.slice(-6).toUpperCase()}</p>
+                    <p className="text-sm text-slate-500">Date: {foundSale.date}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-slate-400 uppercase">Sale Amount</p>
+                    <p className="text-2xl font-black text-emerald-600">{formatCurrency(foundSale.total)}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex p-1 bg-slate-100 rounded-xl">
+                    <button 
+                      onClick={() => setReturnType('Return')}
+                      className={cn(
+                        "flex-1 py-2 text-sm font-bold rounded-lg transition-all",
+                        returnType === 'Return' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                      )}
+                    >
+                      {t('totalReturn')}
+                    </button>
+                    <button 
+                      onClick={() => setReturnType('Replace')}
+                      className={cn(
+                        "flex-1 py-2 text-sm font-bold rounded-lg transition-all",
+                        returnType === 'Replace' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                      )}
+                    >
+                      {t('replaceItem')}
+                    </button>
+                  </div>
+
+                  {returnType === 'Replace' && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          {t('adjustmentAmount')}
+                        </label>
+                        
+                        <div className="flex p-1 bg-slate-100 rounded-xl mb-3">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const mag = Math.abs(parseFloat(replaceAmount) || 0);
+                              setReplaceAmount(mag.toString());
+                            }}
+                            className={cn(
+                              "flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all flex items-center justify-center gap-1",
+                              parseFloat(replaceAmount) >= 0 ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500"
+                            )}
+                          >
+                            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                            {t('extra')} (+)
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const mag = Math.abs(parseFloat(replaceAmount) || 0);
+                              setReplaceAmount((mag * -1).toString());
+                            }}
+                            className={cn(
+                              "flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all flex items-center justify-center gap-1",
+                              parseFloat(replaceAmount) < 0 ? "bg-white text-red-600 shadow-sm" : "text-slate-500"
+                            )}
+                          >
+                            <div className="w-2 h-2 rounded-full bg-red-500" />
+                            {t('refund')} (-)
+                          </button>
+                        </div>
+
+                        <div className="relative">
+                          <input 
+                            type="number" step="0.01"
+                            value={Math.abs(parseFloat(replaceAmount))}
+                            onChange={(e) => {
+                              const mag = Math.abs(parseFloat(e.target.value) || 0);
+                              const currentSign = parseFloat(replaceAmount) < 0 ? -1 : 1;
+                              setReplaceAmount((mag * currentSign).toString());
+                            }}
+                            className={cn(
+                              "w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 font-bold text-lg",
+                              parseFloat(replaceAmount) < 0 
+                                ? "bg-red-50/30 border-red-200 focus:ring-red-500/20 text-red-700" 
+                                : "bg-emerald-50/30 border-emerald-200 focus:ring-emerald-500/20 text-emerald-700"
+                            )}
+                            placeholder="0.00"
+                          />
+                          <div className={cn(
+                            "absolute right-3 top-1/2 -translate-y-1/2 font-black text-xs uppercase",
+                            parseFloat(replaceAmount) < 0 ? "text-red-500" : "text-emerald-500"
+                          )}>
+                            {parseFloat(replaceAmount) < 0 ? t('refund') : t('extra')}
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-2">
+                          {lang === 'bn' 
+                            ? (parseFloat(replaceAmount) < 0 
+                              ? "গ্রাহককে টাকা ফেরত দিলে (Refund) অপশনটি ব্যবহার করুন।" 
+                              : "গ্রাহক বাড়তি টাকা দিলে (Extra) অপশনটি ব্যবহার করুন।")
+                            : (parseFloat(replaceAmount) < 0
+                              ? "Select Refund if you are returning money to the customer."
+                              : "Select Extra if the customer is paying an additional amount.")
+                          }
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">{t('replacementProduct')}</label>
+                        <input 
+                          type="text"
+                          list="replace-product-list"
+                          value={replacementProduct}
+                          onChange={(e) => setReplacementProduct(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          placeholder={t('replacementProduct')}
+                        />
+                        <datalist id="replace-product-list">
+                          {data.inventory.map((p: any) => (
+                            <option key={p.id} value={p.name}>
+                              {p.name} - Stock: {p.quantity}
+                            </option>
+                          ))}
+                        </datalist>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Replacement Serial Number (Optional)</label>
+                        <input 
+                          type="text"
+                          list="replace-serial-list"
+                          value={replacementSerial}
+                          onChange={(e) => setReplacementSerial(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          placeholder="SN-XXXXX"
+                        />
+                        <datalist id="replace-serial-list">
+                          {Array.from(new Set(data.sales.flatMap((s: any) => (s.items || []).map((i: any) => i.serialNumber)).filter(Boolean))).map((sn: any) => (
+                            <option key={sn} value={sn} />
+                          ))}
+                        </datalist>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('reasonFor')} {returnType}</label>
+                    <textarea 
+                      rows={3}
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 resize-none"
+                      placeholder={`Why is the customer ${returnType.toLowerCase()}ing?`}
+                    />
+                  </div>
+
+                  <button 
+                    onClick={handleProcess}
+                    disabled={isProcessing || !reason || !hasPermission('returns', 'edit')}
+                    className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-600/10 disabled:opacity-50"
+                  >
+                    {isProcessing ? "Processing..." : `${t('process')} ${returnType}`}
+                  </button>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <Card className="p-6">
+            <h3 className="font-bold text-slate-900 mb-6">{t('recentRecords')}</h3>
+            {data.returns.length > 0 ? (
+              <div className="space-y-4">
+                {[...data.returns].sort((a,b) => b.id.localeCompare(a.id)).slice(0, 10).map((ret: any) => (
+                  <div key={ret.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900">{ret.customerName}</span>
+                        <span className={cn(
+                          "px-2 py-0.5 text-[10px] font-black rounded-full uppercase",
+                          ret.type === 'Return' ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"
+                        )}>{ret.type}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">Inv: #{(ret.invoiceNo || '').slice(-6)} • {ret.date}</p>
+                      <p className="text-[10px] text-slate-400 mt-1 italic">"{ret.reason}"</p>
+                    </div>
+                    <div className="text-right flex items-center gap-3">
+                      <p className={cn(
+                        "font-bold",
+                        ret.totalAmount < 0 ? "text-red-500" : "text-emerald-500"
+                      )}>
+                        {ret.totalAmount < 0 ? '-' : '+'}{formatCurrency(Math.abs(ret.totalAmount))}
+                      </p>
+                      {hasPermission('returns', 'delete') && (
+                        <button 
+                          onClick={() => data.deleteItem('returns', ret.id, data.setReturns)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-100 rounded-xl transition-all"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-slate-400">
+                <RotateCcw className="mx-auto mb-3 opacity-20" size={48} />
+                <p>No records found.</p>
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Reports = ({ data, user: propUser }: any) => {
+  const { user: authUser } = useAuth();
+  const currentUser = propUser || authUser;
+  const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days' | 'custom'>('30days');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [isExporting, setIsExporting] = useState(false);
+  const [downloadSuccessMessage, setDownloadSuccessMessage] = useState<string | null>(null);
+  const reportsRef = useRef<HTMLDivElement>(null);
+  const { t, lang } = useTranslation();
+  const { formatCurrency, toBengaliNumber } = useCurrency();
+
+  // Helper to filter by date
+  const isWithinRange = (dateStr: string) => {
+    if (!dateStr) return false;
+    
+    // Parse YYYY-MM-DD as local date to avoid timezone shift issues with new Date(dateStr)
+    const parts = dateStr.split('-');
+    let date: Date;
+    if (parts.length === 3) {
+      date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    } else {
+      date = new Date(dateStr);
+    }
+    date.setHours(0, 0, 0, 0);
+    
+    if (timeFilter === 'custom') {
+      if (!startDate && !endDate) return true;
+      const start = startDate ? new Date(startDate) : null;
+      if (start) start.setHours(0, 0, 0, 0);
+      const end = endDate ? new Date(endDate) : null;
+      if (end) end.setHours(23, 59, 59, 999);
+      
+      if (start && end) {
+        return date >= start && date <= end;
+      } else if (start) {
+        return date >= start;
+      } else if (end) {
+        return date <= end;
+      }
+      return true;
+    }
+    
+    const rangeDate = new Date();
+    rangeDate.setHours(0, 0, 0, 0);
+    
+    if (timeFilter === '7days') rangeDate.setDate(rangeDate.getDate() - 7);
+    else if (timeFilter === '30days') rangeDate.setDate(rangeDate.getDate() - 30);
+    // else if 'today', rangeDate is already today at 00:00:00
+    
+    return date >= rangeDate;
+  };
+
+  const filteredSales = data.sales.filter((s: any) => isWithinRange(s.date));
+  const filteredExpenses = data.expenses.filter((e: any) => isWithinRange(e.date));
+  const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r.date));
+
+  // Consistent calculations matching Dashboard
+  const { totalSalesProfit, totalSalesLoss, totalSalesGross } = calculateSalesProfitAndLoss(filteredSales, data.inventory);
+
+  const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
+  const totalRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
+  const totalExtraIncome = filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  
+  const totalReturnsNet = filteredReturns.reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  const totalRevenue = totalSalesGross + totalReturnsNet;
+
+  // Consistent calculation reflecting Profit and Loss with automatic loss coverage offset
+  const grossSalesProfit = totalSalesProfit + totalExtraIncome;
+  const grossSalesLoss = totalSalesLoss;
+  const currentProfit = Math.max(0, grossSalesProfit - grossSalesLoss);
+  const currentLoss = Math.max(0, grossSalesLoss - grossSalesProfit);
+  const finalNet = (grossSalesProfit - grossSalesLoss) - totalExpenses - totalRefunds;
+  const netProfit = finalNet;
+
+  // Group sales by date for a simple chart
+  const salesByDate = data.sales.reduce((acc: any, s: any) => {
+    acc[s.date] = (acc[s.date] || 0) + s.total;
+    return acc;
+  }, {});
+
+  const chartData = Object.entries(salesByDate)
+    .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+    .slice(-7);
+
+  const exportPDF = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const bName = currentUser?.businessName || 'GreensDesigner';
+      const bPhone = currentUser?.phone || '';
+      const bEmail = currentUser?.email || '';
+      const bAddress = currentUser?.address || '';
+
+      const periodLabel = timeFilter === 'custom' 
+        ? `${startDate || 'Start'} to ${endDate || 'End'}` 
+        : timeFilter === 'today' ? 'Today' 
+        : timeFilter === '7days' ? 'Last 7 Days' 
+        : 'Last 30 Days';
+
+      const safeRevenue = Number(totalRevenue || 0);
+      const safeNetProfit = Number(netProfit || 0);
+      const safeCurrentProfit = Number(currentProfit || 0);
+      const safeCurrentLoss = Number(currentLoss || 0);
+      const safeExpenses = Number(totalExpenses || 0);
+      const safeSalesCount = filteredSales?.length || 0;
+      const safeExpensesCount = filteredExpenses?.length || 0;
+      const safeInventoryTotal = data?.inventory?.length || 0;
+      const safeLowStock = (data?.inventory || []).filter((i: any) => Number(i.quantity || 0) <= Number(i.minStock || 5)).length;
+      const safeAdequateStock = Math.max(0, safeInventoryTotal - safeLowStock);
+      const safeExpenseRatio = safeRevenue > 0 ? ((safeExpenses / safeRevenue) * 100).toFixed(1) : '0';
+
+      const fileName = `Statement-${bName.trim().replace(/[^a-zA-Z0-9_-]/g, '_')}-${timeFilter}.pdf`;
+
+      let generated = false;
+
+      // Primary visual capture with html2canvas if DOM element exists
+      if (reportsRef.current) {
+        try {
+          const element = reportsRef.current;
+          const buttonsToHide = element.querySelectorAll('.no-pdf-export');
+          buttonsToHide.forEach((btn: any) => {
+            btn.setAttribute('data-original-display', btn.style.display);
+            btn.style.setProperty('display', 'none', 'important');
+          });
+
+          await new Promise(resolve => setTimeout(resolve, 80));
+
+          const h2c = typeof html2canvas === 'function' ? html2canvas : (html2canvas as any)?.default;
+          if (typeof h2c === 'function') {
+            const canvas = await h2c(element, {
+              scale: 1.5,
+              useCORS: true,
+              backgroundColor: '#f8fafc',
+              allowTaint: false,
+              logging: false
+            });
+
+            buttonsToHide.forEach((btn: any) => {
+              const orig = btn.getAttribute('data-original-display');
+              btn.style.display = orig || '';
+            });
+
+            if (canvas && canvas.width > 0 && canvas.height > 0) {
+              const imgData = canvas.toDataURL('image/jpeg', 0.95);
+              const pdf = new jsPDF({
+                orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+                unit: 'px',
+                format: [canvas.width, canvas.height]
+              });
+              pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+              pdf.save(fileName);
+              generated = true;
+            }
+          }
+        } catch (captureErr) {
+          console.warn("Visual capture fallback triggered, generating Vector Statement PDF:", captureErr);
+        }
+      }
+
+      // If visual capture was not generated, build the clean vector Business Statement PDF
+      if (!generated) {
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+
+        // Dark banner header
+        pdf.setFillColor(15, 23, 42); // slate-900
+        pdf.rect(0, 0, pageWidth, 34, 'F');
+
+        // Business Name
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(18);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(bName, 14, 14);
+
+        // Header Subtitles
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(203, 213, 225);
+        pdf.text(`Statement Period: ${periodLabel}   |   Generated: ${new Date().toLocaleString()}`, 14, 22);
+
+        const contactParts = [bPhone ? `Phone: ${bPhone}` : '', bEmail ? `Email: ${bEmail}` : '', bAddress ? `Address: ${bAddress}` : ''].filter(Boolean);
+        if (contactParts.length > 0) {
+          pdf.setFontSize(8);
+          pdf.setTextColor(148, 163, 184);
+          pdf.text(contactParts.join('   |   '), 14, 28);
+        }
+
+        // Section Title
+        let currentY = 44;
+        pdf.setTextColor(15, 23, 42);
+        pdf.setFontSize(13);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Financial Statement Summary', 14, currentY);
+
+        currentY += 6;
+        const summaryCards = [
+          { label: 'Net Profit / Balance', val: `${safeNetProfit >= 0 ? '+$' : '-$'}${Math.abs(safeNetProfit).toFixed(2)}`, bg: [236, 253, 245], textCol: [5, 150, 105] },
+          { label: 'Net Revenue (Sales)', val: `$${safeRevenue.toFixed(2)}`, bg: [248, 250, 252], textCol: [15, 23, 42] },
+          { label: 'Current Profit', val: `$${safeCurrentProfit.toFixed(2)}`, bg: [236, 253, 245], textCol: [5, 150, 105] },
+          { label: 'Current Loss', val: `$${safeCurrentLoss.toFixed(2)}`, bg: [254, 242, 242], textCol: [220, 38, 38] },
+          { label: 'Total Expenses', val: `$${safeExpenses.toFixed(2)}`, bg: [248, 250, 252], textCol: [15, 23, 42] },
+          { label: 'Expense Ratio', val: `${safeExpenseRatio}%`, bg: [248, 250, 252], textCol: [15, 23, 42] },
+        ];
+
+        const cardWidth = (pageWidth - 28 - 10) / 2;
+        summaryCards.forEach((c, idx) => {
+          const col = idx % 2;
+          const row = Math.floor(idx / 2);
+          const x = 14 + col * (cardWidth + 10);
+          const y = currentY + row * 20;
+
+          pdf.setFillColor(c.bg[0], c.bg[1], c.bg[2]);
+          pdf.roundedRect(x, y, cardWidth, 16, 2, 2, 'F');
+
+          pdf.setFontSize(8.5);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(100, 116, 139);
+          pdf.text(c.label, x + 5, y + 5.5);
+
+          pdf.setFontSize(11.5);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(c.textCol[0], c.textCol[1], c.textCol[2]);
+          pdf.text(c.val, x + 5, y + 12.5);
+        });
+
+        currentY += Math.ceil(summaryCards.length / 2) * 20 + 8;
+
+        // Activity Overview
+        pdf.setTextColor(15, 23, 42);
+        pdf.setFontSize(13);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Activity & Performance Metrics', 14, currentY);
+
+        currentY += 6;
+        pdf.setFillColor(248, 250, 252);
+        pdf.roundedRect(14, currentY, pageWidth - 28, 22, 2, 2, 'F');
+
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(51, 65, 85);
+        pdf.text(`Total Sales / Invoices: ${safeSalesCount} orders   |   Expenses Recorded: ${safeExpensesCount} items`, 20, currentY + 8);
+        pdf.text(`Total Inventory Items: ${safeInventoryTotal}   |   Adequate Stock: ${safeAdequateStock}   |   Low Stock Alerts: ${safeLowStock}`, 20, currentY + 15);
+
+        currentY += 28;
+
+        // Recent Sales Table for Statement
+        const recentSales = (filteredSales || []).slice(0, 10);
+        if (recentSales.length > 0) {
+          pdf.setTextColor(15, 23, 42);
+          pdf.setFontSize(12);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('Statement Transactions Breakdown (Recent)', 14, currentY);
+
+          currentY += 5;
+
+          // Table Header
+          pdf.setFillColor(241, 245, 249); // slate-100
+          pdf.rect(14, currentY, pageWidth - 28, 7, 'F');
+          pdf.setFontSize(8);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(71, 85, 105);
+          pdf.text('Date', 18, currentY + 5);
+          pdf.text('Invoice #', 42, currentY + 5);
+          pdf.text('Customer', 82, currentY + 5);
+          pdf.text('Payment', 135, currentY + 5);
+          pdf.text('Total ($)', pageWidth - 22, currentY + 5, { align: 'right' });
+
+          currentY += 7;
+
+          recentSales.forEach((sale: any, idx: number) => {
+            if (currentY > pageHeight - 20) return;
+            const isEven = idx % 2 === 0;
+            if (isEven) {
+              pdf.setFillColor(255, 255, 255);
+            } else {
+              pdf.setFillColor(248, 250, 252);
+            }
+            pdf.rect(14, currentY, pageWidth - 28, 6.5, 'F');
+
+            pdf.setFontSize(7.5);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setTextColor(51, 65, 85);
+
+            pdf.text(String(sale.date || '').slice(0, 10), 18, currentY + 4.5);
+            pdf.text(String(sale.invoiceNumber || sale.id || 'N/A').slice(0, 14), 42, currentY + 4.5);
+            pdf.text(String(sale.customerName || 'Walk-in Customer').slice(0, 24), 82, currentY + 4.5);
+            pdf.text(String(sale.paymentMethod || 'Cash'), 135, currentY + 4.5);
+            pdf.text(Number(sale.total || 0).toFixed(2), pageWidth - 22, currentY + 4.5, { align: 'right' });
+
+            currentY += 6.5;
+          });
+        }
+
+        // Footer
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(148, 163, 184);
+        pdf.text(`This is a system-generated statement report for ${bName}. All rights reserved.`, 14, pageHeight - 8);
+
+        pdf.save(fileName);
+        generated = true;
+      }
+
+      // Success notification as requested by user in English
+      setDownloadSuccessMessage("PDF downloaded successfully");
+      setTimeout(() => setDownloadSuccessMessage(null), 5000);
+      setTimeout(() => {
+        alert("PDF downloaded successfully");
+      }, 250);
+
+    } catch (error) {
+      console.error("Reports PDF Export Error:", error);
+      // Failsafe direct download
+      try {
+        const fallbackPdf = new jsPDF('p', 'mm', 'a4');
+        fallbackPdf.setFontSize(16);
+        fallbackPdf.text(`${currentUser?.businessName || 'Business'} - Statement`, 14, 20);
+        fallbackPdf.setFontSize(10);
+        fallbackPdf.text(`Generated: ${new Date().toLocaleString()}`, 14, 30);
+        fallbackPdf.text(`Net Revenue: $${Number(totalRevenue || 0).toFixed(2)}`, 14, 40);
+        fallbackPdf.text(`Net Profit: $${Number(netProfit || 0).toFixed(2)}`, 14, 50);
+        fallbackPdf.save(`Statement-${timeFilter}.pdf`);
+        
+        setDownloadSuccessMessage("PDF downloaded successfully");
+        setTimeout(() => setDownloadSuccessMessage(null), 5000);
+        setTimeout(() => {
+          alert("PDF downloaded successfully");
+        }, 250);
+      } catch (fallbackError) {
+        alert("PDF download failed. Please try again.");
+      }
+    } finally {
+      setIsExporting(false);
+      if (reportsRef.current) {
+        const buttonsToHide = reportsRef.current.querySelectorAll('.no-pdf-export');
+        buttonsToHide.forEach((btn: any) => {
+          const orig = btn.getAttribute('data-original-display');
+          btn.style.display = orig || '';
+        });
+      }
+    }
+  };
+
+  return (
+    <div ref={reportsRef} className="space-y-6 p-2 bg-[#f8fafc]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <PageHeader title={t('reports')} description="Analyze your business performance over time." />
+        <div className="flex flex-wrap items-center gap-3 no-pdf-export">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit shrink-0">
+            <button 
+              onClick={() => setTimeFilter('today')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === 'today' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('today')}
+            </button>
+            <button 
+              onClick={() => setTimeFilter('7days')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === '7days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('last7Days')}
+            </button>
+            <button 
+              onClick={() => setTimeFilter('30days')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === '30days' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('last30Days')}
+            </button>
+            <button 
+              onClick={() => setTimeFilter('custom')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                timeFilter === 'custom' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {t('customDate')}
+            </button>
+          </div>
+
+          <button
+            onClick={exportPDF}
+            disabled={isExporting}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/10 transition-all cursor-pointer"
+          >
+            <Download size={14} />
+            {isExporting ? t('processing') : t('downloadPDF')}
+          </button>
+        </div>
+      </div>
+
+      {timeFilter === 'custom' && (
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-wrap items-center gap-4 no-pdf-export">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">{t('startDate')}:</span>
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">{t('endDate')}:</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* Business Statement Info Card */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          {currentUser?.logo ? (
+            <img 
+              src={currentUser.logo} 
+              alt="Logo" 
+              className="w-12 h-12 rounded-xl object-contain border border-slate-100 bg-slate-50 p-1 shrink-0" 
+              crossOrigin="anonymous" 
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xl shadow-md shadow-emerald-600/20 shrink-0">
+              {(currentUser?.businessName || 'GS').slice(0, 2).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 leading-tight">
+              {currentUser?.businessName || 'Business Statement Report'}
+            </h2>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              {currentUser?.phone ? `${currentUser.phone} • ` : ''}
+              {currentUser?.email || 'Statement generated from POS & Inventory'}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Statement: {timeFilter === 'custom' ? `${startDate || 'Start'} to ${endDate || 'End'}` : timeFilter === 'today' ? 'Today' : timeFilter === '7days' ? 'Last 7 Days' : 'Last 30 Days'}
+          </span>
+          <span className="text-xs text-slate-400 font-medium">
+            {new Date().toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+        <Card className="p-6">
+          <p className="text-sm text-slate-500 font-medium">Net Profit</p>
+          <h3 className={cn("text-2xl font-bold mt-1", netProfit >= 0 ? "text-emerald-600" : "text-red-600")}>
+            {netProfit >= 0 ? '' : '-'}{formatCurrency(Math.abs(netProfit))}
+          </h3>
+          <div className="mt-2 text-xs text-slate-400">
+            Final Balance
+          </div>
+        </Card>
+        <Card className="p-6">
+          <p className="text-sm text-slate-500 font-medium">{t('netRevenue')}</p>
+          <h3 className="text-2xl font-bold text-slate-900 mt-1">
+            {formatCurrency(totalRevenue)}
+          </h3>
+          <div className="mt-2 text-xs text-slate-400">
+            Total Sales
+          </div>
+        </Card>
+        <Card className="p-6">
+          <p className="text-sm font-medium text-emerald-600">{t('currentProfit')}</p>
+          <h3 className="text-2xl font-bold mt-1 text-emerald-600">
+            {formatCurrency(currentProfit)}
+          </h3>
+          <div className="mt-2 text-xs text-slate-400">
+            {lang === 'bn' ? 'বর্তমান লাভ (ক্ষতি সমন্বিত)' : 'Current Profit (after loss)'}
+          </div>
+        </Card>
+        <Card className="p-6">
+          <p className={cn("text-sm font-medium", currentLoss > 0 ? "text-red-600" : "text-slate-500")}>{t('currentLoss')}</p>
+          <h3 className={cn("text-2xl font-bold mt-1", currentLoss > 0 ? "text-red-600" : "text-slate-700")}>
+            {formatCurrency(currentLoss)}
+          </h3>
+          <div className="mt-2 text-xs text-slate-400">
+            {lang === 'bn' ? (currentLoss === 0 ? 'ক্ষতি কাভার্ড (০.০০)' : 'অবশিষ্ট ক্ষতি') : (currentLoss === 0 ? 'Loss Covered (0.00)' : 'Remaining Loss')}
+          </div>
+        </Card>
+        <Card className="p-6">
+          <p className="text-sm text-slate-500 font-medium">Expense Ratio</p>
+          <h3 className="text-2xl font-bold text-slate-900 mt-1">
+            {totalRevenue > 0 ? (((totalExpenses || 0) / totalRevenue) * 100).toFixed(1) : '0'}%
+          </h3>
+          <div className="mt-2 text-xs text-slate-400">
+            Expenses vs Revenue
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-bold text-slate-900">{t('revenue7Days')}</h3>
+          </div>
+          {chartData.length > 0 ? (
+            <div className="h-64 flex items-end gap-4 px-4">
+              {chartData.map(([date, amount]: [string, any]) => (
+                <div key={date} className="flex-1 flex flex-col items-center gap-2 group relative">
+                  <div 
+                    className="w-full bg-emerald-500 rounded-t-lg transition-all hover:bg-emerald-600" 
+                    style={{ height: `${(amount / Math.max(...Object.values(salesByDate) as number[])) * 100}%` }}
+                  >
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                      {formatCurrency(amount, 0)}
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-medium">{date.split('-').slice(1).join('/')}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-slate-400">
+              <p>{t('noSalesData')}</p>
+            </div>
+          )}
+        </Card>
+        <Card className="p-6">
+          <h3 className="font-bold text-slate-900 mb-6">{t('inventoryStatus')}</h3>
+          {data.inventory.length > 0 ? (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">{t('stockHealth')}</span>
+                  <span className="font-bold">{data.inventory.length > 0 ? ((data.inventory.filter((i: any) => i.quantity > i.minStock).length / data.inventory.length) * 100).toFixed(0) : '0'}%</span>
+                </div>
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-emerald-500" 
+                    style={{ width: `${(data.inventory.filter((i: any) => i.quantity > i.minStock).length / data.inventory.length) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-slate-50 rounded-xl">
+                  <p className="text-xs text-slate-500 font-medium mb-1">Total Items</p>
+                  <p className="text-xl font-bold text-slate-900">{data.inventory.length}</p>
+                </div>
+                <div className="p-4 bg-orange-50 rounded-xl">
+                  <p className="text-xs text-orange-600 font-medium mb-1">Low Stock</p>
+                  <p className="text-xl font-bold text-orange-700">{data.inventory.filter((i: any) => i.quantity <= i.minStock).length}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-400">
+              <p>No inventory data for reporting.</p>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {downloadSuccessMessage && (
+        <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 z-50 border border-slate-700 animate-in fade-in slide-in-from-bottom-4">
+          <CheckCircle2 className="text-emerald-400 shrink-0" size={20} />
+          <span className="text-sm font-semibold">{downloadSuccessMessage}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const Subscription = ({ subscription }: any) => {
+  const [code, setCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const { formatCurrency, toBengaliNumber } = useCurrency();
+
+  const handleActivate = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    const result = await subscription.activate(code);
+    if (result.success) {
+      alert('Software successfully activated! All features are now available.');
+      setCode('');
+    } else {
+      alert(result.error || 'Invalid activation code. Please contact WhatsApp Support.');
+    }
+    setLoading(false);
+  };
+
+  const copyToClipboard = (text: string, type: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(type);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const isExpired = !subscription.active;
+
+  return (
+    <div className="space-y-6">
+      <PageHeader 
+        title="Subscription & Activation" 
+        description="Manage your software license and monthly payments." 
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {!subscription.active && (
+            <div className="bg-red-50 border-2 border-red-200 p-6 rounded-3xl flex items-center gap-4 animate-bounce">
+              <ShieldCheck className="text-red-500 shrink-0" size={32} />
+              <div>
+                <h4 className="font-bold text-red-800">Pay your subscription fee and activate your software</h4>
+                <p className="text-sm text-red-600">Your software plan has expired. Please activate to continue.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Status Card */}
+          <Card className="p-8">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">License Status</h3>
+                <p className="text-sm text-slate-500">Your current software activation details</p>
+              </div>
+              <div className={cn(
+                "px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2",
+                subscription.active 
+                  ? "bg-emerald-50 text-emerald-600 border border-emerald-100" 
+                  : "bg-red-50 text-red-600 border border-red-100"
+              )}>
+                {subscription.active ? (
+                  <><CheckCircle2 size={16} /> Active</>
+                ) : (
+                  <><X size={16} /> Inactive / Expired</>
+                )}
+              </div>
+            </div>
+
+            {subscription.active ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                  <p className="text-xs text-emerald-600 font-medium mb-1 uppercase tracking-wider">Expiry Date</p>
+                  <p className="text-lg font-bold text-emerald-700">
+                    {new Date(subscription.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-xs text-slate-500 font-medium mb-1 uppercase tracking-wider">Plan Type</p>
+                  <p className="text-lg font-bold text-slate-900">Monthly Standard</p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-10 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                <ShieldCheck size={48} className="mx-auto text-slate-300 mb-4" />
+                <h4 className="text-lg font-bold text-slate-900">No Active Subscription</h4>
+                <p className="text-slate-500 max-w-xs mx-auto mt-2">
+                  Please follow the payment instructions to get your activation code.
+                </p>
+              </div>
+            )}
+          </Card>
+
+          {/* Activation Form */}
+          <Card className="p-8">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Activate Software</h3>
+            <p className="text-sm text-slate-500 mb-6">Enter the 8-digit activation code provided after payment.</p>
+            
+            <form onSubmit={handleActivate} className="space-y-4">
+              <div className="relative">
+                <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <input 
+                  type="text" 
+                  required
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="Enter Activation Code"
+                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 outline-none font-mono tracking-widest text-lg"
+                />
+              </div>
+              <button 
+                type="submit"
+                disabled={loading}
+                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/10 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <><ShieldCheck size={20} /> Activate Now</>
+                )}
+              </button>
+            </form>
+          </Card>
+        </div>
+
+        {/* Payment Instructions */}
+        <div className="space-y-6">
+          <Card className="p-6 bg-emerald-600 text-white border-none">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Smartphone size={20} /> Payment Methods
+            </h3>
+            <p className="text-emerald-100 text-sm mb-6">
+              Pay your monthly fee to get the activation code.
+            </p>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
+                <h4 className="font-bold mb-2">Online Payment (Stripe)</h4>
+                <p className="text-xs text-emerald-100 mb-4 tracking-normal">Pay instantly with Card/Wallet and activate automatically.</p>
+                <button 
+                  onClick={() => subscription.createStripeSession()}
+                  className="w-full py-3 bg-white text-emerald-600 rounded-xl font-bold hover:bg-emerald-50 transition-all flex items-center justify-center gap-2"
+                >
+                  <CreditCard size={18} /> Pay Online Now
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-8 p-4 bg-emerald-700/50 rounded-2xl text-xs leading-relaxed">
+              <p className="font-bold mb-1 underline">Instructions:</p>
+              <ol className="list-decimal list-inside space-y-1 text-emerald-50">
+                <li>Monthly fee: {formatCurrency(subscription.subscriptionFee !== undefined ? subscription.subscriptionFee : 500, 0)}.</li>
+                <li>Pay online using Stripe to get activated automatically.</li>
+                <li>If you have an activation code, enter it on the left panel.</li>
+              </ol>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <Users size={18} className="text-emerald-600" /> Support
+            </h4>
+            <div className="space-y-3">
+              <a href="https://wa.me/8801838086276" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-slate-100">
+                <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shrink-0">
+                  <Smartphone size={20} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">WhatsApp Support</p>
+                  <p className="text-xs text-slate-500">+8801838-086276</p>
+                </div>
+              </a>
+
+              <a href="https://www.facebook.com/GreensDesigner" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-slate-100">
+                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0">
+                  <Facebook size={20} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Facebook Page</p>
+                  <p className="text-xs text-slate-500">GreensDesigner</p>
+                </div>
+              </a>
+
+              <a href="mailto:greenlabtechnology.ceo@gmail.com" className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-slate-100">
+                <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center shrink-0">
+                  <Mail size={20} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Email Support</p>
+                  <p className="text-xs text-slate-500 select-all">greenlabtechnology.ceo@gmail.com</p>
+                </div>
+              </a>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const TeamManagement = ({ user }: any) => {
+  const [managers, setManagers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingManager, setEditingManager] = useState<any>(null);
+  const { t } = useTranslation();
+
+  const fetchManagers = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/managers?ownerId=${user.id}`);
+      const data = await res.json();
+      setManagers(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error('Failed to fetch managers:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchManagers();
+  }, []);
+
+  const handleDelete = async (id: number) => {
+    if (confirm('Are you sure you want to remove this employee?')) {
+      await fetch(`/api/managers/${id}`, { method: 'DELETE' });
+      fetchManagers();
+    }
+  };
+
+  const defaultPermissions = {
+    inventory: { view: true, edit: false, delete: false },
+    sales: { view: true, edit: false, delete: false },
+    expenses: { view: true, edit: false, delete: false },
+    returns: { view: true, edit: false, delete: false },
+    suppliers: { view: true, edit: false, delete: false },
+    customers: { view: true, edit: false, delete: false },
+    reports: { view: true },
+  };
+
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    permissions: defaultPermissions
+  });
+
+  const handleOpenModal = (manager: any = null) => {
+    if (manager) {
+      setEditingManager(manager);
+      setFormData({
+        name: manager.name,
+        email: manager.email,
+        password: '',
+        permissions: manager.permissions || defaultPermissions
+      });
+    } else {
+      setEditingManager(null);
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        permissions: defaultPermissions
+      });
+    }
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const method = editingManager ? 'PATCH' : 'POST';
+      const url = editingManager ? `/api/managers/${editingManager.id}` : '/api/managers';
+      
+      const payload = editingManager 
+        ? { name: formData.name, permissions: formData.permissions, password: formData.password }
+        : { ...formData, ownerId: user.id };
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        setShowModal(false);
+        fetchManagers();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to save manager');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const togglePermission = (module: string, action: string) => {
+    setFormData(prev => ({
+      ...prev,
+      permissions: {
+        ...prev.permissions,
+        [module]: {
+          ...prev.permissions[module],
+          [action]: !prev.permissions[module][action]
+        }
+      }
+    }));
+  };
+
+  const modules = [
+    { id: 'inventory', label: t('inventory') },
+    { id: 'sales', label: t('sales') },
+    { id: 'expenses', label: t('expenses') },
+    { id: 'returns', label: t('returns') },
+    { id: 'suppliers', label: t('suppliers') },
+    { id: 'customers', label: t('customers') },
+    { id: 'reports', label: t('reports') },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-slate-900">{t('team')}</h3>
+        <button 
+          onClick={() => handleOpenModal()} 
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors"
+        >
+          <Plus size={16} /> {t('addEmployee')}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {managers.map(manager => (
+          <Card key={manager.id} className="p-6 relative group border-slate-200">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center font-bold text-xl uppercase">
+                {manager.name.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-slate-900 truncate">{manager.name}</h4>
+                <p className="text-xs text-slate-500 truncate">{manager.email}</p>
+              </div>
+            </div>
+            
+            <div className="mt-6 flex items-center gap-2">
+              <button 
+                onClick={() => handleOpenModal(manager)}
+                className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-100 transition-colors"
+              >
+                {t('edit')}
+              </button>
+              <button 
+                onClick={() => handleDelete(manager.id)}
+                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </Card>
+        ))}
+        {managers.length === 0 && (
+          <div className="col-span-full py-12 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+            <Users className="mx-auto text-slate-300 mb-4" size={48} />
+            <p className="text-slate-500 font-medium">No team members added yet.</p>
+          </div>
+        )}
+      </div>
+
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editingManager ? t('editEmployee') : t('addEmployee')}>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('employeeName')}</label>
+              <input 
+                type="text" required 
+                value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('emailLabel')}</label>
+              <input 
+                type="email" required 
+                value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}
+                disabled={!!editingManager}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none disabled:opacity-50" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                {editingManager ? "New Password (Leave blank to keep current)" : t('passwordLabel')}
+              </label>
+              <input 
+                type="password" required={!editingManager}
+                value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="font-bold text-sm text-slate-900 border-b border-slate-100 pb-2">{t('permissions')}</h4>
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              {modules.map(mod => (
+                <div key={mod.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-bold text-slate-700 uppercase tracking-tight">{mod.label}</span>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={formData.permissions[mod.id as keyof typeof formData.permissions]?.view} 
+                          onChange={() => togglePermission(mod.id, 'view')}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">{t('view')}</span>
+                      </label>
+                      {mod.id !== 'reports' && (
+                        <>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={formData.permissions[mod.id as keyof typeof formData.permissions]?.edit} 
+                              onChange={() => togglePermission(mod.id, 'edit')}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">{t('edit')}</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={formData.permissions[mod.id as keyof typeof formData.permissions]?.delete} 
+                              onChange={() => togglePermission(mod.id, 'delete')}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">{t('delete')}</span>
+                          </label>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button type="submit" className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">
+            {editingManager ? t('savePermissions') : t('addEmployee')}
+          </button>
+        </form>
+      </Modal>
+    </div>
+  );
+};
+
+const Settings = ({ user, data, updateProfile }: any) => {
+  const [activeTab, setActiveTab] = useState<'profile' | 'team'>('profile');
+  const [businessName, setBusinessName] = useState(user?.businessName || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [name, setName] = useState(user?.name || '');
+  const [phone, setPhone] = useState(user?.phoneNumber || '');
+  const [address, setAddress] = useState(user?.address || '');
+  const [logo, setLogo] = useState(user?.logo || '');
+  const [isRefreshingDB, setIsRefreshingDB] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [dbStatus, setDbStatus] = useState<string | null>(null);
+  const { t } = useTranslation();
+
+  // Sync state with props if user changesExternally (e.g. after update or re-login)
+  useEffect(() => {
+    if (user) {
+      console.log('--- SETTINGS SYNCING WITH USER PROP ---', user);
+      setBusinessName(user.businessName || '');
+      setEmail(user.email || '');
+      setName(user.name || '');
+      setPhone(user.phoneNumber || '');
+      setAddress(user.address || '');
+      setLogo(user.logo || '');
+    }
+  }, [user]);
+
+  const checkDatabaseConnection = async () => {
+    setIsRefreshingDB(true);
+    setDbStatus(null);
+    try {
+      const res = await fetch('/api/health');
+      if (res.ok) {
+        const payload = await res.json();
+        if (payload.useLocalFallback) {
+          setDbStatus('Database: LOCAL FALLBACK MOTHERBOARD (The remote Hostinger database is blocking connections from Google Cloud Run. We have automatically activated local secured file-system storage so you can registration, login, and save inventory beautifully!)');
+        } else {
+          setDbStatus('Database Connection: OK (Connected & Synced with Remote MySQL)');
+        }
+      } else {
+        setDbStatus('Database Connection: FAILED (Server returned error)');
+      }
+    } catch (err) {
+      setDbStatus('Database Connection: ERROR (Server connection failure)');
+    } finally {
+      setIsRefreshingDB(false);
+    }
+  };
+
+  const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('অনুগ্রহ করে একটি ছবি ফাইল নির্বাচন করুন (PNG, JPG, WebP)');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 400; // Optimal size for crisp header, invoice & reports
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL('image/png');
+            setLogo(compressedDataUrl);
+          } else {
+            setLogo(event.target?.result as string);
+          }
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUpdate = async (e: FormEvent) => {
+    e.preventDefault();
+    setIsUpdating(true);
+    setUpdateError(null);
+    
+    // Ensure all fields are sent as strings or nulls to avoid SQL issues
+    const payload = {
+      businessName: businessName || '',
+      email: email || '',
+      fullName: name || '',
+      phoneNumber: phone || '',
+      address: address || '',
+      logo: logo || ''
+    };
+
+    console.log('--- SENDING UPDATE PAYLOAD ---', payload);
+    
+    const result = await updateProfile(payload);
+    setIsUpdating(false);
+    
+    if (result.success) {
+      alert('Profile updated successfully!');
+    } else {
+      setUpdateError(result.error || 'Failed to update profile.');
+      alert('Failed: ' + (result.error || 'Check console tracker'));
+    }
+  };
+
+  const clearAllData = () => {
+    if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+      const keys = ['inventory', 'sales', 'suppliers', 'customers', 'expenses'];
+      keys.forEach(key => localStorage.removeItem(`greensoft_${key}`));
+      window.location.reload();
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title={t('settings')} description="Manage your business profile and team." />
+      
+      {user?.role === 'OWNER' && (
+        <div className="flex border-b border-slate-200">
+          <button 
+            onClick={() => setActiveTab('profile')} 
+            className={cn(
+              "px-8 py-4 text-sm font-bold transition-all relative",
+              activeTab === 'profile' ? "text-emerald-600" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Profile
+            {activeTab === 'profile' && <motion.div layoutId="settingTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />}
+          </button>
+          <button 
+            onClick={() => setActiveTab('team')} 
+            className={cn(
+              "px-8 py-4 text-sm font-bold transition-all relative",
+              activeTab === 'team' ? "text-emerald-600" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            {t('team')} Management
+            {activeTab === 'team' && <motion.div layoutId="settingTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />}
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'profile' ? (
+        <>
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <ShieldCheck size={20} className="text-emerald-600" />
+                  System Debugger
+                </h3>
+                <p className="text-sm text-slate-500 mt-1">If your data isn't saving or you see a white screen, click the button below to check.</p>
+              </div>
+              <button 
+                onClick={checkDatabaseConnection}
+                disabled={isRefreshingDB}
+                className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+              >
+                {isRefreshingDB ? 'Checking...' : 'Check Connection'}
+              </button>
+            </div>
+            {dbStatus && (
+              <div className={cn(
+                "mt-4 p-4 rounded-xl font-bold text-sm",
+                dbStatus.includes('OK') ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-red-50 text-red-700 border border-red-100"
+              )}>
+                {dbStatus}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <Card className="p-6">
+                <h3 className="font-bold text-slate-900 mb-6 font-primary text-lg">Business Profile</h3>
+                {updateError && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm font-bold flex items-center gap-2">
+                    <AlertCircle size={18} /> {updateError}
+                  </div>
+                )}
+                <form onSubmit={handleUpdate} className="space-y-4">
+                  <div className="flex flex-col md:flex-row gap-6 mb-6">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-24 h-24 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative group">
+                        {logo ? (
+                          <img src={logo} alt="Business Logo" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="text-slate-400 flex flex-col items-center">
+                            <Plus size={24} />
+                            <span className="text-[10px] font-bold uppercase mt-1">Logo</span>
+                          </div>
+                        )}
+                        <label className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-xs font-bold">
+                          Change
+                          <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                        </label>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Business Logo</p>
+                    </div>
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Business Name</label>
+                        <input 
+                          type="text" required 
+                          value={businessName} onChange={e => setBusinessName(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                        <input 
+                          type="email" required 
+                          value={email} onChange={e => setEmail(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+                        <input 
+                          type="text" required 
+                          value={name} onChange={e => setName(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">{t('phoneLabel')}</label>
+                        <input 
+                          type="tel" required 
+                          value={phone} onChange={e => setPhone(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none" 
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">{t('addressLabel')}</label>
+                        <textarea 
+                          required 
+                          value={address} onChange={e => setAddress(e.target.value)}
+                          rows={2}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none resize-none" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <button type="submit" disabled={isUpdating} className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-all disabled:opacity-50">
+                    {isUpdating ? 'Updating...' : 'Update Profile'}
+                  </button>
+                </form>
+              </Card>
+
+              {user?.role === 'OWNER' && (
+                <Card className="p-6 border-red-100">
+                  <h3 className="font-bold text-red-600 mb-2 font-primary text-lg">Danger Zone</h3>
+                  <p className="text-sm text-slate-500 mb-6">Permanently delete all your business data. This action is irreversible.</p>
+                  <button 
+                    onClick={clearAllData}
+                    className="px-6 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl font-medium hover:bg-red-600 hover:text-white transition-all"
+                  >
+                    Clear All Data
+                  </button>
+                </Card>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        <TeamManagement user={user} />
+      )}
+    </div>
+  );
+};
+
+const AccountLockedScreen = ({ user, logout, onRefreshStatus, lockReason }: any) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    if (onRefreshStatus) await onRefreshStatus();
+    setIsRefreshing(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-slate-900 border border-red-500/30 rounded-3xl p-8 text-center text-white shadow-2xl relative overflow-hidden">
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-red-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="w-20 h-20 bg-red-500/20 text-red-400 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+          <Lock size={38} />
+        </div>
+
+        <span className="px-3 py-1 bg-red-500/20 text-red-400 text-xs font-bold rounded-full uppercase tracking-wider mb-3 inline-block border border-red-500/30">
+          সফটওয়্যার অ্যাক্সেস সাময়িক স্থগিত (Locked)
+        </span>
+
+        <h2 className="text-2xl font-black mb-2 text-white font-primary">
+          {user?.businessName || 'আপনার প্রতিষ্ঠান'}
+        </h2>
+        <p className="text-sm text-slate-400 mb-6">
+          কর্তৃপক্ষের নির্দেশনায় আপনার সফটওয়্যারটির ব্যবহার সাময়িকভাবে লক করা হয়েছে।
+        </p>
+
+        {lockReason && (
+          <div className="p-4 bg-red-950/40 border border-red-800/40 rounded-2xl text-left mb-6">
+            <p className="text-[11px] font-bold text-red-400 uppercase tracking-wide mb-1">লক করার কারণ:</p>
+            <p className="text-sm text-red-200">{lockReason}</p>
+          </div>
+        )}
+
+        <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-700/60 text-left mb-6 space-y-2">
+          <p className="text-xs font-bold text-slate-300 uppercase tracking-wide">সফটওয়্যারটি আনলক করতে যোগাযোগ করুন:</p>
+          <div className="flex items-center gap-2 text-sm text-slate-300">
+            <Phone size={15} className="text-emerald-400 shrink-0" />
+            <a href={`tel:${WHATSAPP_NUM}`} className="hover:text-emerald-400 underline font-mono">{WHATSAPP_NUM}</a>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-slate-300">
+            <Mail size={15} className="text-emerald-400 shrink-0" />
+            <span className="font-mono text-xs">GreenlabTechnology.Ceo@gmail.com</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50"
+          >
+            <RefreshCw size={16} className={cn(isRefreshing && "animate-spin")} />
+            <span>{isRefreshing ? 'স্ট্যাটাস যাচাই হচ্ছে...' : 'স্ট্যাটাস রিফ্রেশ করুন'}</span>
+          </button>
+          <button
+            onClick={logout}
+            className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition-colors"
+          >
+            লগআউট করুন
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdminPortal = () => {
+  const [adminSecret, setAdminSecret] = useState(() => sessionStorage.getItem('greensstock_admin_auth') || '');
+  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(sessionStorage.getItem('greensstock_admin_auth')));
+  const [inputKey, setInputKey] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // Authenticated State
+  const [activeTab, setActiveTab] = useState<'users' | 'codes'>('users');
+  const [users, setUsers] = useState<any[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'EXPIRED' | 'LOCKED'>('ALL');
+  const [updatingUserId, setUpdatingUserId] = useState<number | string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Per-user edited values
+  const [feeInputs, setFeeInputs] = useState<Record<string, number>>({});
+  const [expiryInputs, setExpiryInputs] = useState<Record<string, string>>({});
+
+  // Lock Confirmation Modal
+  const [lockingUser, setLockingUser] = useState<any | null>(null);
+  const [lockReasonInput, setLockReasonInput] = useState('বিল বকেয়া রয়েছে / Payment Pending');
+
+  // Activation Codes State
+  const [codesCount, setCodesCount] = useState(5);
+  const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
+  const [isGeneratingCodes, setIsGeneratingCodes] = useState(false);
+  const [codeGenError, setCodeGenError] = useState<string | null>(null);
+
+  // Notification helper
+  const showToast = (msg: string) => {
+    setSuccessToast(msg);
+    setTimeout(() => setSuccessToast(null), 3000);
+  };
+
+  // Fetch Users
+  const fetchUsers = async (secretToUse?: string) => {
+    const key = secretToUse || adminSecret;
+    if (!key) return;
+    setIsLoadingUsers(true);
+    try {
+      const res = await fetch(`/api/admin/users`, {
+        headers: { 'x-admin-secret': key }
+      });
+      const data = await res.json();
+      if (res.ok && data.users) {
+        setUsers(data.users);
+        // Initialize inputs
+        const initialFees: Record<string, number> = {};
+        const initialExpiries: Record<string, string> = {};
+        data.users.forEach((u: any) => {
+          initialFees[u.id] = u.subscriptionFee !== undefined ? Number(u.subscriptionFee) : 500;
+          if (u.expiryDate) {
+            const d = new Date(u.expiryDate);
+            if (!isNaN(d.getTime())) {
+              initialExpiries[u.id] = d.toISOString().split('T')[0];
+            }
+          }
+        });
+        setFeeInputs(initialFees);
+        setExpiryInputs(initialExpiries);
+      } else {
+        if (res.status === 403) {
+          sessionStorage.removeItem('greensstock_admin_auth');
+          setIsAuthenticated(false);
+          setAuthError('অথেন্টিকেশন কী বাতিল বা পরিবর্তন করা হয়েছে। দয়া করে পুনরায় দিন।');
+        }
+      }
+    } catch (e: any) {
+      console.error('Fetch users error:', e);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated && adminSecret) {
+      fetchUsers();
+    }
+  }, [isAuthenticated, adminSecret]);
+
+  // Handle Login to Admin Portal
+  const handleLogin = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanKey = inputKey.trim();
+    if (!cleanKey) {
+      setAuthError('দয়া করে অথেন্টিকেশন কী প্রদান করুন');
+      return;
+    }
+    setIsVerifying(true);
+    setAuthError(null);
+    try {
+      const res = await fetch('/api/admin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: cleanKey })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        sessionStorage.setItem('greensstock_admin_auth', cleanKey);
+        setAdminSecret(cleanKey);
+        setIsAuthenticated(true);
+        setInputKey('');
+        fetchUsers(cleanKey);
+      } else {
+        setAuthError(data.error || 'ভুল অথেন্টিকেশন কী! অনুগ্রহ করে সঠিক কী দিন।');
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'সার্ভারে সংযোগ করা যায়নি। অনুগ্রহ করে পুনরায় চেষ্টা করুন।');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  // Handle Logout / Lock Portal
+  const handleLockPortal = () => {
+    sessionStorage.removeItem('greensstock_admin_auth');
+    setAdminSecret('');
+    setIsAuthenticated(false);
+    setUsers([]);
+    setInputKey('');
+  };
+
+  // Update User Fee
+  const handleUpdateFee = async (userId: number | string) => {
+    const feeToSet = feeInputs[userId] !== undefined ? feeInputs[userId] : 500;
+    setUpdatingUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': adminSecret
+        },
+        body: JSON.stringify({ subscriptionFee: feeToSet })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, subscriptionFee: feeToSet } : u));
+        showToast(`ইউজারের সাবস্ক্রিপশন ফি ৳${feeToSet} সফলভাবে আপডেট হয়েছে!`);
+      } else {
+        alert(data.error || 'আপডেট ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      alert(e.message || 'নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  // Adjust Fee quickly (+/-)
+  const adjustFeeQuick = (userId: number | string, delta: number) => {
+    const current = feeInputs[userId] !== undefined ? feeInputs[userId] : 500;
+    const next = Math.max(0, current + delta);
+    setFeeInputs(prev => ({ ...prev, [userId]: next }));
+  };
+
+  // Update User Expiry Date
+  const handleUpdateExpiry = async (userId: number | string, customIso?: string) => {
+    let newIso = customIso;
+    if (!newIso) {
+      const dateStr = expiryInputs[userId];
+      if (!dateStr) return alert('দয়া করে একটি সঠিক তারিখ নির্বাচন করুন');
+      newIso = new Date(`${dateStr}T23:59:59.000Z`).toISOString();
+    }
+    setUpdatingUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': adminSecret
+        },
+        body: JSON.stringify({ expiryDate: newIso })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, expiryDate: newIso } : u));
+        const dateObj = new Date(newIso);
+        setExpiryInputs(prev => ({ ...prev, [userId]: dateObj.toISOString().split('T')[0] }));
+        showToast('ইউজারের মেয়াদ সফলভাবে আপডেট করা হয়েছে!');
+      } else {
+        alert(data.error || 'মেয়াদ আপডেট ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      alert(e.message || 'নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  // Quick Extend Expiry (+30, +60, +90, +365 days)
+  const quickExtendExpiry = (user: any, daysToAdd: number) => {
+    const baseDate = (user.expiryDate && new Date(user.expiryDate) > new Date())
+      ? new Date(user.expiryDate)
+      : new Date();
+    baseDate.setDate(baseDate.getDate() + daysToAdd);
+    const newIso = baseDate.toISOString();
+    handleUpdateExpiry(user.id, newIso);
+  };
+
+  // Toggle User Lock
+  const handleLockConfirm = async () => {
+    if (!lockingUser) return;
+    const userId = lockingUser.id;
+    setUpdatingUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': adminSecret
+        },
+        body: JSON.stringify({
+          isLocked: true,
+          lockReason: lockReasonInput.trim() || 'প্রশাসনিক নির্দেশনায় সফটওয়্যার লক করা হয়েছে'
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(prev => prev.map(u => u.id === userId ? {
+          ...u,
+          isLocked: true,
+          lockReason: lockReasonInput.trim() || 'প্রশাসনিক নির্দেশনায় সফটওয়্যার লক করা হয়েছে'
+        } : u));
+        showToast('সফটওয়্যারটি সফলভাবে লক করা হয়েছে!');
+        setLockingUser(null);
+      } else {
+        alert(data.error || 'লক ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      alert(e.message || 'নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  const handleUnlockUser = async (userId: number | string) => {
+    setUpdatingUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': adminSecret
+        },
+        body: JSON.stringify({
+          isLocked: false,
+          lockReason: ''
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, isLocked: false, lockReason: '' } : u));
+        showToast('সফটওয়্যারটি সফলভাবে আনলক করা হয়েছে!');
+      } else {
+        alert(data.error || 'আনলক ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      alert(e.message || 'নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  // Activation Code Generator Handler
+  const generateCodes = async () => {
+    setIsGeneratingCodes(true);
+    setCodeGenError(null);
+    try {
+      const res = await fetch('/api/admin/generate-codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: codesCount, secret: adminSecret })
+      });
+      const data = await res.json();
+      if (res.ok && data.codes) {
+        setGeneratedCodes(data.codes);
+        showToast(`${data.codes.length}টি লাইসেন্স কোড তৈরি হয়েছে!`);
+      } else {
+        setCodeGenError(data.error || 'কোড তৈরিতে সমস্যা হয়েছে');
+      }
+    } catch (err: any) {
+      setCodeGenError(err.message || 'কানেকশন এরর');
+    } finally {
+      setIsGeneratingCodes(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCode(text);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
+
+  const copyAllCodes = () => {
+    if (generatedCodes.length === 0) return;
+    navigator.clipboard.writeText(generatedCodes.join('\n'));
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
+  };
+
+  // Filter and Search Users
+  const filteredUsers = users.filter(u => {
+    // Search query
+    const q = searchQuery.toLowerCase().trim();
+    const matchesSearch = !q ||
+      (u.businessName && u.businessName.toLowerCase().includes(q)) ||
+      (u.fullName && u.fullName.toLowerCase().includes(q)) ||
+      (u.phoneNumber && u.phoneNumber.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q));
+
+    if (!matchesSearch) return false;
+
+    // Status filter
+    const isExpired = !u.expiryDate || new Date(u.expiryDate) < new Date();
+    const isLocked = Boolean(u.isLocked);
+
+    if (statusFilter === 'LOCKED') return isLocked;
+    if (statusFilter === 'ACTIVE') return !isLocked && !isExpired;
+    if (statusFilter === 'EXPIRED') return !isLocked && isExpired;
+    return true;
+  });
+
+  const totalUsersCount = users.length;
+  const lockedUsersCount = users.filter(u => Boolean(u.isLocked)).length;
+  const activeUsersCount = users.filter(u => !u.isLocked && u.expiryDate && new Date(u.expiryDate) > new Date()).length;
+  const expiredUsersCount = users.filter(u => !u.isLocked && (!u.expiryDate || new Date(u.expiryDate) <= new Date())).length;
+
+  // ==========================================
+  // VIEW 1: SECURITY GATE (BEFORE AUTHENTICATION)
+  // ==========================================
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        {/* Background ambient accents */}
+        <div className="absolute top-1/4 -left-32 w-80 h-80 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 -right-32 w-80 h-80 bg-slate-800/20 rounded-full blur-3xl pointer-events-none" />
+
+        <Card className="w-full max-w-md p-8 bg-slate-900 text-white border-slate-800 shadow-2xl relative z-10">
+          <div className="flex flex-col items-center text-center mb-8">
+            <div className="w-14 h-14 bg-emerald-600/20 border border-emerald-500/30 rounded-2xl flex items-center justify-center mb-4 text-emerald-400 shadow-inner">
+              <ShieldCheck size={32} />
+            </div>
+            <h1 className="text-2xl font-black bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+              GreensStock Admin
+            </h1>
+            <p className="text-xs text-slate-400 mt-1">
+              ইউজার ম্যানেজমেন্ট ও সফটওয়্যার কন্ট্রোল প্রবেশদ্বার
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div>
+              <div className="flex items-center justify-between mb-2 ml-1">
+                <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                  Authentication Key
+                </label>
+              </div>
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  value={inputKey}
+                  autoFocus
+                  onChange={e => {
+                    setInputKey(e.target.value);
+                    if (authError) setAuthError(null);
+                  }}
+                  placeholder="Enter Authentication Key"
+                  className="w-full pl-5 pr-12 py-3.5 bg-slate-950/80 border border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none text-white text-base font-mono transition-all placeholder:text-slate-600" 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            {authError && (
+              <motion.div 
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3.5 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl flex items-center gap-2.5"
+              >
+                <AlertCircle size={16} className="shrink-0 text-red-400" />
+                <span>{authError}</span>
+              </motion.div>
+            )}
+
+            <button 
+              type="submit"
+              disabled={isVerifying || !inputKey.trim()}
+              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2 text-sm"
+            >
+              {isVerifying ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  <span>যাচাই করা হচ্ছে...</span>
+                </>
+              ) : (
+                <>
+                  <Key size={18} />
+                  <span>প্রবেশ করুন (Access Portal)</span>
+                </>
+              )}
+            </button>
+          </form>
+        </Card>
+
+        <p className="mt-8 text-slate-600 text-[10px] font-mono uppercase tracking-[0.3em]">
+          GreensStock Master License Controller
+        </p>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // VIEW 2: FULL ADMIN PORTAL (AFTER AUTHENTICATION)
+  // ==========================================
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {successToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-5 right-5 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-sm font-bold border border-emerald-400/30"
+          >
+            <CheckCircle2 size={18} />
+            <span>{successToast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Top Navigation Bar */}
+      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-30 px-4 lg:px-8 py-4">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-600/20 border border-emerald-500/30 rounded-xl flex items-center justify-center text-emerald-400">
+              <ShieldCheck size={24} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-black text-white">GreensStock Admin Console</h1>
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                  Super Admin
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">সফটওয়্যার ইউজার, সাবস্ক্রিপশন ফি ও মেয়াদ ব্যবস্থাপনা</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Tabs */}
+            <div className="bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 flex items-center">
+              <button
+                onClick={() => setActiveTab('users')}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                  activeTab === 'users'
+                    ? "bg-emerald-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                <Users size={15} />
+                <span>ইউজার ও সাবস্ক্রিপশন ({users.length})</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('codes')}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                  activeTab === 'codes'
+                    ? "bg-emerald-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                <Zap size={15} />
+                <span>অ্যাক্টিভেশন কোড</span>
+              </button>
+            </div>
+
+            {/* Refresh Button */}
+            <button
+              onClick={() => fetchUsers()}
+              disabled={isLoadingUsers}
+              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-colors"
+              title="তথ্য রিফ্রেশ করুন"
+            >
+              <RefreshCw size={16} className={cn(isLoadingUsers && "animate-spin text-emerald-400")} />
+            </button>
+
+            {/* Lock / Logout Button */}
+            <button
+              onClick={handleLockPortal}
+              className="flex items-center gap-2 px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition-colors"
+              title="পোর্টাল লক করুন"
+            >
+              <Lock size={14} />
+              <span>লক করুন (Exit)</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-8">
+        {activeTab === 'users' ? (
+          <>
+            {/* Stat Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">মোট ইউজার</span>
+                  <Users size={18} className="text-slate-400" />
+                </div>
+                <p className="text-2xl font-black text-white">{totalUsersCount}</p>
+                <p className="text-[11px] text-slate-500 mt-1">সকল রেজিস্টার্ড প্রতিষ্ঠান</p>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
+                <div className="flex items-center justify-between text-emerald-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">সচল একাউন্ট</span>
+                  <CheckCircle2 size={18} />
+                </div>
+                <p className="text-2xl font-black text-emerald-400">{activeUsersCount}</p>
+                <p className="text-[11px] text-slate-500 mt-1">মেয়াদ কার্যকর আছে</p>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">মেয়াদোত্তীর্ণ</span>
+                  <Clock size={18} />
+                </div>
+                <p className="text-2xl font-black text-amber-400">{expiredUsersCount}</p>
+                <p className="text-[11px] text-slate-500 mt-1">নবায়ন প্রয়োজন</p>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
+                <div className="flex items-center justify-between text-red-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">লক করা সফটওয়্যার</span>
+                  <Lock size={18} />
+                </div>
+                <p className="text-2xl font-black text-red-400">{lockedUsersCount}</p>
+                <p className="text-[11px] text-slate-500 mt-1">এক্সেস ব্লক করা</p>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+              <div className="relative w-full md:w-96">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="দোকানের নাম, মালিকের নাম, মোবাইল বা ইমেইল..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 transition-colors"
+                />
+              </div>
+
+              {/* Status Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+                {(['ALL', 'ACTIVE', 'EXPIRED', 'LOCKED'] as const).map(tab => {
+                  const labels = {
+                    ALL: `সব (${totalUsersCount})`,
+                    ACTIVE: `সচল (${activeUsersCount})`,
+                    EXPIRED: `মেয়াদ শেষ (${expiredUsersCount})`,
+                    LOCKED: `লকড (${lockedUsersCount})`
+                  };
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setStatusFilter(tab)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
+                        statusFilter === tab
+                          ? "bg-slate-800 text-white border border-slate-700 shadow-sm"
+                          : "text-slate-400 hover:text-slate-200"
+                      )}
+                    >
+                      {labels[tab]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* User List */}
+            {isLoadingUsers ? (
+              <div className="py-20 flex flex-col items-center justify-center text-center">
+                <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-slate-400 text-sm font-medium">ইউজার লিস্ট লোড হচ্ছে...</p>
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="py-20 text-center bg-slate-900/40 rounded-3xl border border-dashed border-slate-800">
+                <Users size={48} className="mx-auto text-slate-700 mb-3" />
+                <h3 className="text-base font-bold text-slate-300">কোন ইউজার পাওয়া যায়নি</h3>
+                <p className="text-xs text-slate-500 mt-1">অনুসন্ধান ফিল্টার পরিবর্তন করে পুনরায় চেষ্টা করুন।</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredUsers.map(userItem => {
+                  const isLocked = Boolean(userItem.isLocked);
+                  const isExpired = !userItem.expiryDate || new Date(userItem.expiryDate) < new Date();
+                  const currentFee = feeInputs[userItem.id] !== undefined ? feeInputs[userItem.id] : (userItem.subscriptionFee || 500);
+                  const currentExpiryVal = expiryInputs[userItem.id] || (userItem.expiryDate ? new Date(userItem.expiryDate).toISOString().split('T')[0] : '');
+
+                  // Days Remaining
+                  let remainingDaysText = 'মেয়াদ নেই';
+                  if (userItem.expiryDate) {
+                    const target = new Date(userItem.expiryDate).getTime();
+                    const now = new Date().getTime();
+                    const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
+                    if (diffDays > 0) {
+                      remainingDaysText = `${diffDays} দিন বাকি`;
+                    } else if (diffDays === 0) {
+                      remainingDaysText = 'আজ মেয়াদ শেষ';
+                    } else {
+                      remainingDaysText = `${Math.abs(diffDays)} দিন আগে শেষ`;
+                    }
+                  }
+
+                  const isUpdating = updatingUserId === userItem.id;
+
+                  return (
+                    <div 
+                      key={userItem.id} 
+                      className={cn(
+                        "bg-slate-900 rounded-2xl border transition-all p-5 lg:p-6 space-y-5",
+                        isLocked 
+                          ? "border-red-500/40 bg-red-950/10 shadow-lg shadow-red-950/20" 
+                          : "border-slate-800 hover:border-slate-700/80"
+                      )}
+                    >
+                      {/* User Header Info */}
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+                        <div className="flex items-start gap-3.5">
+                          <div className={cn(
+                            "w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg shrink-0 border",
+                            isLocked 
+                              ? "bg-red-500/20 text-red-400 border-red-500/30" 
+                              : "bg-emerald-600/20 text-emerald-400 border-emerald-500/30"
+                          )}>
+                            {userItem.businessName ? userItem.businessName.charAt(0).toUpperCase() : 'B'}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                              <h3 className="text-base font-bold text-white font-primary">{userItem.businessName || 'প্রতিষ্ঠান'}</h3>
+                              
+                              {/* Status Badge */}
+                              {isLocked ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40 flex items-center gap-1">
+                                  <Lock size={10} /> সফটওয়্যার লকড
+                                </span>
+                              ) : !isExpired ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                  <CheckCircle2 size={10} /> সচল (Active)
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                                  <AlertCircle size={10} /> মেয়াদ শেষ
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 text-xs text-slate-400 mt-1 flex-wrap">
+                              <span>মালিক: <strong className="text-slate-300">{userItem.fullName || 'N/A'}</strong></span>
+                              <span>•</span>
+                              <span>মোবাইল: <strong className="text-slate-300 font-mono">{userItem.phoneNumber || 'N/A'}</strong></span>
+                              <span>•</span>
+                              <span>ইমেইল: <strong className="text-slate-300 font-mono text-[11px]">{userItem.email || 'N/A'}</strong></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Top Action / Lock Status Pill */}
+                        <div>
+                          {isLocked ? (
+                            <button
+                              onClick={() => handleUnlockUser(userItem.id)}
+                              disabled={isUpdating}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-950/40 flex items-center gap-1.5"
+                            >
+                              <Unlock size={14} />
+                              <span>সফটওয়্যার আনলক করুন</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setLockingUser(userItem);
+                                setLockReasonInput('বিল বকেয়া রয়েছে / Payment Pending');
+                              }}
+                              disabled={isUpdating}
+                              className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                            >
+                              <Lock size={14} />
+                              <span>সফটওয়্যার লক করুন</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Locked Notice if applicable */}
+                      {isLocked && (
+                        <div className="p-3 bg-red-950/30 border border-red-500/30 rounded-xl flex items-center gap-2 text-xs text-red-300">
+                          <AlertTriangle size={15} className="text-red-400 shrink-0" />
+                          <span>
+                            <strong>সতর্কতা:</strong> এই সফটওয়্যারটি লক অবস্থায় রয়েছে। ব্যবহারকারী কোনো ফিচার ব্যবহার করতে পারবেন না। 
+                            {userItem.lockReason && ` (কারণ: ${userItem.lockReason})`}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Controls Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+                        {/* Control 1: Subscription Fee */}
+                        <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-300 uppercase tracking-wide flex items-center gap-1.5">
+                              <DollarSign size={14} className="text-emerald-400" />
+                              সাবস্ক্রিপশন ফি নির্ধারণ
+                            </span>
+                            <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                              বর্তমান: ৳{userItem.subscriptionFee !== undefined ? userItem.subscriptionFee : 500} / মাস
+                            </span>
+                          </div>
+
+                          {/* Quick Add / Subtract Buttons */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => adjustFeeQuick(userItem.id, -500)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              -500
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => adjustFeeQuick(userItem.id, -100)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              -100
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => adjustFeeQuick(userItem.id, 100)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-mono font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              +100
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => adjustFeeQuick(userItem.id, 500)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-mono font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              +500
+                            </button>
+                          </div>
+
+                          {/* Amount Input and Save Button */}
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">৳</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={currentFee}
+                                onChange={e => {
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  setFeeInputs(prev => ({ ...prev, [userItem.id]: val }));
+                                }}
+                                className="w-full pl-7 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold font-mono text-white focus:outline-none focus:border-emerald-500"
+                                placeholder="যেকোনো ফি বসান"
+                              />
+                            </div>
+                            <button
+                              onClick={() => handleUpdateFee(userItem.id)}
+                              disabled={isUpdating}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shrink-0 flex items-center gap-1.5"
+                            >
+                              {isUpdating ? <RefreshCw size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                              <span>ফি সেভ করুন</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Control 2: Subscription Expiry Date */}
+                        <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-300 uppercase tracking-wide flex items-center gap-1.5">
+                              <Calendar size={14} className="text-cyan-400" />
+                              মেয়াদ নির্ধারণ ও বৃদ্ধি
+                            </span>
+                            <span className={cn(
+                              "text-xs font-bold px-2 py-0.5 rounded-md font-mono",
+                              !isExpired ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+                            )}>
+                              {remainingDaysText}
+                            </span>
+                          </div>
+
+                          {/* Quick Duration Add Buttons */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => quickExtendExpiry(userItem, 30)}
+                              disabled={isUpdating}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              +৩০ দিন
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => quickExtendExpiry(userItem, 60)}
+                              disabled={isUpdating}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              +৬০ দিন
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => quickExtendExpiry(userItem, 90)}
+                              disabled={isUpdating}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              +৯০ দিন
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => quickExtendExpiry(userItem, 365)}
+                              disabled={isUpdating}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold rounded-lg transition-colors border border-slate-700"
+                            >
+                              +১ বছর
+                            </button>
+                          </div>
+
+                          {/* Custom Date Input and Save Button */}
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="date"
+                              value={currentExpiryVal}
+                              onChange={e => {
+                                setExpiryInputs(prev => ({ ...prev, [userItem.id]: e.target.value }));
+                              }}
+                              className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold font-mono text-white focus:outline-none focus:border-cyan-500"
+                            />
+                            <button
+                              onClick={() => handleUpdateExpiry(userItem.id)}
+                              disabled={isUpdating || !expiryInputs[userItem.id]}
+                              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shrink-0 flex items-center gap-1.5"
+                            >
+                              {isUpdating ? <RefreshCw size={12} className="animate-spin" /> : <Calendar size={12} />}
+                              <span>মেয়াদ সেভ করুন</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        ) : (
+          /* Tab 2: Activation Code Generator */
+          <div className="max-w-2xl mx-auto space-y-6">
+            <Card className="p-6 lg:p-8 bg-slate-900 border-slate-800 text-white shadow-xl">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-emerald-600/20 border border-emerald-500/30 rounded-xl flex items-center justify-center text-emerald-400">
+                  <Zap size={22} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">লাইসেন্স অ্যাক্টিভেশন কোড জেনারেটর</h2>
+                  <p className="text-xs text-slate-400">এক ক্লিকে নতুন অফলাইন/অনলাইন অ্যাক্টিভেশন কোড তৈরি করুন</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase mb-2">
+                    একবারে কতটি কোড তৈরি করবেন (১-৫০)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={codesCount}
+                    onChange={e => setCodesCount(Math.min(Math.max(parseInt(e.target.value) || 1, 1), 50))}
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono font-bold text-sm focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <button
+                  onClick={generateCodes}
+                  disabled={isGeneratingCodes}
+                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2"
+                >
+                  {isGeneratingCodes ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                      <span>কোড তৈরি হচ্ছে...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={18} />
+                      <span>কোড তৈরি করুন (Generate Codes)</span>
+                    </>
+                  )}
+                </button>
+
+                {codeGenError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs flex items-center gap-2">
+                    <AlertCircle size={15} />
+                    <span>{codeGenError}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Generated Codes List */}
+              {generatedCodes.length > 0 && (
+                <div className="mt-8 space-y-4 border-t border-slate-800 pt-6">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 uppercase">
+                      তৈরি হওয়া কোড সমূহ ({generatedCodes.length}টি)
+                    </span>
+                    <button
+                      onClick={copyAllCodes}
+                      className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-lg transition-colors"
+                    >
+                      {copiedAll ? <CheckCircle2 size={13} /> : <Copy size={13} />}
+                      <span>{copiedAll ? 'সব কপি হয়েছে!' : 'সব কোড কপি করুন'}</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                    {generatedCodes.map((codeItem, idx) => {
+                      const isThisCopied = copiedCode === codeItem;
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => copyToClipboard(codeItem)}
+                          className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800/80 hover:border-emerald-500/50 cursor-pointer transition-all group"
+                        >
+                          <span className="font-mono text-sm tracking-wider font-bold text-emerald-400">
+                            {codeItem}
+                          </span>
+                          <span className={cn(
+                            "px-2 py-1 rounded-lg text-[10px] font-bold uppercase transition-all flex items-center gap-1",
+                            isThisCopied 
+                              ? "bg-emerald-500 text-white" 
+                              : "bg-slate-800 text-slate-400 group-hover:text-emerald-400"
+                          )}>
+                            {isThisCopied ? <CheckCircle2 size={11} /> : <Copy size={11} />}
+                            <span>{isThisCopied ? 'Copied' : 'Copy'}</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setGeneratedCodes([])}
+                    className="w-full py-2 text-xs font-bold text-slate-500 hover:text-slate-300 uppercase tracking-wider transition-colors"
+                  >
+                    তালিকা পরিষ্কার করুন
+                  </button>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+      </main>
+
+      {/* Lock Confirmation Modal */}
+      <AnimatePresence>
+        {lockingUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setLockingUser(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              className="relative w-full max-w-md bg-slate-900 border border-red-500/30 rounded-3xl p-6 text-white shadow-2xl z-10 space-y-4"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center mx-auto">
+                <Lock size={24} />
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-white">সফটওয়্যার লক নিশ্চিতকরণ</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  আপনি কি নিশ্চিত যে <strong className="text-white font-primary">{lockingUser.businessName}</strong>-এর সফটওয়্যার লক করতে চান?
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  লক করার কারণ (ইউজারকে প্রদর্শন করা হবে):
+                </label>
+                <input
+                  type="text"
+                  value={lockReasonInput}
+                  onChange={e => setLockReasonInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-red-500"
+                  placeholder="যেমন: মাসিক সাবস্ক্রিপশন বিল বকেয়া"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setLockingUser(null)}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-colors"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLockConfirm}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-colors shadow-lg shadow-red-950/40"
+                >
+                  হ্যাঁ, লক করুন
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const AuthPage = ({ type, login, signup, verifyEmail, resendCode, forgotPassword, resetPassword }: any) => {
+  const [email, setEmail] = useState('');
+  const [businessName, setBusinessName] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showEmail, setShowEmail] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Verification states
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyingEmail, setVerifyingEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationSuccessMessage, setVerificationSuccessMessage] = useState('');
+  const [resendStatus, setResendStatus] = useState('');
+  const [debugCode, setDebugCode] = useState('');
+
+  // Forgot Password state variables
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isResetCodeSent, setIsResetCodeSent] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+  const [resetStatus, setResetStatus] = useState('');
+  const [resetDebugCode, setResetDebugCode] = useState('');
+
+  const handleForgotPasswordSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+    setResetStatus('');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!resetEmail || !emailRegex.test(resetEmail)) {
+      setError('Please enter a valid email address (e.g. customer@mail.com)');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const result = await forgotPassword(resetEmail);
+    if (result.success) {
+      setIsResetCodeSent(true);
+      setResetStatus('The password reset code has been sent to your email address.');
+    } else {
+      setError(result.error || 'Failed to send reset code.');
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleResetPasswordSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+    setResetStatus('');
+
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match!');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const result = await resetPassword(resetEmail, resetCode, newPassword);
+    if (result.success) {
+      setIsForgotPassword(false);
+      setIsResetCodeSent(false);
+      setResetEmail('');
+      setResetCode('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setError('');
+      setVerificationSuccessMessage('Password reset successfully! Please log in with your new password.');
+    } else {
+      setError(result.error || 'Password reset failed. Please check the code.');
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleFetchResetDebugCode = async () => {
+    setError('');
+    setResetStatus('কোড রিট্রিভ করা হচ্ছে...');
+    try {
+      const response = await fetch(`/api/auth/get-verification-code?email=${encodeURIComponent(resetEmail)}`);
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setResetDebugCode(data.code);
+        setResetStatus(`আপনার রিসেট কোডটি সফলভাবে উদ্ধার করা হয়েছে: ${data.code}`);
+      } else {
+        setError(data.error || 'কোডটি পাওয়া যায়নি।');
+        setResetStatus('');
+      }
+    } catch (err: any) {
+      setError('সার্ভার সংযোগে ত্রুটি ঘটেছে।');
+      setResetStatus('');
+    }
+  };
+
+  const navigate = useNavigate();
+  const { t } = useTranslation();
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
+    if (type === 'signup') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!email || !emailRegex.test(email)) {
+        setError('অনুগ্রহ করে একটি সঠিক ইমেইল এড্রেস দিন (যেমন: customer@mail.com)');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setError('Passwords do not match!');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      const result = await signup({
+        businessName,
+        fullName: name,
+        phoneNumber: phone,
+        email,
+        password
+      });
+
+      if (result.success) {
+        if (result.needsVerification) {
+          setVerifyingEmail(result.email);
+          setIsVerifying(true);
+          setVerificationSuccessMessage('Registration successful! A verification code has been sent to your email.');
+        } else {
+          navigate('/');
+        }
+      } else {
+        setError(result.error);
+      }
+    } else {
+      const result = await login(email, password);
+      if (result.success) {
+        navigate('/');
+      } else {
+        if (result.error === 'email_not_verified') {
+          setVerifyingEmail(result.email);
+          setIsVerifying(true);
+          setVerificationSuccessMessage('Your email has not been verified yet. Please complete verification.');
+        } else {
+          setError(result.error);
+        }
+      }
+    }
+    
+    setIsSubmitting(false);
+  };
+
+  const handleVerify = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+    setResendStatus('');
+
+    const result = await verifyEmail(verifyingEmail, verificationCode);
+    if (result.success) {
+      navigate('/');
+    } else {
+      setError(result.error || 'Verification failed. Please check the code and try again.');
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleResend = async () => {
+    setError('');
+    setResendStatus('Sending code...');
+    const result = await resendCode(verifyingEmail);
+    if (result.success) {
+      setResendStatus('A new verification code has been sent to your email.');
+    } else {
+      setError(result.error || 'Failed to send verification code. Please try again later.');
+      setResendStatus('');
+    }
+  };
+
+  const handleFetchDebugCode = async () => {
+    setError('');
+    setResendStatus('কোড রিট্রিভ করা হচ্ছে...');
+    try {
+      const response = await fetch(`/api/auth/get-verification-code?email=${encodeURIComponent(verifyingEmail)}`);
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setDebugCode(data.code);
+        setResendStatus(`আপনার ভেরিফিকেশন কোডটি সফলভাবে উদ্ধার করা হয়েছে: ${data.code}`);
+      } else {
+        setError(data.error || 'কোডটি পাওয়া যায়নি। অনুগ্রহ করে নিবন্ধন আবার চেষ্টা করুন।');
+        setResendStatus('');
+      }
+    } catch (err: any) {
+      setError('সার্ভার সংযোগে ত্রুটি ঘটেছে।');
+      setResendStatus('');
+    }
+  };
+
+  const handleInstantBypass = async () => {
+    setError('');
+    setIsSubmitting(true);
+    setResendStatus('');
+    setVerificationCode('123456');
+
+    const result = await verifyEmail(verifyingEmail, '123456');
+    if (result.success) {
+      navigate('/');
+    } else {
+      setError(result.error || 'ভেরিফিকেশন ব্যর্থ হয়েছে।');
+    }
+    setIsSubmitting(false);
+  };
+
+  return (
+    <div className="min-h-screen relative flex items-center justify-center p-4 py-12 overflow-hidden">
+      {/* Background Image with Overlay */}
+      <div 
+        className="absolute inset-0 z-0"
+        style={{
+          backgroundImage: 'url("https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2426")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+         }}
+      >
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]"></div>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/20 p-8 relative z-10"
+      >
+        {isVerifying ? (
+          <>
+            <div className="flex flex-col items-center mb-8">
+              <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4 shadow-lg shadow-emerald-500/20">
+                <Mail className="w-6 h-6" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                Email Verification
+              </h2>
+              <p className="text-slate-500 text-center mt-2 text-sm leading-relaxed">
+                We have sent a 6-digit verification code to your email address <strong>{verifyingEmail}</strong>. Enter the code below to activate your account.
+              </p>
+            </div>
+
+            {verificationSuccessMessage && !error && !resendStatus && (
+              <div className="mb-6 p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm rounded-xl text-center font-medium">
+                {verificationSuccessMessage}
+              </div>
+            )}
+
+            {resendStatus && (
+              <div className="mb-6 p-3 bg-blue-50 border border-blue-100 text-blue-700 text-sm rounded-xl text-center font-medium">
+                {resendStatus}
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center font-medium animate-pulse">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleVerify} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2 text-center">Enter 6-digit Code</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={6}
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="123456"
+                  className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-center text-3xl font-bold tracking-[0.4em] font-mono transition-all"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting || verificationCode.length !== 6}
+                className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed font-sans"
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    {t('processing')}
+                  </span>
+                ) : (
+                  'Verify Account'
+                )}
+              </button>
+            </form>
+
+            <div className="mt-8 text-center space-y-3">
+              <p className="text-sm text-slate-500">
+                Didn't receive the code?{' '}
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  className="text-emerald-600 font-bold hover:underline bg-transparent border-none p-0 cursor-pointer"
+                >
+                  Resend Code
+                </button>
+              </p>
+              <p className="text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsVerifying(false);
+                    setError('');
+                    setResendStatus('');
+                    setVerificationCode('');
+                  }}
+                  className="text-slate-400 hover:text-slate-600 hover:underline"
+                >
+                  Back to Login Page
+                </button>
+              </p>
+            </div>
+          </>
+        ) : isForgotPassword ? (
+          <>
+            <div className="flex flex-col items-center mb-8">
+              <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4 shadow-lg shadow-emerald-500/20">
+                <Key className="w-6 h-6" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                Reset Password
+              </h2>
+              <p className="text-slate-500 text-center mt-2 text-sm leading-relaxed">
+                {isResetCodeSent 
+                  ? `We have sent a 6-digit verification code to your email address ${resetEmail}.`
+                  : "Enter your email address to recover your password."}
+              </p>
+            </div>
+
+            {resetStatus && (
+              <div className="mb-6 p-3 bg-blue-50 border border-blue-100 text-blue-700 text-sm rounded-xl text-center font-medium">
+                {resetStatus}
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center font-medium">
+                {error}
+              </div>
+            )}
+
+            {!isResetCodeSent ? (
+              <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="name@business.com"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Processing...
+                    </span>
+                  ) : (
+                    "Send Reset Code"
+                  )}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">6-Digit Reset Code</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={resetCode}
+                    onChange={(e) => setResetCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-center text-2xl font-mono font-bold tracking-wider transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+                    >
+                      {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmNewPassword ? "text" : "password"}
+                      required
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+                    >
+                      {showConfirmNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || resetCode.length !== 6 || !newPassword || !confirmNewPassword}
+                  className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Processing...
+                    </span>
+                  ) : (
+                    "Reset Password"
+                  )}
+                </button>
+              </form>
+            )}
+
+            <div className="mt-8 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsForgotPassword(false);
+                  setIsResetCodeSent(false);
+                  setResetEmail('');
+                  setResetCode('');
+                  setNewPassword('');
+                  setConfirmNewPassword('');
+                  setError('');
+                  setResetStatus('');
+                  setResetDebugCode('');
+                }}
+                className="text-emerald-600 font-bold hover:underline bg-transparent border-none p-0 cursor-pointer text-sm"
+              >
+                Back to Login Page
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex flex-col items-center mb-8">
+              {BRAND_CONFIG.logo ? (
+                <div className="w-20 h-20 mb-4 flex items-center justify-center">
+                  <img 
+                    src={BRAND_CONFIG.logo} 
+                    alt={BRAND_CONFIG.name} 
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className={`w-12 h-12 bg-${BRAND_CONFIG.color} rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4 shadow-lg shadow-emerald-500/20`}>
+                  {BRAND_CONFIG.name.charAt(0)}
+                </div>
+              )}
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                {type === 'login' ? t('welcomeBack') : t('createAccount')}
+              </h2>
+              <p className="text-slate-500 text-center mt-2">
+                {type === 'login' 
+                  ? t('loginDesc') 
+                  : t('signupDesc')}
+              </p>
+            </div>
+
+            {verificationSuccessMessage && !error && (
+              <div className="mb-6 p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm rounded-xl text-center font-medium">
+                {verificationSuccessMessage}
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl text-center font-medium">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {type === 'signup' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('businessNameLabel')}</label>
+                    <input
+                      type="text"
+                      required
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      placeholder="Green Garden Supplies"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('fullNameLabel')}</label>
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="John Doe"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('phoneLabel')}</label>
+                    <input
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="017XXXXXXXX"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+                </>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('emailLabel')}</label>
+                <div className="relative">
+                  <input
+                    type={showEmail ? "text" : "email"}
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@business.com"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEmail(!showEmail)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+                    title={showEmail ? "Hide email" : "Show email"}
+                  >
+                    {showEmail ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-sm font-medium text-slate-700">{t('passwordLabel')}</label>
+                  {type === 'login' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsForgotPassword(true);
+                        setError('');
+                        setResetStatus('');
+                      }}
+                      className="text-xs text-emerald-600 font-semibold hover:underline bg-transparent border-none p-0 cursor-pointer"
+                    >
+                      {t('forgotPassword')}
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+                    title={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+              {type === 'signup' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('confirmPasswordLabel')}</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+                      title={showConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    {t('processing')}
+                  </span>
+                ) : (
+                  type === 'login' ? t('signIn') : t('createAccountBtn')
+                )}
+              </button>
+            </form>
+
+            <div className="mt-8 text-center">
+              <p className="text-sm text-slate-500">
+                {type === 'login' ? t('noAccount') : t('haveAccount')}{' '}
+                <Link
+                  to={type === 'login' ? '/signup' : '/login'}
+                  className="text-emerald-600 font-bold hover:underline"
+                >
+                  {type === 'login' ? t('signup') : t('login')}
+                </Link>
+              </p>
+            </div>
+          </>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
+// --- MAIN APP COMPONENT ---
+
+// --- MAIN APP CONTENT ---
+const MainApp = () => {
+  const { user, loading, login, signup, verifyEmail, resendCode, updateProfile, logout, forgotPassword, resetPassword } = useAuth();
+  const data = useData(user);
+  const subscription = useSubscription(user);
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    document.title = "GreensStock";
+  }, []);
+
+  if (loading || !data.isLoaded || subscription.loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <ShieldCheck className="w-12 h-12 text-emerald-600 animate-pulse mb-2" />
+          <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-500 font-medium">{t('softwareLoading')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Router>
+      <ErrorBoundary fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center"><div className="bg-white p-10 rounded-3xl border border-red-100 shadow-xl max-w-md"><h2 className="text-xl font-bold text-red-600">A critical error has occurred.</h2><p className="text-slate-500 mt-4">There may be an error with the database or browser data. Use the buttons below to return or reset.</p><div className="flex flex-col gap-3 mt-8"><button onClick={() => window.location.href='/'} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors">Go to Home</button><button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors">Reset Data (Logout)</button></div></div></div>}>
+        <Routes>
+          <Route path="/login" element={!user ? <AuthPage type="login" login={login} signup={signup} verifyEmail={verifyEmail} resendCode={resendCode} forgotPassword={forgotPassword} resetPassword={resetPassword} /> : <Navigate to="/" />} />
+          <Route path="/signup" element={!user ? <AuthPage type="signup" login={login} signup={signup} verifyEmail={verifyEmail} resendCode={resendCode} forgotPassword={forgotPassword} resetPassword={resetPassword} /> : <Navigate to="/" />} />
+          <Route path="/admin-portal" element={<AdminPortal />} />
+          <Route
+            path="/*"
+            element={
+              user ? (
+                subscription.isLocked ? (
+                  <AccountLockedScreen
+                    user={user}
+                    logout={logout}
+                    onRefreshStatus={subscription.checkStatus}
+                    lockReason={subscription.lockReason}
+                  />
+                ) : (
+                  <Layout user={user} logout={logout} subscription={subscription}>
+                    <Routes>
+                      <Route path="/" element={subscription.active ? <Dashboard data={data} user={user} /> : <Navigate to="/subscription" />} />
+                      <Route path="/inventory" element={subscription.active ? <Inventory data={data} /> : <Navigate to="/subscription" />} />
+                      <Route path="/sales" element={subscription.active ? <Sales data={data} /> : <Navigate to="/subscription" />} />
+                      <Route path="/returns" element={subscription.active ? <Returns data={data} /> : <Navigate to="/subscription" />} />
+                      <Route path="/suppliers" element={subscription.active ? <Suppliers data={data} /> : <Navigate to="/subscription" />} />
+                      <Route path="/customers" element={subscription.active ? <Customers data={data} /> : <Navigate to="/subscription" />} />
+                      <Route path="/expenses" element={subscription.active ? <Expenses data={data} /> : <Navigate to="/subscription" />} />
+                      <Route path="/reports" element={subscription.active ? <Reports data={data} user={user} /> : <Navigate to="/subscription" />} />
+                      <Route path="/subscription" element={<Subscription subscription={subscription} />} />
+                      <Route path="/settings" element={subscription.active ? <Settings user={user} data={data} updateProfile={updateProfile} /> : <Navigate to="/subscription" />} />
+                      <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                  </Layout>
+                )
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+        </Routes>
+      </ErrorBoundary>
+    </Router>
+  );
+};
+
+export default function App() {
+  return (
+    <LanguageProvider>
+      <CurrencyProvider>
+        <MainApp />
+      </CurrencyProvider>
+    </LanguageProvider>
+  );
+}
