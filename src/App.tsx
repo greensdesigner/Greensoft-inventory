@@ -1,5 +1,6 @@
 import React, { useState, useEffect, FormEvent, useRef, ChangeEvent, ReactNode, Component } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
+import { SecurityShield } from './components/SecurityShield';
 
 // --- SAFETY WRAPPER ---
 class ErrorBoundary extends (React.Component as any) {
@@ -11818,7 +11819,7 @@ const MainApp = () => {
   const { user, loading, login, signup, verifyEmail, resendCode, updateProfile, logout, forgotPassword, resetPassword } = useAuth();
   const data = useData(user);
   const subscription = useSubscription(user);
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
 
   useEffect(() => {
     document.title = "GreensStock";
@@ -11877,6 +11878,7 @@ const MainApp = () => {
             }
           />
         </Routes>
+        <SecurityShield lang={lang} />
       </ErrorBoundary>
     </Router>
   );

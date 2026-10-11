@@ -68,6 +68,75 @@ const getStripe = () => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// --- ENTERPRISE SECURITY & CODE PROTECTION MIDDLEWARE ---
+app.disable('x-powered-by');
+
+// 1. Strict Security Headers
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    
+    // Disallow caching for all API endpoints to protect sensitive customer data
+    if (req.path.startsWith('/api/')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    next();
+});
+
+// 2. Sensitive File & Source Code Protection (block direct HTTP probing)
+const RESTRICTED_PATH_PATTERNS = [
+    /\.env/i,
+    /\.git/i,
+    /server\.(js|ts)/i,
+    /package(-lock)?\.json/i,
+    /tsconfig\.json/i,
+    /vite\.config\.(js|ts)/i,
+    /local_db/i,
+    /\.map$/i,
+    /\.log$/i,
+    /db_status\.txt/i,
+    /smtp_status\.txt/i,
+    /smtp_attempts\.txt/i,
+    /db_columns\.json/i
+];
+
+app.use((req, res, next) => {
+    const cleanPath = decodeURIComponent(req.path);
+    const isRestricted = RESTRICTED_PATH_PATTERNS.some(pattern => pattern.test(cleanPath));
+    if (isRestricted) {
+        return res.status(403).json({ error: 'Access denied: System resource protected.' });
+    }
+    next();
+});
+
+// 3. In-Memory Rate Limiter for Auth Routes
+const authRateLimitMap = new Map();
+const AUTH_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const AUTH_MAX_ATTEMPTS = 25;
+
+app.use('/api/auth/', (req, res, next) => {
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const clientData = authRateLimitMap.get(ip) || { count: 0, resetTime: now + AUTH_RATE_LIMIT_WINDOW };
+
+    if (now > clientData.resetTime) {
+        clientData.count = 1;
+        clientData.resetTime = now + AUTH_RATE_LIMIT_WINDOW;
+    } else {
+        clientData.count += 1;
+    }
+
+    authRateLimitMap.set(ip, clientData);
+
+    if (clientData.count > AUTH_MAX_ATTEMPTS) {
+        return res.status(429).json({ error: 'Too many requests. Please wait a moment.' });
+    }
+    next();
+});
+
 app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) {
         const fs = require('fs');
@@ -426,6 +495,9 @@ app.get('/api/debug-smtp', async (req, res) => {
 });
 
 app.get('/api/debug-db', async (req, res) => {
+    if (process.env.NODE_ENV === 'production' && req.headers['x-admin-security-key'] !== process.env.ADMIN_KEY) {
+        return res.status(403).json({ error: 'Forbidden: Debug route restricted in production' });
+    }
     try {
         if (!pool) {
             return res.status(500).json({ error: 'Database pool not initialized' });
@@ -438,6 +510,9 @@ app.get('/api/debug-db', async (req, res) => {
 });
 
 app.get('/api/debug-register-test', async (req, res) => {
+    if (process.env.NODE_ENV === 'production' && req.headers['x-admin-security-key'] !== process.env.ADMIN_KEY) {
+        return res.status(403).json({ error: 'Forbidden: Debug test route restricted in production' });
+    }
     try {
         const testUser = {
             businessName: "GreensStock Test Business",
