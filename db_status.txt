@@ -1,3 +1,0 @@
-Database connection established. Synchronizing database schema...
->>> Columns written to db_columns.json successfully <<<
->>> DB SYNC OK <<<

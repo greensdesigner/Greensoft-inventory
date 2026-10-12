@@ -4104,6 +4104,7 @@ const Inventory = ({ data }: any) => {
     barcode: '',
     serialNumber: '',
     supplier: '',
+    customSupplier: '',
     warranty: 'No Warranty',
     customWarranty: '',
     trackingType: 'serial' as 'serial' | 'manual',
@@ -4167,13 +4168,15 @@ const Inventory = ({ data }: any) => {
     if (!profile) return;
     setNewItem(prev => {
       const isCustomW = !['No Warranty', '6 Months', '1 Year', '2 Years', '3 Years'].includes(profile.warranty);
+      const isCustomS = Boolean(profile.supplier && !(data.suppliers || []).some((s: any) => (s.name || '').trim().toLowerCase() === String(profile.supplier).trim().toLowerCase()));
       return {
         ...prev,
         name: profile.name || prev.name,
         brand: profile.brand || prev.brand,
         category: profile.category || prev.category,
         modelNumber: profile.modelNumber || prev.modelNumber,
-        supplier: profile.supplier || prev.supplier,
+        supplier: isCustomS ? '__custom__' : (profile.supplier || prev.supplier),
+        customSupplier: isCustomS ? (profile.supplier || '') : prev.customSupplier,
         warranty: isCustomW ? 'Custom' : (profile.warranty || 'No Warranty'),
         customWarranty: isCustomW ? profile.warranty : '',
         trackingType: profile.trackingType || prev.trackingType,
@@ -4434,6 +4437,10 @@ const Inventory = ({ data }: any) => {
       ? (newItem.customWarranty.trim() || 'Custom Warranty') 
       : newItem.warranty;
 
+    const finalSupplier = newItem.supplier === '__custom__'
+      ? (newItem.customSupplier || '').trim()
+      : (newItem.supplier || '').trim();
+
     // Strict Rule: Serial Tracked Product quantity = serialNumbers.length
     // Manual Quantity Product quantity = parseBanglaInt(newItem.quantity)
     const finalQuantity = newItem.trackingType === 'serial'
@@ -4442,6 +4449,7 @@ const Inventory = ({ data }: any) => {
 
     const payload = {
       ...newItem,
+      supplier: finalSupplier,
       quantity: finalQuantity,
       price: parseBanglaFloat(newItem.price),
       minStock: parseBanglaInt(newItem.minStock),
@@ -4451,6 +4459,16 @@ const Inventory = ({ data }: any) => {
       trackingType: newItem.trackingType,
       serialNumbers: newItem.trackingType === 'serial' ? newItem.serialNumbers : []
     };
+
+    // Auto-save new supplier to saved suppliers list if not already saved
+    if (finalSupplier && !(data.suppliers || []).some((s: any) => (s.name || '').trim().toLowerCase() === finalSupplier.toLowerCase())) {
+      data.addSupplier({
+        name: finalSupplier,
+        category: 'General',
+        contact: '',
+        address: ''
+      });
+    }
 
     if (editingItem) {
       data.editItem('inventory', editingItem.id, payload, data.setInventory);
@@ -4472,6 +4490,7 @@ const Inventory = ({ data }: any) => {
       : (item.serialNumber ? [item.serialNumber] : []);
     const itemTracking = item.trackingType || (itemSerials.length > 0 ? 'serial' : 'manual');
     const isCustomW = !['No Warranty', '6 Months', '1 Year', '2 Years', '3 Years'].includes(item.warranty);
+    const isCustomS = Boolean(item.supplier && !(data.suppliers || []).some((s: any) => (s.name || '').trim().toLowerCase() === String(item.supplier).trim().toLowerCase()));
 
     setNewItem({
       name: item.name || '',
@@ -4483,7 +4502,8 @@ const Inventory = ({ data }: any) => {
       brand: item.brand || '',
       barcode: item.barcode || item.serialNumber || '',
       serialNumber: item.serialNumber || item.barcode || '',
-      supplier: item.supplier || '',
+      supplier: isCustomS ? '__custom__' : (item.supplier || ''),
+      customSupplier: isCustomS ? (item.supplier || '') : '',
       warranty: isCustomW && item.warranty ? 'Custom' : (item.warranty || 'No Warranty'),
       customWarranty: isCustomW ? (item.warranty || '') : '',
       trackingType: itemTracking,
@@ -5018,7 +5038,14 @@ const Inventory = ({ data }: any) => {
             <div className="relative">
               <select
                 value={newItem.supplier}
-                onChange={e => setNewItem({ ...newItem, supplier: e.target.value })}
+                onChange={e => {
+                  const val = e.target.value;
+                  setNewItem(prev => ({
+                    ...prev,
+                    supplier: val,
+                    customSupplier: val === '__custom__' ? prev.customSupplier : ''
+                  }));
+                }}
                 className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm font-medium text-slate-800"
               >
                 <option value="">{lang === 'bn' ? '-- সরবরাহকারী নির্বাচন করুন --' : '-- Select Supplier --'}</option>
@@ -5031,13 +5058,22 @@ const Inventory = ({ data }: any) => {
               </select>
             </div>
             {newItem.supplier === '__custom__' && (
-              <input
-                type="text"
-                placeholder={lang === 'bn' ? 'নতুন সরবরাহকারীর নাম লিখুন' : 'Enter new supplier name'}
-                onChange={e => setNewItem({ ...newItem, supplier: e.target.value })}
-                className="mt-2 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm"
-                autoFocus
-              />
+              <div className="mt-2 space-y-1">
+                <label className="block text-[11px] font-semibold text-slate-600">
+                  {lang === 'bn' ? 'কাস্টম সরবরাহকারীর নাম (Custom Supplier Name):' : 'Custom Supplier Name:'}
+                </label>
+                <input
+                  type="text"
+                  value={newItem.customSupplier}
+                  placeholder={lang === 'bn' ? 'নতুন সরবরাহকারীর নাম লিখুন (যেমন: রহিম ট্রেডার্স, স্যামসাং বিডি)' : 'Enter custom supplier name (e.g. Rahim Traders)'}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setNewItem(prev => ({ ...prev, customSupplier: val }));
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm font-medium text-slate-800"
+                  autoFocus
+                />
+              </div>
             )}
           </div>
 
