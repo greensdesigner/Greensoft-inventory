@@ -258,6 +258,16 @@ const translations: any = {
     convertToSale: "Convert to Sale",
     convertedToSale: "Converted to Sale",
     shareQuotation: "Share Quotation",
+    totalDue: "Total Due",
+    dueAmount: "Due Amount",
+    whoOwesDue: "Who Owes Due",
+    customerDueList: "Customer Due List",
+    noDueCustomers: "No customers have outstanding dues.",
+    allDuesCleared: "All customer dues are cleared!",
+    collectDue: "Collect Due",
+    dueCollection: "Due Collection",
+    amountToCollect: "Amount to Collect",
+    collectedSuccessfully: "Payment collected successfully!",
   },
   bn: {
     dashboard: "ড্যাশবোর্ড",
@@ -364,6 +374,16 @@ const translations: any = {
     convertToSale: "Convert to Sale",
     convertedToSale: "Converted to Sale",
     shareQuotation: "Share Quotation",
+    totalDue: "মোট বকেয়া",
+    dueAmount: "বকেয়ার পরিমাণ",
+    whoOwesDue: "কার কাছে বকেয়া আছে",
+    customerDueList: "গ্রাহকদের বকেয়া তালিকা",
+    noDueCustomers: "কোনো গ্রাহকের কাছে বকেয়া পাওনা নেই।",
+    allDuesCleared: "সব গ্রাহকের বকেয়া পরিশোধিত আছে!",
+    collectDue: "বকেয়া আদায়",
+    dueCollection: "বকেয়া জমা / আদায়",
+    amountToCollect: "আদায়কৃত টাকার পরিমাণ",
+    collectedSuccessfully: "বকেয়া টাকা সফলভাবে জমা হয়েছে!",
   },
   es: {
     dashboard: "Tablero",
@@ -440,6 +460,16 @@ const translations: any = {
     startDate: "Fecha de Inicio",
     endDate: "Fecha de Fin",
     downloadPDF: "Descargar PDF",
+    totalDue: "Total Pendiente",
+    dueAmount: "Monto Pendiente",
+    whoOwesDue: "¿Quién Debe?",
+    customerDueList: "Lista de Deudores",
+    noDueCustomers: "No hay clientes con deudas pendientes.",
+    allDuesCleared: "¡Todas las deudas están saldadas!",
+    collectDue: "Cobrar Deuda",
+    dueCollection: "Cobro de Deuda",
+    amountToCollect: "Monto a Cobrar",
+    collectedSuccessfully: "¡Pago cobrado con éxito!",
   }
 };
 
@@ -1996,6 +2026,18 @@ const Dashboard = ({ data, user: propUser }: any) => {
   const { t, lang } = useTranslation();
   const { formatCurrency, toBengaliNumber } = useCurrency();
 
+  // Due Management States
+  const [dueSearchQuery, setDueSearchQuery] = useState('');
+  const [selectedDueCustomer, setSelectedDueCustomer] = useState<any>(null);
+  const [isDueDetailsModalOpen, setIsDueDetailsModalOpen] = useState(false);
+  const [isCollectPaymentModalOpen, setIsCollectPaymentModalOpen] = useState(false);
+  const [collectAmount, setCollectAmount] = useState('');
+  const [collectPaymentMethod, setCollectPaymentMethod] = useState('Cash');
+  const [collectNote, setCollectNote] = useState('');
+  const [isCollecting, setIsCollecting] = useState(false);
+  const [dueCollectionSuccess, setDueCollectionSuccess] = useState('');
+  const [showAllDuesModal, setShowAllDuesModal] = useState(false);
+
   // --- CALCULATION LOGIC ---
   const isWithinRange = (dateStr: string) => {
     if (!dateStr) return false;
@@ -2122,11 +2164,181 @@ const Dashboard = ({ data, user: propUser }: any) => {
     };
   });
 
+  // --- CUSTOMER DUE CALCULATIONS & TRACKING ---
+  const customerDueMap = new Map<string, {
+    id?: string;
+    name: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    recordedDue: number;
+    effectiveDue: number;
+    totalSpent: number;
+    ordersCount: number;
+    lastSaleDate?: string;
+    invoices: any[];
+  }>();
+
+  (data.customers || []).forEach((c: any) => {
+    const rawName = (c.name || '').trim();
+    const key = rawName.toLowerCase() || c.id || 'unknown';
+    const dueVal = Number(c.due) || 0;
+    customerDueMap.set(key, {
+      id: c.id,
+      name: rawName || 'Customer',
+      phone: c.phone || '',
+      email: c.email || '',
+      address: c.address || '',
+      recordedDue: dueVal,
+      effectiveDue: dueVal,
+      totalSpent: Number(c.spent) || 0,
+      ordersCount: Number(c.orders) || 0,
+      lastSaleDate: '',
+      invoices: []
+    });
+  });
+
+  (data.sales || []).forEach((s: any) => {
+    const rawName = (s.customerName || '').trim();
+    const key = rawName.toLowerCase() || 'unknown';
+    const sDue = Number(s.due) || 0;
+
+    if (customerDueMap.has(key)) {
+      const existing = customerDueMap.get(key)!;
+      if (s.date && (!existing.lastSaleDate || s.date > existing.lastSaleDate)) {
+        existing.lastSaleDate = s.date;
+      }
+      if (sDue > 0) {
+        existing.invoices.push(s);
+      }
+    } else if (sDue > 0) {
+      customerDueMap.set(key, {
+        name: rawName || 'Walk-in Customer',
+        phone: s.customerPhone || '',
+        email: s.customerEmail || '',
+        address: s.customerAddress || '',
+        recordedDue: sDue,
+        effectiveDue: sDue,
+        totalSpent: Number(s.total) || 0,
+        ordersCount: 1,
+        lastSaleDate: s.date || '',
+        invoices: [s]
+      });
+    }
+  });
+
+  const dueCustomersList = Array.from(customerDueMap.values())
+    .map(c => {
+      const salesDueSum = (c.invoices || []).reduce((sum, inv) => sum + (Number(inv.due) || 0), 0);
+      const effectiveDue = Math.max(c.recordedDue, salesDueSum);
+      return {
+        ...c,
+        effectiveDue
+      };
+    })
+    .filter(c => c.effectiveDue > 0)
+    .sort((a, b) => b.effectiveDue - a.effectiveDue);
+
+  const totalOutstandingDue = dueCustomersList.reduce((acc, c) => acc + c.effectiveDue, 0);
+
+  const handleCollectDue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDueCustomer) return;
+    const amountToCollect = Number(collectAmount);
+    if (isNaN(amountToCollect) || amountToCollect <= 0) {
+      alert(lang === 'bn' ? 'সঠিক টাকার পরিমাণ লিখুন' : 'Please enter a valid amount');
+      return;
+    }
+
+    setIsCollecting(true);
+    try {
+      const remainingCustDue = Math.max(0, selectedDueCustomer.effectiveDue - amountToCollect);
+      
+      // Update customer in database
+      if (selectedDueCustomer.id) {
+        await data.editItem('customers', selectedDueCustomer.id, {
+          due: remainingCustDue,
+          spent: (Number(selectedDueCustomer.totalSpent) || 0) + amountToCollect
+        }, data.setCustomers);
+      } else {
+        await data.addCustomer({
+          name: selectedDueCustomer.name,
+          phone: selectedDueCustomer.phone,
+          email: selectedDueCustomer.email,
+          address: selectedDueCustomer.address,
+          orders: selectedDueCustomer.ordersCount || 1,
+          spent: (Number(selectedDueCustomer.totalSpent) || 0) + amountToCollect,
+          due: remainingCustDue
+        });
+      }
+
+      // Also adjust due on the customer's sales invoices
+      let amountLeftToApply = amountToCollect;
+      if (selectedDueCustomer.invoices && selectedDueCustomer.invoices.length > 0) {
+        for (const invoice of selectedDueCustomer.invoices) {
+          if (amountLeftToApply <= 0) break;
+          const invoiceDue = Number(invoice.due) || 0;
+          if (invoiceDue > 0) {
+            const payThisInvoice = Math.min(amountLeftToApply, invoiceDue);
+            const newInvoiceDue = Math.max(0, invoiceDue - payThisInvoice);
+            const newInvoicePaid = (Number(invoice.paid) || 0) + payThisInvoice;
+            amountLeftToApply -= payThisInvoice;
+
+            await data.editItem('sales', invoice.id, {
+              due: newInvoiceDue,
+              paid: newInvoicePaid
+            }, data.setSales);
+          }
+        }
+      }
+
+      setDueCollectionSuccess(
+        lang === 'bn' 
+          ? `সফলভাবে ৳${amountToCollect.toLocaleString()} বকেয়া পরিশোধিত হিসেবে জমা করা হয়েছে!` 
+          : `Successfully collected ${formatCurrency(amountToCollect)} due payment!`
+      );
+      setTimeout(() => {
+        setDueCollectionSuccess('');
+        setIsCollectPaymentModalOpen(false);
+        setIsDueDetailsModalOpen(false);
+        setShowAllDuesModal(false);
+        setCollectAmount('');
+      }, 1500);
+    } catch (err) {
+      console.error("Due collection error:", err);
+      alert(lang === 'bn' ? 'বকেয়া জমা করতে সমস্যা হয়েছে।' : 'Failed to collect due.');
+    } finally {
+      setIsCollecting(false);
+    }
+  };
+
+  const generateWhatsAppReminder = (customer: any) => {
+    const business = currentUser?.businessName || 'Our Business';
+    const text = lang === 'bn'
+      ? `আসসালামু আলাইকুম ${customer.name}, ${business} থেকে বিনীতভাবে স্মরণ করিয়ে দেওয়া হচ্ছে যে, আপনার কাছে মোট বকেয়া বিল ৳${customer.effectiveDue.toLocaleString()} পাওনা রয়েছে। অনুগ্রহ করে বিলটি পরিশোধ করে সহযোগিতা করবেন। ধন্যবাদ!`
+      : `Hello ${customer.name}, this is a gentle reminder from ${business} regarding your outstanding due balance of ${formatCurrency(customer.effectiveDue)}. Please clear the payment at your earliest convenience. Thank you!`;
+    const cleanPhone = (customer.phone || '').replace(/[^0-9]/g, '');
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
   const stats = [
     { key: 'sales', type: 'revenue', label: t('netRevenue'), value: formatCurrency(netRevenue, 0), icon: DollarSign, color: 'bg-indigo-500' },
     { key: 'sales', type: 'profit', label: t('currentProfit'), value: formatCurrency(currentProfitDisplay), icon: TrendingUp, color: 'bg-emerald-500' },
     { key: 'sales', type: 'loss', label: t('currentLoss'), value: formatCurrency(currentLossDisplay), icon: ArrowDownRight, color: currentLossDisplay > 0 ? 'bg-red-500' : 'bg-slate-500' },
     { key: 'sales', type: 'net', label: t('netProfit'), value: (finalNetResult < 0 ? `-${formatCurrency(Math.abs(finalNetResult))}` : formatCurrency(finalNetResult)), icon: CheckCircle2, color: finalNetResult >= 0 ? 'bg-emerald-600' : 'bg-rose-600' },
+    { 
+      key: 'sales', 
+      type: 'due', 
+      label: lang === 'bn' ? 'মোট বকেয়া' : (t('totalDue') || 'Total Due'), 
+      value: formatCurrency(totalOutstandingDue, 0), 
+      icon: Clock, 
+      color: totalOutstandingDue > 0 ? 'bg-amber-500' : 'bg-slate-500',
+      badge: totalOutstandingDue > 0 
+        ? (lang === 'bn' ? `${toBengaliNumber(dueCustomersList.length)} জন বাকিদার` : `${dueCustomersList.length} customers`)
+        : (lang === 'bn' ? 'পরিশোধিত' : 'Cleared'),
+      onClick: () => setShowAllDuesModal(true)
+    },
     { key: 'expenses', type: 'expense', label: t('totalExpenses'), value: formatCurrency(totalExpenses, 0), icon: Receipt, color: 'bg-orange-500' },
     { key: 'returns', type: 'refund', label: t('totalRefunds'), value: formatCurrency(totalRefunds, 0), icon: RotateCcw, color: 'bg-slate-500' },
     { key: 'returns', type: 'replacement', label: t('totalReplacements'), value: formatCurrency(totalExtraIncome, 0), icon: RefreshCw, color: 'bg-indigo-400' },
@@ -2195,7 +2407,8 @@ const Dashboard = ({ data, user: propUser }: any) => {
         pdf.text(`Net Revenue: $${Number(netRevenue || 0).toFixed(2)}`, 14, 46);
         pdf.text(`Current Profit: $${Number(currentProfitDisplay || 0).toFixed(2)}`, 14, 53);
         pdf.text(`Current Loss: $${Number(currentLossDisplay || 0).toFixed(2)}`, 14, 60);
-        pdf.text(`Total Sales Count: ${filteredSales.length}`, 14, 67);
+        pdf.text(`Total Outstanding Due: $${Number(totalOutstandingDue || 0).toFixed(2)}`, 14, 67);
+        pdf.text(`Total Sales Count: ${filteredSales.length}`, 14, 74);
 
         const fileName = `Dashboard-Report-${timeFilter === 'custom' ? `${startDate || 'Start'}_to_${endDate || 'End'}` : timeFilter}.pdf`;
         pdf.save(fileName);
@@ -2222,6 +2435,7 @@ const Dashboard = ({ data, user: propUser }: any) => {
         fallbackPdf.text(`Generated: ${new Date().toLocaleString()} | Filter: ${timeFilter.toUpperCase()}`, 14, 30);
         fallbackPdf.text(`Net Revenue: $${Number(netRevenue || 0).toFixed(2)}`, 14, 40);
         fallbackPdf.text(`Profit: $${Number(currentProfitDisplay || 0).toFixed(2)}`, 14, 50);
+        fallbackPdf.text(`Total Due: $${Number(totalOutstandingDue || 0).toFixed(2)}`, 14, 60);
         fallbackPdf.save(`Dashboard-Report-${timeFilter}.pdf`);
         setTimeout(() => {
           alert("PDF downloaded successfully");
@@ -2321,7 +2535,11 @@ const Dashboard = ({ data, user: propUser }: any) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+            onClick={stat.onClick}
+            className={cn(
+              "bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all relative overflow-hidden",
+              stat.onClick && "cursor-pointer hover:border-amber-400 group"
+            )}
           >
             <div className="flex items-center justify-between mb-4">
               <div className={cn("p-3 rounded-xl text-white", stat.color)}>
@@ -2348,9 +2566,23 @@ const Dashboard = ({ data, user: propUser }: any) => {
                   {lang === 'bn' ? 'চূড়ান্ত নিট' : 'Overall Net'}
                 </span>
               )}
+              {stat.type === 'due' && (
+                <span className={cn(
+                  "text-xs font-bold px-2.5 py-1 rounded-full border",
+                  totalOutstandingDue > 0 ? "text-amber-800 bg-amber-50 border-amber-200" : "text-emerald-700 bg-emerald-50 border-emerald-200"
+                )}>
+                  {stat.badge || (totalOutstandingDue > 0 ? (lang === 'bn' ? 'বকেয়া' : 'Due') : (lang === 'bn' ? 'পরিশোধিত' : 'Cleared'))}
+                </span>
+              )}
             </div>
             <p className="text-sm text-slate-500 font-medium">{stat.label}</p>
             <h3 className="text-2xl font-bold text-slate-900 mt-1">{stat.value}</h3>
+            {stat.type === 'due' && totalOutstandingDue > 0 && (
+              <p className="text-xs text-amber-700 font-semibold mt-2.5 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                <span>{lang === 'bn' ? 'কার কাছে কত বকেয়া দেখতে ক্লিক করুন' : 'Click to see customer breakdown'}</span>
+                <ChevronRight size={13} />
+              </p>
+            )}
           </motion.div>
         ))}
       </div>
@@ -2528,8 +2760,534 @@ const Dashboard = ({ data, user: propUser }: any) => {
             </Link>
           </Card>
         )}
+
+        {/* Customer Dues Overview Card in Dashboard */}
+        {(hasPermission('customers', 'view') || hasPermission('sales', 'view')) && (
+          <Card className="p-6 border-amber-200/80 shadow-sm" id="due-customers-section">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                  <Clock size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base leading-tight">
+                    {lang === 'bn' ? 'কার কাছে বকেয়া আছে' : (t('whoOwesDue') || 'Who Owes Due')}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {lang === 'bn' ? 'বকেয়া থাকা গ্রাহকদের হিসাব' : 'Customers with unpaid dues'}
+                  </p>
+                </div>
+              </div>
+              {totalOutstandingDue > 0 && (
+                <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold rounded-lg shadow-2xs">
+                  {formatCurrency(totalOutstandingDue)}
+                </span>
+              )}
+            </div>
+
+            {dueCustomersList.length > 0 ? (
+              <div className="space-y-3">
+                {dueCustomersList.length > 2 && (
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder={lang === 'bn' ? 'নাম বা ফোন নম্বর দিয়ে খুঁজুন...' : 'Search by name or phone...'}
+                      value={dueSearchQuery}
+                      onChange={(e) => setDueSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1 custom-scrollbar">
+                  {dueCustomersList
+                    .filter(c => {
+                      if (!dueSearchQuery.trim()) return true;
+                      const q = dueSearchQuery.toLowerCase();
+                      return c.name.toLowerCase().includes(q) || (c.phone || '').includes(q);
+                    })
+                    .slice(0, 5)
+                    .map((customer, idx) => (
+                      <div
+                        key={customer.id || `${customer.name}-${idx}`}
+                        className="p-3 bg-slate-50/70 border border-slate-200/90 rounded-xl hover:bg-amber-50/30 hover:border-amber-300 transition-all flex items-center justify-between gap-2.5"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 font-bold flex items-center justify-center text-xs shrink-0">
+                            {(customer.name || 'C')[0].toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-slate-900 truncate">{customer.name}</h4>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                              {customer.phone ? (
+                                <a
+                                  href={`tel:${customer.phone}`}
+                                  className="hover:text-amber-600 flex items-center gap-0.5 truncate"
+                                  title="Call customer"
+                                >
+                                  <Phone size={10} className="shrink-0" />
+                                  <span className="truncate">{customer.phone}</span>
+                                </a>
+                              ) : (
+                                <span className="text-slate-400 italic">{lang === 'bn' ? 'ফোন নেই' : 'No phone'}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 inline-block">
+                            {formatCurrency(customer.effectiveDue)}
+                          </div>
+                          <div className="mt-1 flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => {
+                                setSelectedDueCustomer(customer);
+                                setIsDueDetailsModalOpen(true);
+                              }}
+                              className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
+                            >
+                              {lang === 'bn' ? 'বিস্তারিত' : 'Details'}
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              onClick={() => {
+                                setSelectedDueCustomer(customer);
+                                setCollectAmount(customer.effectiveDue.toString());
+                                setIsCollectPaymentModalOpen(true);
+                              }}
+                              className="text-[11px] font-semibold text-amber-600 hover:text-amber-700 hover:underline cursor-pointer"
+                            >
+                              {lang === 'bn' ? 'আদায়' : 'Collect'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                <button
+                  onClick={() => setShowAllDuesModal(true)}
+                  className="w-full py-2 mt-1 text-center text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-xl border border-amber-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>
+                    {lang === 'bn' 
+                      ? `সব বকেয়া দেখুন (${toBengaliNumber(dueCustomersList.length)} জন গ্রাহক)` 
+                      : `View All Dues (${dueCustomersList.length} customers)`}
+                  </span>
+                  <ChevronRight size={13} />
+                </button>
+              </div>
+            ) : (
+              <div className="text-center py-5 px-3 bg-emerald-50/60 rounded-xl border border-emerald-100">
+                <div className="w-9 h-9 mx-auto mb-1.5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                  <CheckCircle2 size={18} />
+                </div>
+                <p className="text-xs font-bold text-slate-800">
+                  {lang === 'bn' ? 'কোনো বকেয়া নেই' : 'No Outstanding Dues'}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {lang === 'bn' ? 'সব গ্রাহকের বকেয়া পরিশোধিত আছে।' : 'All customer accounts are clear.'}
+                </p>
+              </div>
+            )}
+          </Card>
+        )}
       </div>
     </div>
+
+    {/* 1. Modal: View Customer Due Details */}
+    <Modal 
+      isOpen={isDueDetailsModalOpen} 
+      onClose={() => setIsDueDetailsModalOpen(false)} 
+      title={lang === 'bn' ? 'গ্রাহকের বকেয়া বিবরণী' : 'Customer Due Details'}
+      maxWidth="max-w-2xl"
+    >
+      {selectedDueCustomer && (
+        <div className="space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-amber-50/60 rounded-2xl border border-amber-200">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-xl font-bold shadow-xs">
+                {(selectedDueCustomer.name || 'C')[0].toUpperCase()}
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">{selectedDueCustomer.name}</h3>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mt-0.5">
+                  {selectedDueCustomer.phone && (
+                    <span className="flex items-center gap-1">
+                      <Phone size={12} className="text-slate-400" />
+                      {selectedDueCustomer.phone}
+                    </span>
+                  )}
+                  {selectedDueCustomer.email && (
+                    <span className="flex items-center gap-1">
+                      <Mail size={12} className="text-slate-400" />
+                      {selectedDueCustomer.email}
+                    </span>
+                  )}
+                </div>
+                {selectedDueCustomer.address && (
+                  <p className="text-xs text-slate-500 mt-0.5">{selectedDueCustomer.address}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="text-left sm:text-right bg-white sm:bg-transparent p-3 sm:p-0 rounded-xl border sm:border-0 border-amber-200">
+              <p className="text-xs font-semibold text-slate-500">{lang === 'bn' ? 'মোট বকেয়া পাওনা' : 'Total Due'}</p>
+              <p className="text-2xl font-black text-rose-600">{formatCurrency(selectedDueCustomer.effectiveDue)}</p>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <button
+              onClick={() => {
+                setCollectAmount(selectedDueCustomer.effectiveDue.toString());
+                setIsCollectPaymentModalOpen(true);
+              }}
+              className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <CreditCard size={14} />
+              <span>{lang === 'bn' ? 'বকেয়া টাকা জমা নিন' : 'Collect Due'}</span>
+            </button>
+
+            <button
+              onClick={() => generateWhatsAppReminder(selectedDueCustomer)}
+              className="py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Share2 size={14} />
+              <span>{lang === 'bn' ? 'হোয়াটসঅ্যাপ তাগাদা' : 'WhatsApp Reminder'}</span>
+            </button>
+
+            {selectedDueCustomer.phone ? (
+              <a
+                href={`tel:${selectedDueCustomer.phone}`}
+                className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Phone size={14} />
+                <span>{lang === 'bn' ? 'সরাসরি কল করুন' : 'Call Customer'}</span>
+              </a>
+            ) : (
+              <div className="py-2.5 px-3 bg-slate-50 text-slate-400 font-medium text-xs rounded-xl text-center">
+                {lang === 'bn' ? 'ফোন নম্বর নেই' : 'No phone'}
+              </div>
+            )}
+          </div>
+
+          {/* Invoices with Dues */}
+          <div>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">
+              {lang === 'bn' ? 'বকেয়া থাকা সেলস ইনভয়েসসমূহ' : 'Invoices with Outstanding Balance'}
+            </h4>
+            {selectedDueCustomer.invoices && selectedDueCustomer.invoices.length > 0 ? (
+              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-3">{lang === 'bn' ? 'ইনভয়েস' : 'Invoice'}</th>
+                      <th className="py-2.5 px-3">{lang === 'bn' ? 'তারিখ' : 'Date'}</th>
+                      <th className="py-2.5 px-3 text-right">{lang === 'bn' ? 'মোট বিল' : 'Total'}</th>
+                      <th className="py-2.5 px-3 text-right">{lang === 'bn' ? 'পরিশোধ' : 'Paid'}</th>
+                      <th className="py-2.5 px-3 text-right">{lang === 'bn' ? 'বকেয়া' : 'Due'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {selectedDueCustomer.invoices.map((inv: any) => (
+                      <tr key={inv.id} className="hover:bg-slate-50/70">
+                        <td className="py-2 px-3 font-semibold text-slate-900">
+                          INV-{(inv.id || '').slice(-6).toUpperCase()}
+                        </td>
+                        <td className="py-2 px-3 text-slate-500">
+                          {inv.date || '-'}
+                          {inv.dueDate && (
+                            <div className="text-[10px] text-amber-600 font-medium">
+                              {lang === 'bn' ? 'মেয়াদ:' : 'Due:'} {inv.dueDate}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-right font-medium text-slate-900">
+                          {formatCurrency(inv.total)}
+                        </td>
+                        <td className="py-2 px-3 text-right text-emerald-600 font-medium">
+                          {formatCurrency(inv.paid || (Number(inv.total) - Number(inv.due || 0)))}
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-rose-600">
+                          {formatCurrency(inv.due)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 text-center">
+                {lang === 'bn' 
+                  ? 'গ্রাহক অ্যাকাউন্টে সরাসরি রেকর্ডকৃত বকেয়া (পূর্বের বাকি হিসাব)' 
+                  : 'Balance recorded directly on customer ledger'}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Modal>
+
+    {/* 2. Modal: Collect Payment Form */}
+    <Modal 
+      isOpen={isCollectPaymentModalOpen} 
+      onClose={() => {
+        setIsCollectPaymentModalOpen(false);
+        setDueCollectionSuccess('');
+      }} 
+      title={lang === 'bn' ? 'বকেয়া টাকা জমা / আদায়' : 'Collect Due Payment'}
+      maxWidth="max-w-md"
+    >
+      {selectedDueCustomer && (
+        <form onSubmit={handleCollectDue} className="space-y-4">
+          {dueCollectionSuccess && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold flex items-center gap-2">
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <span>{dueCollectionSuccess}</span>
+            </div>
+          )}
+
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-slate-500">{lang === 'bn' ? 'গ্রাহকের নাম' : 'Customer'}</p>
+              <h4 className="text-sm font-bold text-slate-900">{selectedDueCustomer.name}</h4>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-slate-500">{lang === 'bn' ? 'বর্তমান বকেয়া' : 'Current Due'}</p>
+              <h4 className="text-sm font-black text-rose-600">{formatCurrency(selectedDueCustomer.effectiveDue)}</h4>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              {lang === 'bn' ? 'আদায়কৃত টাকার পরিমাণ (৳)' : 'Collected Amount'}
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                step="0.01"
+                required
+                min="1"
+                max={selectedDueCustomer.effectiveDue}
+                value={collectAmount}
+                onChange={(e) => setCollectAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              />
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setCollectAmount(selectedDueCustomer.effectiveDue.toString())}
+                className="px-2.5 py-1 text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg cursor-pointer"
+              >
+                {lang === 'bn' ? 'সম্পূর্ণ বকেয়া (Full)' : 'Full Due'}
+              </button>
+              {selectedDueCustomer.effectiveDue > 100 && (
+                <button
+                  type="button"
+                  onClick={() => setCollectAmount((Math.round(selectedDueCustomer.effectiveDue / 2)).toString())}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg cursor-pointer"
+                >
+                  {lang === 'bn' ? 'অর্ধেক (50%)' : 'Half'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              {lang === 'bn' ? 'পেমেন্ট মাধ্যম' : 'Payment Method'}
+            </label>
+            <select
+              value={collectPaymentMethod}
+              onChange={(e) => setCollectPaymentMethod(e.target.value)}
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            >
+              <option value="Cash">{lang === 'bn' ? 'নগদ (Cash)' : 'Cash'}</option>
+              <option value="bKash">bKash</option>
+              <option value="Nagad">Nagad</option>
+              <option value="Rocket">Rocket</option>
+              <option value="Bank">{lang === 'bn' ? 'ব্যাংক ট্রান্সফার' : 'Bank Transfer'}</option>
+              <option value="Card">{lang === 'bn' ? 'কার্ড' : 'Card'}</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              {lang === 'bn' ? 'মন্তব্য / নোট (ঐচ্ছিক)' : 'Note (Optional)'}
+            </label>
+            <input
+              type="text"
+              value={collectNote}
+              onChange={(e) => setCollectNote(e.target.value)}
+              placeholder={lang === 'bn' ? 'যেমন: ক্যাশ রিসিট বা রেফারেন্স' : 'e.g. Receipt # or reference'}
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+
+          <div className="pt-2 flex items-center justify-end gap-2.5">
+            <button
+              type="button"
+              onClick={() => setIsCollectPaymentModalOpen(false)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+            >
+              {lang === 'bn' ? 'বাতিল' : 'Cancel'}
+            </button>
+            <button
+              type="submit"
+              disabled={isCollecting}
+              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+            >
+              {isCollecting ? (
+                <span>{lang === 'bn' ? 'সংরক্ষণ হচ্ছে...' : 'Saving...'}</span>
+              ) : (
+                <>
+                  <CheckCircle2 size={14} />
+                  <span>{lang === 'bn' ? 'বকেয়া জমা কনফার্ম করুন' : 'Confirm Collection'}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      )}
+    </Modal>
+
+    {/* 3. Modal: View All Due Customers */}
+    <Modal 
+      isOpen={showAllDuesModal} 
+      onClose={() => setShowAllDuesModal(false)} 
+      title={lang === 'bn' ? 'কার কাছে বকেয়া আছে — সম্পূর্ণ তালিকা' : 'Customers with Outstanding Dues'}
+      maxWidth="max-w-3xl"
+    >
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-200">
+          <div>
+            <p className="text-xs text-amber-800 font-bold uppercase tracking-wider">
+              {lang === 'bn' ? 'মোট বকেয়া পাওনা' : 'Total Outstanding Balance'}
+            </p>
+            <h3 className="text-2xl font-black text-rose-600">{formatCurrency(totalOutstandingDue)}</h3>
+          </div>
+          <div className="text-left sm:text-right">
+            <span className="px-3 py-1 bg-white border border-amber-200 text-amber-900 rounded-lg text-xs font-bold">
+              {lang === 'bn' 
+                ? `মোট ${toBengaliNumber(dueCustomersList.length)} জন গ্রাহকের কাছে বকেয়া` 
+                : `${dueCustomersList.length} customers with unpaid balance`}
+            </span>
+          </div>
+        </div>
+
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder={lang === 'bn' ? 'গ্রাহকের নাম বা ফোন নম্বর দিয়ে খুঁজুন...' : 'Search by customer name or phone number...'}
+            value={dueSearchQuery}
+            onChange={(e) => setDueSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+          />
+        </div>
+
+        <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-[420px] overflow-y-auto custom-scrollbar">
+          {dueCustomersList.length > 0 ? (
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 sticky top-0 z-10">
+                <tr>
+                  <th className="py-3 px-4">{lang === 'bn' ? 'গ্রাহক' : 'Customer'}</th>
+                  <th className="py-3 px-4">{lang === 'bn' ? 'যোগাযোগ' : 'Contact'}</th>
+                  <th className="py-3 px-4 text-center">{lang === 'bn' ? 'ইনভয়েস' : 'Invoices'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'bn' ? 'বকেয়া' : 'Due Amount'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'bn' ? 'অ্যাকশন' : 'Actions'}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {dueCustomersList
+                  .filter(c => {
+                    if (!dueSearchQuery.trim()) return true;
+                    const q = dueSearchQuery.toLowerCase();
+                    return c.name.toLowerCase().includes(q) || (c.phone || '').includes(q);
+                  })
+                  .map((customer, idx) => (
+                    <tr key={customer.id || `${customer.name}-${idx}`} className="hover:bg-amber-50/20 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 font-bold flex items-center justify-center text-xs shrink-0">
+                            {(customer.name || 'C')[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900">{customer.name}</p>
+                            {customer.address && (
+                              <p className="text-[10px] text-slate-400 truncate max-w-[150px]">{customer.address}</p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">
+                        {customer.phone ? (
+                          <a href={`tel:${customer.phone}`} className="hover:text-amber-600 flex items-center gap-1">
+                            <Phone size={11} className="text-slate-400" />
+                            <span>{customer.phone}</span>
+                          </a>
+                        ) : (
+                          <span className="text-slate-400 italic">{lang === 'bn' ? 'ফোন নেই' : 'No phone'}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium text-[11px]">
+                          {lang === 'bn' ? `${toBengaliNumber(customer.invoices.length)}টি` : customer.invoices.length}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <span className="font-black text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 inline-block">
+                          {formatCurrency(customer.effectiveDue)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => {
+                              setSelectedDueCustomer(customer);
+                              setIsDueDetailsModalOpen(true);
+                            }}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-semibold text-[11px] transition-colors cursor-pointer"
+                          >
+                            {lang === 'bn' ? 'বিবরণ' : 'Details'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedDueCustomer(customer);
+                              setCollectAmount(customer.effectiveDue.toString());
+                              setIsCollectPaymentModalOpen(true);
+                            }}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer"
+                          >
+                            {lang === 'bn' ? 'আদায়' : 'Collect'}
+                          </button>
+                          <button
+                            onClick={() => generateWhatsAppReminder(customer)}
+                            title="WhatsApp Reminder"
+                            className="p-1 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Share2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-8 text-center text-slate-500 text-xs">
+              {lang === 'bn' ? 'কোনো বাকিদার গ্রাহক পাওয়া যায়নি।' : 'No due customers found.'}
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
   </div>
 );
 };
