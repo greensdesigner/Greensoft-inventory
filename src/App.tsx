@@ -98,6 +98,8 @@ import {
   UserX,
   Camera,
   ChevronDown,
+  ChevronUp,
+  ArrowLeft,
   Globe,
   Barcode,
   ScanLine,
@@ -1532,40 +1534,45 @@ const EmptyState = ({ icon: Icon, title, description, action, onAction }: any) =
   </div>
 );
 
-const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }: any) => (
-  <AnimatePresence>
-    {isOpen && (
-      <>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60]"
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className={cn(
-            "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full bg-white rounded-3xl shadow-2xl z-[70] overflow-hidden flex flex-col max-h-[90vh]",
-            maxWidth
-          )}
-        >
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
-            <h3 className="text-xl font-bold text-slate-900">{title}</h3>
-            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600">
-              <X size={20} />
-            </button>
-          </div>
-          <div className="p-6 overflow-y-auto">
-            {children}
-          </div>
-        </motion.div>
-      </>
-    )}
-  </AnimatePresence>
-);
+const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md", zIndex = 70, backdropZIndex }: any) => {
+  const finalBackdropZ = backdropZIndex || Math.max(10, zIndex - 5);
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            style={{ zIndex: finalBackdropZ }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            style={{ zIndex }}
+            className={cn(
+              "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]",
+              maxWidth
+            )}
+          >
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="text-xl font-bold text-slate-900">{title}</div>
+              <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              {children}
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+};
 
 const Card = ({ children, className }: any) => (
   <div className={cn("bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden", className)}>
@@ -2037,6 +2044,7 @@ const Dashboard = ({ data, user: propUser }: any) => {
   const [isCollecting, setIsCollecting] = useState(false);
   const [dueCollectionSuccess, setDueCollectionSuccess] = useState('');
   const [showAllDuesModal, setShowAllDuesModal] = useState(false);
+  const [expandedDueCustomerId, setExpandedDueCustomerId] = useState<string | null>(null);
 
   // --- CALCULATION LOGIC ---
   const isWithinRange = (dateStr: string) => {
@@ -2897,12 +2905,332 @@ const Dashboard = ({ data, user: propUser }: any) => {
       </div>
     </div>
 
-    {/* 1. Modal: View Customer Due Details */}
+    {/* 1. Modal: View All Due Customers with Downwards Expandable Breakdown */}
+    <Modal 
+      isOpen={showAllDuesModal} 
+      onClose={() => setShowAllDuesModal(false)} 
+      title={lang === 'bn' ? 'কার কাছে বকেয়া আছে — গ্রাহক তালিকা' : 'Customers with Outstanding Dues'}
+      maxWidth="max-w-4xl"
+      zIndex={70}
+      backdropZIndex={65}
+    >
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-200">
+          <div>
+            <p className="text-xs text-amber-800 font-bold uppercase tracking-wider">
+              {lang === 'bn' ? 'মোট বকেয়া পাওনা' : 'Total Outstanding Balance'}
+            </p>
+            <h3 className="text-2xl font-black text-rose-600">{formatCurrency(totalOutstandingDue)}</h3>
+          </div>
+          <div className="text-left sm:text-right">
+            <span className="px-3 py-1 bg-white border border-amber-200 text-amber-900 rounded-lg text-xs font-bold">
+              {lang === 'bn' 
+                ? `মোট ${toBengaliNumber(dueCustomersList.length)} জন গ্রাহকের কাছে বকেয়া` 
+                : `${dueCustomersList.length} customers with unpaid balance`}
+            </span>
+          </div>
+        </div>
+
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder={lang === 'bn' ? 'গ্রাহকের নাম বা ফোন নম্বর দিয়ে খুঁজুন...' : 'Search by customer name or phone number...'}
+            value={dueSearchQuery}
+            onChange={(e) => setDueSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+          />
+        </div>
+
+        <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-[460px] overflow-y-auto custom-scrollbar">
+          {dueCustomersList.length > 0 ? (
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 sticky top-0 z-10">
+                <tr>
+                  <th className="py-3 px-4">{lang === 'bn' ? 'গ্রাহক' : 'Customer'}</th>
+                  <th className="py-3 px-4">{lang === 'bn' ? 'যোগাযোগ' : 'Contact'}</th>
+                  <th className="py-3 px-4 text-center">{lang === 'bn' ? 'ইনভয়েস' : 'Invoices'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'bn' ? 'বকেয়া' : 'Due Amount'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'bn' ? 'অ্যাকশন ও বিবরণ' : 'Actions & Details'}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {dueCustomersList
+                  .filter(c => {
+                    if (!dueSearchQuery.trim()) return true;
+                    const q = dueSearchQuery.toLowerCase();
+                    return c.name.toLowerCase().includes(q) || (c.phone || '').includes(q);
+                  })
+                  .map((customer, idx) => {
+                    const customerKey = customer.id || `${customer.name}-${idx}`;
+                    const isExpanded = expandedDueCustomerId === customerKey;
+
+                    return (
+                      <React.Fragment key={customerKey}>
+                        <tr className={cn("hover:bg-amber-50/20 transition-colors", isExpanded && "bg-amber-50/30")}>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 font-bold flex items-center justify-center text-xs shrink-0">
+                                {(customer.name || 'C')[0].toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-900">{customer.name}</p>
+                                {customer.address && (
+                                  <p className="text-[10px] text-slate-400 truncate max-w-[150px]">{customer.address}</p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600">
+                            {customer.phone ? (
+                              <a href={`tel:${customer.phone}`} className="hover:text-amber-600 flex items-center gap-1">
+                                <Phone size={11} className="text-slate-400" />
+                                <span>{customer.phone}</span>
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 italic">{lang === 'bn' ? 'ফোন নেই' : 'No phone'}</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium text-[11px]">
+                              {lang === 'bn' ? `${toBengaliNumber(customer.invoices.length)}টি` : customer.invoices.length}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <span className="font-black text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 inline-block">
+                              {formatCurrency(customer.effectiveDue)}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              {/* Downwards Accordion Toggle */}
+                              <button
+                                type="button"
+                                onClick={() => setExpandedDueCustomerId(isExpanded ? null : customerKey)}
+                                className={cn(
+                                  "px-2 py-1 rounded-lg font-semibold text-[11px] transition-colors cursor-pointer flex items-center gap-1",
+                                  isExpanded ? "bg-amber-200 text-amber-900" : "bg-slate-100 hover:bg-slate-200 text-slate-800"
+                                )}
+                                title={lang === 'bn' ? 'নিচের দিকে বিস্তারিত তথ্য দেখুন' : 'Expand details downwards'}
+                              >
+                                <span>{lang === 'bn' ? (isExpanded ? 'লুকান' : 'নিচে দেখুন') : (isExpanded ? 'Hide' : 'Expand')}</span>
+                                <ChevronDown size={12} className={cn("transition-transform duration-200", isExpanded && "rotate-180")} />
+                              </button>
+
+                              {/* Open in Front Pop-up */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedDueCustomer(customer);
+                                  setIsDueDetailsModalOpen(true);
+                                }}
+                                className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg font-semibold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
+                                title={lang === 'bn' ? 'সামনে পপ-আপে পূর্ণাঙ্গ বিবরণ দেখুন' : 'Open details in front pop-up'}
+                              >
+                                <ExternalLink size={11} />
+                                <span>{lang === 'bn' ? 'পপ-আপ' : 'Pop-up'}</span>
+                              </button>
+
+                              {/* Collect Payment */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedDueCustomer(customer);
+                                  setCollectAmount(customer.effectiveDue.toString());
+                                  setIsCollectPaymentModalOpen(true);
+                                }}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                              >
+                                <CreditCard size={11} />
+                                <span>{lang === 'bn' ? 'আদায়' : 'Collect'}</span>
+                              </button>
+
+                              {/* WhatsApp Reminder */}
+                              <button
+                                type="button"
+                                onClick={() => generateWhatsAppReminder(customer)}
+                                title="WhatsApp Reminder"
+                                className="p-1 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Share2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Expandable row: Shows full breakdown downwards below the customer row */}
+                        {isExpanded && (
+                          <tr className="bg-amber-50/50 border-b border-amber-200 animate-fadeIn">
+                            <td colSpan={5} className="p-4">
+                              <div className="bg-white rounded-2xl border border-amber-200 p-4 space-y-4 shadow-sm">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-slate-900 text-sm">{customer.name}</span>
+                                      <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full">
+                                        {lang === 'bn' ? 'নিচে বিস্তারিত বিবরণ' : 'Detailed Breakdown'}
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-1">
+                                      {customer.phone && (
+                                        <a href={`tel:${customer.phone}`} className="flex items-center gap-1 hover:text-amber-600">
+                                          <Phone size={11} className="text-slate-400" />
+                                          {customer.phone}
+                                        </a>
+                                      )}
+                                      {customer.email && (
+                                        <span className="flex items-center gap-1">
+                                          <Mail size={11} className="text-slate-400" />
+                                          {customer.email}
+                                        </span>
+                                      )}
+                                      {customer.address && (
+                                        <span>{customer.address}</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedDueCustomer(customer);
+                                        setCollectAmount(customer.effectiveDue.toString());
+                                        setIsCollectPaymentModalOpen(true);
+                                      }}
+                                      className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                      <CreditCard size={13} />
+                                      <span>{lang === 'bn' ? 'বকেয়া টাকা জমা নিন' : 'Collect Due'}</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => generateWhatsAppReminder(customer)}
+                                      className="py-1.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Share2 size={13} />
+                                      <span>{lang === 'bn' ? 'হোয়াটসঅ্যাপ' : 'WhatsApp'}</span>
+                                    </button>
+
+                                    {customer.phone && (
+                                      <a
+                                        href={`tel:${customer.phone}`}
+                                        className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                                      >
+                                        <Phone size={13} />
+                                        <span>{lang === 'bn' ? 'কল' : 'Call'}</span>
+                                      </a>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedDueCustomer(customer);
+                                        setIsDueDetailsModalOpen(true);
+                                      }}
+                                      className="py-1.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-xs rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <ExternalLink size={13} />
+                                      <span>{lang === 'bn' ? 'পপ-আপে দেখুন' : 'Pop-up View'}</span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Invoices Breakdown Table */}
+                                <div>
+                                  <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                                    {lang === 'bn' ? 'বকেয়া থাকা সেলস ইনভয়েসসমূহ' : 'Invoices with Outstanding Balance'}
+                                  </h5>
+                                  {customer.invoices && customer.invoices.length > 0 ? (
+                                    <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto custom-scrollbar">
+                                      <table className="w-full text-left text-xs">
+                                        <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                                          <tr>
+                                            <th className="py-2 px-3">{lang === 'bn' ? 'ইনভয়েস' : 'Invoice'}</th>
+                                            <th className="py-2 px-3">{lang === 'bn' ? 'তারিখ' : 'Date'}</th>
+                                            <th className="py-2 px-3 text-right">{lang === 'bn' ? 'মোট বিল' : 'Total'}</th>
+                                            <th className="py-2 px-3 text-right">{lang === 'bn' ? 'পরিশোধ' : 'Paid'}</th>
+                                            <th className="py-2 px-3 text-right">{lang === 'bn' ? 'বকেয়া' : 'Due'}</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                          {customer.invoices.map((inv: any) => (
+                                            <tr key={inv.id} className="hover:bg-slate-50/70">
+                                              <td className="py-2 px-3 font-semibold text-slate-900">
+                                                INV-{(inv.id || '').slice(-6).toUpperCase()}
+                                              </td>
+                                              <td className="py-2 px-3 text-slate-500">
+                                                {inv.date || '-'}
+                                                {inv.dueDate && (
+                                                  <div className="text-[10px] text-amber-600 font-medium">
+                                                    {lang === 'bn' ? 'মেয়াদ:' : 'Due:'} {inv.dueDate}
+                                                  </div>
+                                                )}
+                                              </td>
+                                              <td className="py-2 px-3 text-right font-medium text-slate-900">
+                                                {formatCurrency(inv.total)}
+                                              </td>
+                                              <td className="py-2 px-3 text-right text-emerald-600 font-medium">
+                                                {formatCurrency(inv.paid || (Number(inv.total) - Number(inv.due || 0)))}
+                                              </td>
+                                              <td className="py-2 px-3 text-right font-bold text-rose-600">
+                                                {formatCurrency(inv.due)}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ) : (
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 text-center">
+                                      {lang === 'bn' 
+                                        ? 'গ্রাহক অ্যাকাউন্টে সরাসরি রেকর্ডকৃত বকেয়া (পূর্বের বাকি হিসাব)' 
+                                        : 'Balance recorded directly on customer ledger'}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-8 text-center text-slate-500 text-xs">
+              {lang === 'bn' ? 'কোনো বাকিদার গ্রাহক পাওয়া যায়নি।' : 'No due customers found.'}
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+
+    {/* 2. Modal: View Customer Due Details (Rendered in FRONT with zIndex=85) */}
     <Modal 
       isOpen={isDueDetailsModalOpen} 
       onClose={() => setIsDueDetailsModalOpen(false)} 
-      title={lang === 'bn' ? 'গ্রাহকের বকেয়া বিবরণী' : 'Customer Due Details'}
+      title={
+        <div className="flex items-center gap-2.5">
+          {showAllDuesModal && (
+            <button
+              type="button"
+              onClick={() => setIsDueDetailsModalOpen(false)}
+              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+              title={lang === 'bn' ? 'পেছনের তালিকায় ফিরুন' : 'Back to list'}
+            >
+              <ArrowLeft size={14} />
+              <span>{lang === 'bn' ? 'তালিকায় ফিরুন' : 'Back to list'}</span>
+            </button>
+          )}
+          <span>{lang === 'bn' ? 'গ্রাহকের বকেয়া বিবরণী' : 'Customer Due Details'}</span>
+        </div>
+      }
       maxWidth="max-w-2xl"
+      zIndex={85}
+      backdropZIndex={80}
     >
       {selectedDueCustomer && (
         <div className="space-y-5">
@@ -3032,15 +3360,21 @@ const Dashboard = ({ data, user: propUser }: any) => {
       )}
     </Modal>
 
-    {/* 2. Modal: Collect Payment Form */}
+    {/* 3. Modal: Collect Payment Form (Rendered in FRONT of ALL with zIndex=100) */}
     <Modal 
       isOpen={isCollectPaymentModalOpen} 
       onClose={() => {
         setIsCollectPaymentModalOpen(false);
         setDueCollectionSuccess('');
       }} 
-      title={lang === 'bn' ? 'বকেয়া টাকা জমা / আদায়' : 'Collect Due Payment'}
+      title={
+        <div className="flex items-center gap-2">
+          <span>{lang === 'bn' ? 'বকেয়া টাকা জমা / আদায়' : 'Collect Due Payment'}</span>
+        </div>
+      }
       maxWidth="max-w-md"
+      zIndex={100}
+      backdropZIndex={95}
     >
       {selectedDueCustomer && (
         <form onSubmit={handleCollectDue} className="space-y-4">
@@ -3155,138 +3489,6 @@ const Dashboard = ({ data, user: propUser }: any) => {
           </div>
         </form>
       )}
-    </Modal>
-
-    {/* 3. Modal: View All Due Customers */}
-    <Modal 
-      isOpen={showAllDuesModal} 
-      onClose={() => setShowAllDuesModal(false)} 
-      title={lang === 'bn' ? 'কার কাছে বকেয়া আছে — সম্পূর্ণ তালিকা' : 'Customers with Outstanding Dues'}
-      maxWidth="max-w-3xl"
-    >
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-200">
-          <div>
-            <p className="text-xs text-amber-800 font-bold uppercase tracking-wider">
-              {lang === 'bn' ? 'মোট বকেয়া পাওনা' : 'Total Outstanding Balance'}
-            </p>
-            <h3 className="text-2xl font-black text-rose-600">{formatCurrency(totalOutstandingDue)}</h3>
-          </div>
-          <div className="text-left sm:text-right">
-            <span className="px-3 py-1 bg-white border border-amber-200 text-amber-900 rounded-lg text-xs font-bold">
-              {lang === 'bn' 
-                ? `মোট ${toBengaliNumber(dueCustomersList.length)} জন গ্রাহকের কাছে বকেয়া` 
-                : `${dueCustomersList.length} customers with unpaid balance`}
-            </span>
-          </div>
-        </div>
-
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder={lang === 'bn' ? 'গ্রাহকের নাম বা ফোন নম্বর দিয়ে খুঁজুন...' : 'Search by customer name or phone number...'}
-            value={dueSearchQuery}
-            onChange={(e) => setDueSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-          />
-        </div>
-
-        <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-[420px] overflow-y-auto custom-scrollbar">
-          {dueCustomersList.length > 0 ? (
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 sticky top-0 z-10">
-                <tr>
-                  <th className="py-3 px-4">{lang === 'bn' ? 'গ্রাহক' : 'Customer'}</th>
-                  <th className="py-3 px-4">{lang === 'bn' ? 'যোগাযোগ' : 'Contact'}</th>
-                  <th className="py-3 px-4 text-center">{lang === 'bn' ? 'ইনভয়েস' : 'Invoices'}</th>
-                  <th className="py-3 px-4 text-right">{lang === 'bn' ? 'বকেয়া' : 'Due Amount'}</th>
-                  <th className="py-3 px-4 text-right">{lang === 'bn' ? 'অ্যাকশন' : 'Actions'}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {dueCustomersList
-                  .filter(c => {
-                    if (!dueSearchQuery.trim()) return true;
-                    const q = dueSearchQuery.toLowerCase();
-                    return c.name.toLowerCase().includes(q) || (c.phone || '').includes(q);
-                  })
-                  .map((customer, idx) => (
-                    <tr key={customer.id || `${customer.name}-${idx}`} className="hover:bg-amber-50/20 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 font-bold flex items-center justify-center text-xs shrink-0">
-                            {(customer.name || 'C')[0].toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-bold text-slate-900">{customer.name}</p>
-                            {customer.address && (
-                              <p className="text-[10px] text-slate-400 truncate max-w-[150px]">{customer.address}</p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-slate-600">
-                        {customer.phone ? (
-                          <a href={`tel:${customer.phone}`} className="hover:text-amber-600 flex items-center gap-1">
-                            <Phone size={11} className="text-slate-400" />
-                            <span>{customer.phone}</span>
-                          </a>
-                        ) : (
-                          <span className="text-slate-400 italic">{lang === 'bn' ? 'ফোন নেই' : 'No phone'}</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium text-[11px]">
-                          {lang === 'bn' ? `${toBengaliNumber(customer.invoices.length)}টি` : customer.invoices.length}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <span className="font-black text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 inline-block">
-                          {formatCurrency(customer.effectiveDue)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => {
-                              setSelectedDueCustomer(customer);
-                              setIsDueDetailsModalOpen(true);
-                            }}
-                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-semibold text-[11px] transition-colors cursor-pointer"
-                          >
-                            {lang === 'bn' ? 'বিবরণ' : 'Details'}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedDueCustomer(customer);
-                              setCollectAmount(customer.effectiveDue.toString());
-                              setIsCollectPaymentModalOpen(true);
-                            }}
-                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer"
-                          >
-                            {lang === 'bn' ? 'আদায়' : 'Collect'}
-                          </button>
-                          <button
-                            onClick={() => generateWhatsAppReminder(customer)}
-                            title="WhatsApp Reminder"
-                            className="p-1 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Share2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="p-8 text-center text-slate-500 text-xs">
-              {lang === 'bn' ? 'কোনো বাকিদার গ্রাহক পাওয়া যায়নি।' : 'No due customers found.'}
-            </div>
-          )}
-        </div>
-      </div>
     </Modal>
   </div>
 );
