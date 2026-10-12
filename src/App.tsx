@@ -5515,6 +5515,28 @@ const Sales = ({ data }: any) => {
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const { t, lang } = useTranslation();
   const { formatCurrency, toBengaliNumber, currency } = useCurrency();
+
+  // --- BARCODE GUN / SCANNER MACHINE STATES ---
+  const [barcodeGunInput, setBarcodeGunInput] = useState('');
+  const [scanFeedback, setScanFeedback] = useState<{
+    type: 'success' | 'error' | 'warning';
+    message: string;
+    details?: string;
+  } | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus barcode gun input whenever New Sale modal is opened
+  useEffect(() => {
+    if (isModalOpen) {
+      setBarcodeGunInput('');
+      setScanFeedback(null);
+      const timer = setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 120);
+      return () => clearTimeout(timer);
+    }
+  }, [isModalOpen]);
   const [newSale, setNewSale] = useState({ 
     customerName: '', 
     customerPhone: '',
@@ -5990,61 +6012,267 @@ const Sales = ({ data }: any) => {
     return Number(withTax.toFixed(2)).toString();
   };
 
-  const handleScan = (decodedText: string): string => {
-    const product = data.inventory.find((p: any) => 
-      String(p.id) === String(decodedText) || 
-      p.serialNumber === decodedText || 
-      p.modelNumber === decodedText
-    );
-    if (!product) {
+  // --- UNIFIED BARCODE & SERIAL PROCESSOR (FOR BARCODE GUN & CAMERA SCANNER) ---
+  const processBarcodeScan = (rawCode: string): string => {
+    const cleanCode = (rawCode || '').trim();
+    if (!cleanCode) return 'empty';
+    const cleanLower = cleanCode.toLowerCase();
+
+    // 1. Match against products in inventory
+    let matchedProduct: any = null;
+    let matchedSerial = '';
+
+    // Check individual unit serial numbers in product.serialNumbers array
+    for (const prod of (data.inventory || [])) {
+      if (Array.isArray(prod.serialNumbers)) {
+        const found = prod.serialNumbers.find((s: string) => String(s).trim().toLowerCase() === cleanLower);
+        if (found) {
+          matchedProduct = prod;
+          matchedSerial = found;
+          break;
+        }
+      }
+    }
+
+    // Check product.serialNumber
+    if (!matchedProduct) {
+      const prod = (data.inventory || []).find((p: any) => 
+        p.serialNumber && String(p.serialNumber).trim().toLowerCase() === cleanLower
+      );
+      if (prod) {
+        matchedProduct = prod;
+        matchedSerial = prod.serialNumber;
+      }
+    }
+
+    // Check product.barcode
+    if (!matchedProduct) {
+      matchedProduct = (data.inventory || []).find((p: any) => 
+        p.barcode && String(p.barcode).trim().toLowerCase() === cleanLower
+      );
+    }
+
+    // Check product.modelNumber
+    if (!matchedProduct) {
+      matchedProduct = (data.inventory || []).find((p: any) => 
+        p.modelNumber && String(p.modelNumber).trim().toLowerCase() === cleanLower
+      );
+    }
+
+    // Check product.sku
+    if (!matchedProduct) {
+      matchedProduct = (data.inventory || []).find((p: any) => 
+        p.sku && String(p.sku).trim().toLowerCase() === cleanLower
+      );
+    }
+
+    // Check product.id
+    if (!matchedProduct) {
+      matchedProduct = (data.inventory || []).find((p: any) => 
+        String(p.id).trim().toLowerCase() === cleanLower
+      );
+    }
+
+    // Check product name exact
+    if (!matchedProduct) {
+      matchedProduct = (data.inventory || []).find((p: any) => 
+        String(p.name || '').trim().toLowerCase() === cleanLower
+      );
+    }
+
+    // Product not found
+    if (!matchedProduct) {
+      if (soundEnabled) playErrorBeep();
+      setScanFeedback({
+        type: 'error',
+        message: lang === 'bn' 
+          ? `বারকোড/সিরিয়াল "${cleanCode}" এর কোনো পণ্য ইনভেন্টরিতে পাওয়া যায়নি!` 
+          : `Item with code "${cleanCode}" not found in inventory!`
+      });
       return 'not_found';
     }
-    if (product.quantity <= 0) {
+
+    // Check stock
+    const availableStock = Number(matchedProduct.quantity) || 0;
+    if (availableStock <= 0) {
+      if (soundEnabled) playErrorBeep();
+      setScanFeedback({
+        type: 'error',
+        message: lang === 'bn'
+          ? `পণ্য "${matchedProduct.name}" এর স্টক শেষ (০ টি অবশিষ্ট)!`
+          : `Product "${matchedProduct.name}" is out of stock!`
+      });
       return 'out_of_stock';
     }
-    
-    const existingIndex = newSale.items.findIndex((item: any) => String(item.productId) === String(product.id));
+
+    // If unit serial was scanned:
+    if (matchedSerial) {
+      const isAlreadyInSale = newSale.items.some((item: any) => 
+        item.serialNumber && item.serialNumber.trim().toLowerCase() === matchedSerial.trim().toLowerCase()
+      );
+
+      if (isAlreadyInSale) {
+        if (soundEnabled) playErrorBeep();
+        setScanFeedback({
+          type: 'warning',
+          message: lang === 'bn'
+            ? `সতর্কতা: সিরিয়াল নম্বর (#${matchedSerial}) ইতিমধ্যে এই বিক্রয় তালিকায় যুক্ত আছে!`
+            : `Warning: Serial Number (#${matchedSerial}) is already added in this sale!`
+        });
+        return 'duplicate_serial';
+      }
+
+      const newItemEntry = {
+        productId: matchedProduct.id,
+        productCategory: matchedProduct.category || '',
+        productName: matchedProduct.name,
+        brand: matchedProduct.brand || '',
+        serialNumber: matchedSerial,
+        quantity: '1',
+        unitPrice: matchedProduct.price,
+        taxPercent: '0',
+        buyPrice: matchedProduct.buyPrice !== undefined && matchedProduct.buyPrice !== null ? matchedProduct.buyPrice : matchedProduct.price,
+        total: matchedProduct.price.toString()
+      };
+
+      if (newSale.items.length === 1 && !newSale.items[0].productId) {
+        setNewSale(prev => ({ ...prev, items: [newItemEntry] }));
+      } else {
+        setNewSale(prev => ({ ...prev, items: [...prev.items, newItemEntry] }));
+      }
+
+      if (soundEnabled) playBarcodeBeep();
+      setScanFeedback({
+        type: 'success',
+        message: lang === 'bn'
+          ? `✓ সিরিয়াল স্ক্যান সফল: ${matchedProduct.name} [SN: ${matchedSerial}]`
+          : `✓ Serial Scanned: ${matchedProduct.name} [SN: ${matchedSerial}]`,
+        details: `${formatCurrency(matchedProduct.price)} • স্টক বাকি: ${availableStock - 1}`
+      });
+      return 'added';
+    }
+
+    // Regular product barcode scan:
+    const existingIndex = newSale.items.findIndex((item: any) => 
+      String(item.productId) === String(matchedProduct.id) && !item.serialNumber
+    );
+
     if (existingIndex !== -1) {
       const currentQty = parseInt(newSale.items[existingIndex].quantity) || 0;
       const newQty = currentQty + 1;
-      if (newQty > product.quantity) {
+      if (newQty > availableStock) {
+        if (soundEnabled) playErrorBeep();
+        setScanFeedback({
+          type: 'error',
+          message: lang === 'bn'
+            ? `স্টক সীমা অতিক্রম হয়েছে! "${matchedProduct.name}" এর স্টক মাত্র ${availableStock} টি।`
+            : `Cannot exceed available stock of ${availableStock} units for ${matchedProduct.name}`
+        });
         return 'out_of_stock_exceeded';
       }
+
       const updatedItems = [...newSale.items];
       const taxRate = parseBanglaFloat(updatedItems[existingIndex].taxPercent, 0);
-      const withTax = calculateItemPriceWithTax(product.price, newQty, taxRate);
+      const withTax = calculateItemPriceWithTax(matchedProduct.price, newQty, taxRate);
       updatedItems[existingIndex] = {
         ...updatedItems[existingIndex],
         quantity: newQty.toString(),
-        unitPrice: product.price,
+        unitPrice: matchedProduct.price,
         total: withTax
       };
-      setNewSale({ ...newSale, items: updatedItems });
+      setNewSale(prev => ({ ...prev, items: updatedItems }));
+
+      if (soundEnabled) playBarcodeBeep();
+      setScanFeedback({
+        type: 'success',
+        message: lang === 'bn'
+          ? `✓ বারকোড স্ক্যান সফল: ${matchedProduct.name} (পরিমাণ: ${newQty} টি)`
+          : `✓ Barcode Scanned: ${matchedProduct.name} (Qty: ${newQty})`,
+        details: `${formatCurrency(matchedProduct.price)} • মোট: ${formatCurrency(withTax)}`
+      });
       return 'updated';
     } else {
       const newItemEntry = {
-        productId: product.id,
-        productCategory: product.category,
-        productName: product.name,
-        brand: product.brand || '',
+        productId: matchedProduct.id,
+        productCategory: matchedProduct.category || '',
+        productName: matchedProduct.name,
+        brand: matchedProduct.brand || '',
         serialNumber: '',
         quantity: '1',
-        unitPrice: product.price,
+        unitPrice: matchedProduct.price,
         taxPercent: '0',
-        buyPrice: product.price,
-        total: product.price.toString()
+        buyPrice: matchedProduct.buyPrice !== undefined && matchedProduct.buyPrice !== null ? matchedProduct.buyPrice : matchedProduct.price,
+        total: matchedProduct.price.toString()
       };
-      
-      const lastItem = newSale.items[newSale.items.length - 1];
-      if (!lastItem.productId) {
-        const newItems = [...newSale.items];
-        newItems[newSale.items.length - 1] = newItemEntry;
-        setNewSale({ ...newSale, items: newItems });
+
+      if (newSale.items.length === 1 && !newSale.items[0].productId) {
+        setNewSale(prev => ({ ...prev, items: [newItemEntry] }));
       } else {
-        setNewSale({ ...newSale, items: [...newSale.items, newItemEntry] });
+        setNewSale(prev => ({ ...prev, items: [...prev.items, newItemEntry] }));
       }
+
+      if (soundEnabled) playBarcodeBeep();
+      setScanFeedback({
+        type: 'success',
+        message: lang === 'bn'
+          ? `✓ পণ্য যোগ হয়েছে: ${matchedProduct.name} ${matchedProduct.brand ? `[${matchedProduct.brand}]` : ''}`
+          : `✓ Item Added: ${matchedProduct.name} ${matchedProduct.brand ? `[${matchedProduct.brand}]` : ''}`,
+        details: `${formatCurrency(matchedProduct.price)} • স্টক: ${availableStock}`
+      });
       return 'added';
     }
+  };
+
+  const handleBarcodeGunScan = (overrideCode?: string) => {
+    const code = (overrideCode !== undefined ? overrideCode : barcodeGunInput).trim();
+    if (!code) return;
+    const res = processBarcodeScan(code);
+    setBarcodeGunInput('');
+    setTimeout(() => {
+      barcodeInputRef.current?.focus();
+    }, 40);
+    return res;
+  };
+
+  // Hardware Barcode Gun rapid keypress listener when modal is open
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    let barcodeBuffer = '';
+    let lastKeyTime = 0;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      // If typing in another input (e.g. customer name/phone), do not intercept
+      if (target && target !== barcodeInputRef.current && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || (target as any).isContentEditable)) {
+        return;
+      }
+
+      const now = Date.now();
+      if (e.key === 'Enter') {
+        if (barcodeBuffer.trim().length >= 2) {
+          e.preventDefault();
+          handleBarcodeGunScan(barcodeBuffer.trim());
+          barcodeBuffer = '';
+        }
+      } else if (e.key.length === 1) {
+        // Barcode guns send characters with < 60ms gap
+        if (now - lastKeyTime > 120) {
+          barcodeBuffer = '';
+        }
+        barcodeBuffer += e.key;
+        lastKeyTime = now;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isModalOpen, newSale, data.inventory, lang, soundEnabled]);
+
+  const handleScan = (decodedText: string): string => {
+    return processBarcodeScan(decodedText);
   };
 
   const categories = ['All', ...new Set(data.inventory.map((item: any) => item.category))];
@@ -6288,8 +6516,17 @@ const Sales = ({ data }: any) => {
     newSale.items.forEach(item => {
       const product = data.inventory.find((p: any) => String(p.id) === String(item.productId));
       if (product) {
+        const soldQty = parseBanglaInt(item.quantity) || 0;
+        const newQty = Math.max(0, (Number(product.quantity) || 0) - soldQty);
+        let updatedSerialNumbers = Array.isArray(product.serialNumbers) ? [...product.serialNumbers] : [];
+        if (item.serialNumber && updatedSerialNumbers.length > 0) {
+          updatedSerialNumbers = updatedSerialNumbers.filter(
+            (s: string) => String(s).trim().toLowerCase() !== String(item.serialNumber).trim().toLowerCase()
+          );
+        }
         data.editItem('inventory', item.productId, {
-          quantity: (Number(product.quantity) || 0) - (parseBanglaInt(item.quantity) || 0)
+          quantity: newQty,
+          ...(Array.isArray(product.serialNumbers) ? { serialNumbers: updatedSerialNumbers } : {})
         }, data.setInventory);
       }
     });
@@ -6798,24 +7035,134 @@ const Sales = ({ data }: any) => {
             </div>
           </div>
 
-          {/* Items Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sale Items</h4>
+          {/* Barcode Machine / Gun Scanner Station */}
+          <div className="bg-gradient-to-r from-emerald-50/90 via-teal-50/60 to-indigo-50/70 p-4 rounded-2xl border-2 border-emerald-300 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-xs">
+                  <Barcode size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-slate-800">
+                      {lang === 'bn' ? 'বারকোড মেশিন / স্ক্যানার গান' : 'Barcode Machine / Scanner Gun'}
+                    </h4>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-2xs">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      {lang === 'bn' ? 'গান রেডি' : 'Gun Ready'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    {lang === 'bn' 
+                      ? 'বারকোড গান দিয়ে পণ্যের বারকোড বা সিরিয়াল নম্বর স্ক্যান করুন — সাথে সাথে তালিকায় যুক্ত হবে' 
+                      : 'Scan any product barcode or serial number with USB / Wireless barcode gun'}
+                  </p>
+                </div>
+              </div>
+
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSoundEnabled(!soundEnabled)}
+                  title={soundEnabled ? (lang === 'bn' ? 'সাউন্ড অন' : 'Sound On') : (lang === 'bn' ? 'সাউন্ড অফ' : 'Sound Off')}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 shadow-xs ${
+                    soundEnabled 
+                      ? 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50' 
+                      : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
+                  }`}
+                >
+                  <Zap size={13} className={soundEnabled ? 'text-amber-500 fill-amber-500' : 'text-slate-400'} />
+                  <span>{soundEnabled ? (lang === 'bn' ? 'বীপ অন' : 'Beep On') : (lang === 'bn' ? 'বীপ অফ' : 'Beep Off')}</span>
+                </button>
+
                 <button 
                   type="button" 
                   onClick={() => setIsScannerOpen(true)}
-                  className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
+                  className="flex items-center gap-1.5 text-xs font-bold text-indigo-700 hover:text-indigo-800 bg-white hover:bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer"
                 >
-                  <QrCode size={14} /> Scan QR
+                  <Camera size={14} /> 
+                  <span>{lang === 'bn' ? 'ক্যামেরা স্ক্যান' : 'Camera Scan'}</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Input Bar */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none flex items-center">
+                  <ScanLine size={18} />
+                </div>
+                <input 
+                  ref={barcodeInputRef}
+                  type="text"
+                  value={barcodeGunInput}
+                  onChange={(e) => setBarcodeGunInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleBarcodeGunScan();
+                    }
+                  }}
+                  className="w-full pl-11 pr-4 py-2.5 bg-white border-2 border-emerald-300 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/20 rounded-xl text-sm font-semibold text-slate-800 placeholder:text-slate-400 outline-none shadow-xs transition-all"
+                  placeholder={lang === 'bn' 
+                    ? 'বারকোড গান দিয়ে স্ক্যান করুন অথবা কোড লিখুন (বারকোড, সিরিয়াল নম্বর, মডেল)...' 
+                    : 'Scan with Barcode Gun or enter Barcode / Serial / Model...'}
+                  autoComplete="off"
+                />
+              </div>
+
+              <button 
+                type="button"
+                onClick={() => handleBarcodeGunScan()}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-sm shadow-emerald-200 transition-all cursor-pointer whitespace-nowrap"
+              >
+                <PlusCircle size={15} />
+                <span>{lang === 'bn' ? 'স্ক্যান / যোগ' : 'Scan / Add'}</span>
+              </button>
+            </div>
+
+            {/* Live Scan Notification / Feedback Banner */}
+            {scanFeedback && (
+              <div className={`p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 transition-all ${
+                scanFeedback.type === 'success' 
+                  ? 'bg-emerald-100/90 text-emerald-900 border border-emerald-300' 
+                  : scanFeedback.type === 'warning'
+                  ? 'bg-amber-100/90 text-amber-900 border border-amber-300'
+                  : 'bg-rose-100/90 text-rose-900 border border-rose-300'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {scanFeedback.type === 'success' && <CheckCircle2 size={16} className="text-emerald-700 shrink-0" />}
+                  {scanFeedback.type === 'warning' && <AlertTriangle size={16} className="text-amber-700 shrink-0" />}
+                  {scanFeedback.type === 'error' && <AlertCircle size={16} className="text-rose-700 shrink-0" />}
+                  <span>{scanFeedback.message}</span>
+                  {scanFeedback.details && (
+                    <span className="text-[11px] opacity-80 font-normal">({scanFeedback.details})</span>
+                  )}
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => setScanFeedback(null)} 
+                  className="p-1 hover:bg-black/10 rounded-md cursor-pointer shrink-0"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Items Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                {lang === 'bn' ? 'বিক্রিত পণ্যের তালিকা' : 'Sale Items'} ({newSale.items.filter((i: any) => i.productId).length})
+              </h4>
+              <div className="flex items-center gap-2">
                 <button 
                   type="button" 
                   onClick={addItem}
-                  className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors"
+                  className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
-                  <PlusCircle size={14} /> Add Item
+                  <PlusCircle size={14} /> {lang === 'bn' ? 'ম্যানুয়াল পণ্য যোগ' : 'Add Item'}
                 </button>
               </div>
             </div>
