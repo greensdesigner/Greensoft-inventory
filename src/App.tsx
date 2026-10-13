@@ -2112,19 +2112,23 @@ const Dashboard = ({ data, user: propUser }: any) => {
   // Non-returned sales contribute to profit/loss; refunded/returned sales are cleanly neutralized
   const { totalSalesProfit, totalSalesLoss, totalSalesGross } = calculateSalesProfitAndLoss(filteredSales, data.inventory, filteredReturns);
 
-  // 2. Calculate Expenses and Returns
+  // 2. Calculate Expenses, Refunds, and Replace Income/Refund adjustments
   const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
   const totalRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
-  const totalExtraIncome = filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   
+  // Replace financial impact: Extra money in (+) vs Refund money out (-)
+  const totalExtraIncome = filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  const totalReplaceRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) < 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
+  const netReplaceIncome = totalExtraIncome - totalReplaceRefunds;
+
   // Net Revenue represents effective earned sales revenue (gross sales minus refunds)
   const netRevenue = Math.max(0, totalSalesGross - totalRefunds + totalExtraIncome);
 
   // 3. Current Profit and Current Loss with automatic loss offset
-  // When profit covers the loss, loss automatically shows 0, and profit shows remaining profit after covering loss.
-  // When loss exceeds profit, profit shows 0, and loss shows the remaining uncovered loss.
-  const grossSalesProfit = totalSalesProfit + totalExtraIncome;
-  const grossSalesLoss = totalSalesLoss;
+  // Replace adjustments directly impact profit: Extra Plus increases profit, while subsequent Refund decreases profit!
+  const grossSalesProfit = Math.max(0, totalSalesProfit + netReplaceIncome);
+  const additionalReplaceLoss = netReplaceIncome < 0 ? Math.abs(netReplaceIncome) : 0;
+  const grossSalesLoss = totalSalesLoss + additionalReplaceLoss;
   const currentProfitDisplay = Math.max(0, grossSalesProfit - grossSalesLoss);
   const currentLossDisplay = Math.max(0, grossSalesLoss - grossSalesProfit);
   // Final Net Result: (Current Profit - Current Loss) - operating expenses
@@ -2173,10 +2177,13 @@ const Dashboard = ({ data, user: propUser }: any) => {
     
     const dRefunds = Math.abs(dayReturns.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
     const dExtraInc = dayReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+    const dReplaceRefunds = Math.abs(dayReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) < 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
+    const netDayReplace = dExtraInc - dReplaceRefunds;
 
     // Gross Daily Profit vs Gross Daily Loss
-    const dayProfitDisplay = dProfit + dExtraInc;
-    const dayLossDisplay = dLoss + dExpenses;
+    const dayProfitDisplay = Math.max(0, dProfit + netDayReplace);
+    const additionalDayLoss = netDayReplace < 0 ? Math.abs(netDayReplace) : 0;
+    const dayLossDisplay = dLoss + dExpenses + additionalDayLoss;
     const netDay = dayProfitDisplay - dayLossDisplay;
 
     return {
@@ -10182,14 +10189,19 @@ const Reports = ({ data, user: propUser }: any) => {
 
   const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
   const totalRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
-  const totalExtraIncome = filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
   
+  // Replace financial impact: Extra money in (+) vs Refund money out (-)
+  const totalExtraIncome = filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) > 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0);
+  const totalReplaceRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) < 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
+  const netReplaceIncome = totalExtraIncome - totalReplaceRefunds;
+
   // Net Revenue represents effective earned sales revenue (gross sales minus refunds)
   const totalRevenue = Math.max(0, totalSalesGross - totalRefunds + totalExtraIncome);
 
   // Consistent calculation reflecting Profit and Loss with automatic loss coverage offset
-  const grossSalesProfit = totalSalesProfit + totalExtraIncome;
-  const grossSalesLoss = totalSalesLoss;
+  const grossSalesProfit = Math.max(0, totalSalesProfit + netReplaceIncome);
+  const additionalReplaceLoss = netReplaceIncome < 0 ? Math.abs(netReplaceIncome) : 0;
+  const grossSalesLoss = totalSalesLoss + additionalReplaceLoss;
   const currentProfit = Math.max(0, grossSalesProfit - grossSalesLoss);
   const currentLoss = Math.max(0, grossSalesLoss - grossSalesProfit);
   const finalNet = (grossSalesProfit - grossSalesLoss) - totalExpenses;
