@@ -1963,26 +1963,47 @@ const computeSaleItemProfitLoss = (item: any, inventory: any[]) => {
   };
 };
 
+// Helper to determine if a sale is fully returned or refunded
+const isSaleFullyReturned = (sale: any, allReturns: any[]): boolean => {
+  if (!sale) return false;
+  if (sale.isReturned === true) return true;
+  if (sale.paymentStatus === "Refunded" || sale.status === "Refunded") return true;
+
+  const sId = String(sale.id || "").trim().toUpperCase();
+  const sInv = String(sale.invoiceNo || "").trim().toUpperCase();
+  const sSuffix4 = sId.length >= 4 ? sId.slice(-4) : "";
+  const sSuffix6 = sId.length >= 6 ? sId.slice(-6) : "";
+
+  return (allReturns || []).some((r: any) => {
+    if (r?.type !== "Return") return false;
+    const rInv = String(r?.invoiceNo || r?.id || "").trim().toUpperCase();
+    if (!rInv) return false;
+
+    const rClean = rInv.replace("INV-", "").replace("#", "").trim();
+
+    // Direct match with sale ID
+    if (rInv === sId || rClean === sId) return true;
+
+    // Direct match with sale InvoiceNo
+    if (sInv) {
+      const sInvClean = sInv.replace("INV-", "").replace("#", "").trim();
+      if (rInv === sInv || rClean === sInv || rClean === sInvClean || rInv === sInvClean) return true;
+    }
+
+    // Match with short invoice representations (e.g. #INV-xxxx or xxxx or last 4/6 chars)
+    if (sSuffix4 && (rClean === sSuffix4 || rClean.endsWith(sSuffix4) || sId.endsWith(rClean))) return true;
+    if (sSuffix6 && (rClean === sSuffix6 || rClean.endsWith(sSuffix6) || sId.endsWith(rClean))) return true;
+
+    return false;
+  });
+};
 const calculateSalesProfitAndLoss = (salesList: any[], inventoryList: any[], returnsList: any[] = []) => {
   let totalSalesProfit = 0;
   let totalSalesLoss = 0;
   let totalSalesGross = 0;
 
-  // Track returned invoices
-  const returnedInvoices = new Set<string>();
-  (returnsList || []).forEach((r: any) => {
-    if (r?.type === "Return" && (r?.invoiceNo || r?.id)) {
-      const inv = String(r.invoiceNo || r.id).trim().toUpperCase();
-      if (inv) {
-        returnedInvoices.add(inv);
-        returnedInvoices.add(inv.replace("INV-", ""));
-      }
-    }
-  });
-
   (salesList || []).forEach((s: any) => {
-    const sInv = String(s?.invoiceNo || s?.id || "").trim().toUpperCase();
-    const isSaleReturned = s?.isReturned === true || (sInv && (returnedInvoices.has(sInv) || returnedInvoices.has(sInv.replace("INV-", ""))));
+    const isSaleReturned = isSaleFullyReturned(s, returnsList);
     if (isSaleReturned) {
       return; // Fully refunded/returned sale produces 0 sales revenue, profit, or loss
     }
@@ -2110,7 +2131,7 @@ const Dashboard = ({ data, user: propUser }: any) => {
 
   // 1. Calculate Sales Profit/Loss for the filtered range using authentic product costs
   // Non-returned sales contribute to profit/loss; refunded/returned sales are cleanly neutralized
-  const { totalSalesProfit, totalSalesLoss, totalSalesGross } = calculateSalesProfitAndLoss(filteredSales, data.inventory, filteredReturns);
+  const { totalSalesProfit, totalSalesLoss, totalSalesGross } = calculateSalesProfitAndLoss(filteredSales, data.inventory, data.returns || filteredReturns);
 
   // 2. Calculate Expenses, Refunds, and Replace Income/Refund adjustments
   const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
@@ -2121,8 +2142,9 @@ const Dashboard = ({ data, user: propUser }: any) => {
   const totalReplaceRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) < 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
   const netReplaceIncome = totalExtraIncome - totalReplaceRefunds;
 
-  // Net Revenue represents effective earned sales revenue (gross sales minus refunds)
-  const netRevenue = Math.max(0, totalSalesGross - totalRefunds + totalExtraIncome);
+  // Net Revenue represents effective earned sales revenue:
+  // Non-returned sales revenue + net replacement revenue (Extra - Refund)
+  const netRevenue = Math.max(0, totalSalesGross + netReplaceIncome);
 
   // 3. Current Profit and Current Loss with automatic loss offset
   // Replace adjustments directly impact profit: Extra Plus increases profit, while subsequent Refund decreases profit!
@@ -2233,13 +2255,7 @@ const Dashboard = ({ data, user: propUser }: any) => {
   });
 
   (data.sales || []).forEach((s: any) => {
-    const sInv = String(s?.invoiceNo || s?.id || "").trim().toUpperCase();
-    const isReturnedSale = s?.isReturned === true || (data.returns || []).some((r: any) => {
-      if (r?.type !== "Return") return false;
-      const rInv = String(r?.invoiceNo || r?.id || "").trim().toUpperCase();
-      return rInv && (rInv === sInv || rInv === sInv.replace("INV-", "") || sInv === rInv.replace("INV-", ""));
-    });
-    if (isReturnedSale) return; // Refunded/returned sales have no due balance
+    if (isSaleFullyReturned(s, data.returns || [])) return; // Refunded/returned sales have no due balance
 
     const rawName = (s.customerName || '').trim();
     const key = rawName.toLowerCase() || 'unknown';
@@ -2743,12 +2759,7 @@ const Dashboard = ({ data, user: propUser }: any) => {
                       <td className="px-6 py-4">
                         <div className="font-semibold text-slate-900">{formatCurrency(item.total)}</div>
                         {(() => {
-                          const itemInv = String(item.invoiceNo || item.id || "").trim().toUpperCase();
-                          const isReturned = item.isReturned === true || (data.returns || []).some((r: any) => {
-                            if (r?.type !== "Return") return false;
-                            const rInv = String(r?.invoiceNo || r?.id || "").trim().toUpperCase();
-                            return rInv && (rInv === itemInv || rInv === itemInv.replace("INV-", "") || itemInv === rInv.replace("INV-", ""));
-                          });
+                          const isReturned = isSaleFullyReturned(item, data.returns || []);
                           if (isReturned) {
                             return <div className="text-[11px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded mt-0.5 w-fit">{lang === 'bn' ? 'ফেরত (৳০ লাভ)' : 'Returned (৳0)'}</div>;
                           }
@@ -7784,12 +7795,7 @@ const Sales = ({ data }: any) => {
                       </span>
                     )}
                     {(() => {
-                      const itemInv = String(item.invoiceNo || item.id || "").trim().toUpperCase();
-                      const isReturned = item.isReturned === true || (data.returns || []).some((r: any) => {
-                        if (r?.type !== "Return") return false;
-                        const rInv = String(r?.invoiceNo || r?.id || "").trim().toUpperCase();
-                        return rInv && (rInv === itemInv || rInv === itemInv.replace("INV-", "") || itemInv === rInv.replace("INV-", ""));
-                      });
+                      const isReturned = isSaleFullyReturned(item, data.returns || []);
                       if (isReturned) {
                         return <div className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded mt-1 w-fit">Refunded / Returned (৳0)</div>;
                       }
@@ -9823,7 +9829,7 @@ const Returns = ({ data }: any) => {
       // If full Return, mark sale as returned and restore inventory stock
       if (returnType === "Return") {
         if (foundSale.id) {
-          data.editItem("sales", foundSale.id, { isReturned: true, due: 0, paymentStatus: "Refunded" }, data.setSales);
+          data.editItem("sales", foundSale.id, { isReturned: true, status: "Refunded", due: 0, paymentStatus: "Refunded" }, data.setSales);
         }
         // Restore inventory stock for returned items
         const saleItems = Array.isArray(foundSale.items) ? foundSale.items : [];
@@ -10185,7 +10191,7 @@ const Reports = ({ data, user: propUser }: any) => {
 
   // Consistent calculations matching Dashboard
   // Returned sales are fully neutralized from sales profit and loss calculations
-  const { totalSalesProfit, totalSalesLoss, totalSalesGross } = calculateSalesProfitAndLoss(filteredSales, data.inventory, filteredReturns);
+  const { totalSalesProfit, totalSalesLoss, totalSalesGross } = calculateSalesProfitAndLoss(filteredSales, data.inventory, data.returns || filteredReturns);
 
   const totalExpenses = filteredExpenses.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
   const totalRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Return' || (r.type === 'Replace' && Number(r.totalAmount) < 0)).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
@@ -10195,8 +10201,9 @@ const Reports = ({ data, user: propUser }: any) => {
   const totalReplaceRefunds = Math.abs(filteredReturns.filter((r: any) => r.type === 'Replace' && Number(r.totalAmount) < 0).reduce((acc: number, r: any) => acc + (Number(r.totalAmount) || 0), 0));
   const netReplaceIncome = totalExtraIncome - totalReplaceRefunds;
 
-  // Net Revenue represents effective earned sales revenue (gross sales minus refunds)
-  const totalRevenue = Math.max(0, totalSalesGross - totalRefunds + totalExtraIncome);
+  // Net Revenue represents effective earned sales revenue:
+  // Non-returned sales revenue + net replacement revenue (Extra - Refund)
+  const totalRevenue = Math.max(0, totalSalesGross + netReplaceIncome);
 
   // Consistent calculation reflecting Profit and Loss with automatic loss coverage offset
   const grossSalesProfit = Math.max(0, totalSalesProfit + netReplaceIncome);

@@ -266,6 +266,8 @@ async function ensureAllTables() {
         await checkAndAddColumn(conn, 'sales', 'dueDate', 'VARCHAR(50)');
         await checkAndAddColumn(conn, 'sales', 'paymentMethod', 'VARCHAR(50)');
         await checkAndAddColumn(conn, 'sales', 'status', 'VARCHAR(50)');
+        await checkAndAddColumn(conn, 'sales', 'isReturned', 'BOOLEAN DEFAULT FALSE');
+        await checkAndAddColumn(conn, 'sales', 'paymentStatus', 'VARCHAR(50)');
         
         await checkAndAddColumn(conn, 'suppliers', 'address', 'TEXT');
         await checkAndAddColumn(conn, 'suppliers', 'phone', 'VARCHAR(20)');
