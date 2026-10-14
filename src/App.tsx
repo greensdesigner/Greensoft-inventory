@@ -2126,6 +2126,7 @@ const Dashboard = ({ data, user: propUser }: any) => {
   };
 
   const filteredSales = (data.sales || []).filter((s: any) => isWithinRange(s?.date));
+  const activeSales = filteredSales.filter((s: any) => !isSaleFullyReturned(s, data.returns || []));
   const filteredExpenses = (data.expenses || []).filter((e: any) => isWithinRange(e?.date));
   const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r?.date));
 
@@ -2400,7 +2401,7 @@ const Dashboard = ({ data, user: propUser }: any) => {
     { key: 'expenses', type: 'expense', label: t('totalExpenses'), value: formatCurrency(totalExpenses, 0), icon: Receipt, color: 'bg-orange-500' },
     { key: 'returns', type: 'refund', label: t('totalRefunds'), value: formatCurrency(totalRefunds, 0), icon: RotateCcw, color: 'bg-slate-500' },
     { key: 'returns', type: 'replacement', label: t('totalReplacements'), value: formatCurrency(Math.max(0, netReplaceIncome), 0), icon: RefreshCw, color: 'bg-indigo-400' },
-    { key: 'sales', type: 'count', label: t('totalSales'), value: lang === 'bn' ? toBengaliNumber(filteredSales.length) : filteredSales.length.toString(), icon: ShoppingCart, color: 'bg-blue-500' },
+    { key: 'sales', type: 'count', label: t('totalSales'), value: lang === 'bn' ? toBengaliNumber(activeSales.length) : activeSales.length.toString(), icon: ShoppingCart, color: 'bg-blue-500' },
   ].filter(stat => hasPermission(stat.key as any, 'view'));
 
   const lowStockItems = (data?.inventory || []).filter((item: any) => item.quantity <= (item.minStock || 5));
@@ -2466,7 +2467,7 @@ const Dashboard = ({ data, user: propUser }: any) => {
         pdf.text(`Current Profit: $${Number(currentProfitDisplay || 0).toFixed(2)}`, 14, 53);
         pdf.text(`Current Loss: $${Number(currentLossDisplay || 0).toFixed(2)}`, 14, 60);
         pdf.text(`Total Outstanding Due: $${Number(totalOutstandingDue || 0).toFixed(2)}`, 14, 67);
-        pdf.text(`Total Sales Count: ${filteredSales.length}`, 14, 74);
+        pdf.text(`Total Sales Count: ${activeSales.length}`, 14, 74);
 
         const fileName = `Dashboard-Report-${timeFilter === 'custom' ? `${startDate || 'Start'}_to_${endDate || 'End'}` : timeFilter}.pdf`;
         pdf.save(fileName);
@@ -10186,6 +10187,7 @@ const Reports = ({ data, user: propUser }: any) => {
   };
 
   const filteredSales = data.sales.filter((s: any) => isWithinRange(s.date));
+  const activeSales = filteredSales.filter((s: any) => !isSaleFullyReturned(s, data.returns || []));
   const filteredExpenses = data.expenses.filter((e: any) => isWithinRange(e.date));
   const filteredReturns = (data.returns || []).filter((r: any) => isWithinRange(r.date));
 
@@ -10244,7 +10246,7 @@ const Reports = ({ data, user: propUser }: any) => {
       const safeCurrentProfit = Number(currentProfit || 0);
       const safeCurrentLoss = Number(currentLoss || 0);
       const safeExpenses = Number(totalExpenses || 0);
-      const safeSalesCount = filteredSales?.length || 0;
+      const safeSalesCount = activeSales?.length || 0;
       const safeExpensesCount = filteredExpenses?.length || 0;
       const safeInventoryTotal = data?.inventory?.length || 0;
       const safeLowStock = (data?.inventory || []).filter((i: any) => Number(i.quantity || 0) <= Number(i.minStock || 5)).length;
