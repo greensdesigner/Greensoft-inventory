@@ -2399,7 +2399,7 @@ const Dashboard = ({ data, user: propUser }: any) => {
     },
     { key: 'expenses', type: 'expense', label: t('totalExpenses'), value: formatCurrency(totalExpenses, 0), icon: Receipt, color: 'bg-orange-500' },
     { key: 'returns', type: 'refund', label: t('totalRefunds'), value: formatCurrency(totalRefunds, 0), icon: RotateCcw, color: 'bg-slate-500' },
-    { key: 'returns', type: 'replacement', label: t('totalReplacements'), value: formatCurrency(totalExtraIncome, 0), icon: RefreshCw, color: 'bg-indigo-400' },
+    { key: 'returns', type: 'replacement', label: t('totalReplacements'), value: formatCurrency(Math.max(0, netReplaceIncome), 0), icon: RefreshCw, color: 'bg-indigo-400' },
     { key: 'sales', type: 'count', label: t('totalSales'), value: lang === 'bn' ? toBengaliNumber(filteredSales.length) : filteredSales.length.toString(), icon: ShoppingCart, color: 'bg-blue-500' },
   ].filter(stat => hasPermission(stat.key as any, 'view'));
 
